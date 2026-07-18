@@ -36,6 +36,7 @@
       .ra-tab { flex:1; background:none; border:none; padding:10px; font-size:14px; font-weight:700; color:#aaa; cursor:pointer; border-bottom:2px solid transparent; font-family:inherit; }
       .ra-tab.active { color:#c0392b; border-bottom-color:#c0392b; }
       .ra-error { background:#fdecea; color:#c0392b; font-size:12.5px; padding:10px 12px; border-radius:8px; margin-bottom:14px; line-height:1.5; }
+      .ra-error.ra-info { background:#eaf3fc; color:#1a5490; }
       .ra-label { display:block; font-size:12px; font-weight:700; color:#777; margin:14px 0 5px; }
       .ra-input { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px; box-sizing:border-box; font-family:inherit; }
       .ra-input:focus { outline:none; border-color:#c0392b; }
@@ -128,21 +129,25 @@
     showError(null);
   }
 
-  function showError(msg) {
+  function showError(msg, isInfo) {
     const el = document.getElementById("ra-error");
     if (!msg) {
       el.style.display = "none";
       el.textContent = "";
+      el.classList.remove("ra-info");
     } else {
       el.style.display = "block";
       el.textContent = msg;
+      el.classList.toggle("ra-info", !!isInfo);
     }
   }
 
-  function openModal() {
+  function openModal(opts) {
+    opts = opts && opts.message !== undefined ? opts : {};
     buildModal();
     setMode("signin");
     modalEl.classList.remove("ra-hidden");
+    if (opts.message) showError(opts.message, true);
   }
 
   function closeModal() {

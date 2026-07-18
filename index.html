@@ -1335,6 +1335,38 @@
 <script src="assets/js/rakugo-auth.js"></script>
 <script>
   RakugoAuth.mountWidget(document.querySelector('.nav-links'));
+
+  let pendingCheckoutHref = null;
+  function goToCheckout(baseHref) {
+    const user = firebase.auth().currentUser;
+    if (user && user.email) {
+      const sep = baseHref.includes('?') ? '&' : '?';
+      window.open(baseHref + sep + 'prefilled_email=' + encodeURIComponent(user.email), '_blank', 'noopener');
+    } else {
+      pendingCheckoutHref = baseHref;
+      RakugoAuth.openModal({ message: 'ご契約にはログインが必要です。ログインまたは新規登録後、自動的に決済ページへ進みます。' });
+    }
+  }
+
+  document.querySelectorAll('a[href*="buy.stripe.com"]').forEach((a) => {
+    const href = a.getAttribute('href');
+    a.removeAttribute('target');
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      goToCheckout(href);
+    });
+  });
+
+  firebase.auth().onAuthStateChanged((user) => {
+    if (user && pendingCheckoutHref) {
+      const href = pendingCheckoutHref;
+      pendingCheckoutHref = null;
+      const sep = href.includes('?') ? '&' : '?';
+      // Same-tab navigation here (not window.open) so browsers don't treat
+      // this post-login redirect as an unrequested popup and block it.
+      window.location.href = href + sep + 'prefilled_email=' + encodeURIComponent(user.email);
+    }
+  });
 </script>
 
 </body>
