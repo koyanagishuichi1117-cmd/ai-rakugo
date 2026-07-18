@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>そば清 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.15 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">そば清</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Soba Sei / Soba-Sei</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②そば清の評判</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③山道で大蛇</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④不思議な葉っぱ</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤大食い勝負を仕掛ける</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥勝負本番</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">世<rt>よ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>には、<ruby class="v1">驚<rt>おどろ</rt></ruby>くような<ruby class="v1">特技<rt>とくぎ</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>った<ruby class="v1">人<rt>ひと</rt></ruby>というのがいるものでございます。<ruby class="v1">中<rt>なか</rt></ruby>でも<ruby class="v1">大食<rt>おおぐ</rt></ruby>いというのは<ruby class="v1">見<rt>み</rt></ruby>ていて<ruby class="v1">気持<rt>きも</rt></ruby>ちがよろしいもので、<ruby class="v1">江戸<rt>えど</rt></ruby>の<ruby class="v1">頃<rt>ころ</rt></ruby>にも、<ruby class="v2">蕎麦<rt>そば</rt></ruby>を<ruby class="v1">山<rt>やま</rt></ruby>ほど<ruby class="v1">平<rt>たい</rt></ruby>らげる<ruby class="v1">化<rt>ば</rt></ruby>け<ruby class="v1">物<rt>もの</rt></ruby>のような<ruby class="v1">人<rt>ひと</rt></ruby>がいたそうでございます。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな<ruby class="v1">大食<rt>おおぐ</rt></ruby>い<ruby class="v1">自慢<rt>じまん</rt></ruby>の<ruby class="v1">男<rt>おとこ</rt></ruby>が、ちょっとした<ruby class="v1">知恵<rt>ちえ</rt></ruby>を<ruby class="v1">働<rt>はたら</rt></ruby>かせて、とんでもない<ruby class="v1">目<rt>め</rt></ruby>に<ruby class="v1">遭<rt>あ</rt></ruby>うというお<ruby class="v1">噺<rt>はなし</rt></ruby>、「<ruby class="v2">蕎麦清<rt>そばせい</rt></ruby>」を<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【そば清の評判】</span>
+                    <ruby class="v1">神田<rt>かんだ</rt></ruby>のあたりに<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>という、<ruby class="v2">痩<rt>や</rt></ruby>せぎすで<ruby class="v1">見<rt>み</rt></ruby>るからに<ruby class="v1">頼<rt>たよ</rt></ruby>りなさそうな<ruby class="v1">男<rt>おとこ</rt></ruby>がおりました。ところがこの<ruby class="v1">男<rt>おとこ</rt></ruby>、<ruby class="v2">蕎麦<rt>そば</rt></ruby>にかけては<ruby class="v1">誰<rt>だれ</rt></ruby>も<ruby class="v1">敵<rt>かな</rt></ruby>う<ruby class="v1">者<rt>もの</rt></ruby>がないという<ruby class="v1">大食<rt>おおぐ</rt></ruby>いで、<ruby class="v1">賭<rt>か</rt></ruby>けをすれば<ruby class="v1">必<rt>かなら</rt></ruby>ず<ruby class="v1">勝<rt>か</rt></ruby>つというので、いつしか「<ruby class="v2">蕎麦清<rt>そばせい</rt></ruby>」と<ruby class="v1">呼<rt>よ</rt></ruby>ばれて<ruby class="v1">評判<rt>ひょうばん</rt></ruby>になっておりました。<ruby class="v1">二十杯<rt>にじゅっぱい</rt></ruby>、<ruby class="v1">三十杯<rt>さんじゅっぱい</rt></ruby>という<ruby class="v2">蕎麦<rt>そば</rt></ruby>を、<ruby class="v1">汁<rt>しる</rt></ruby>も<ruby class="v1">残<rt>のこ</rt></ruby>さずぺろりと<ruby class="v1">平<rt>たい</rt></ruby>らげてしまうのでございます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【山道で大蛇】</span>
+                    ある<ruby class="v1">時<rt>とき</rt></ruby>、<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>が<ruby class="v1">商用<rt>しょうよう</rt></ruby>で<ruby class="v2">信州<rt>しんしゅう</rt></ruby>の<ruby class="v1">山道<rt>やまみち</rt></ruby>を<ruby class="v1">歩<rt>ある</rt></ruby>いておりますと、<ruby class="v1">道端<rt>みちばた</rt></ruby>の<ruby class="v1">茂<rt>しげ</rt></ruby>みでがさがさと<ruby class="v1">物音<rt>ものおと</rt></ruby>がする。<ruby class="v1">何<rt>なに</rt></ruby>かと<ruby class="v1">覗<rt>のぞ</rt></ruby>き<ruby class="v1">込<rt>こ</rt></ruby>んでみますと、これが<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v2">蛇<rt>へび</rt></ruby>でございまして、<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">身体<rt>からだ</rt></ruby>より<ruby class="v1">二回<rt>ふたまわ</rt></ruby>りも<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v2">山鳥<rt>やまどり</rt></ruby>をひと<ruby class="v1">呑<rt>の</rt></ruby>みにしようとしている。<ruby class="v1">呑<rt>の</rt></ruby>み<ruby class="v1">込<rt>こ</rt></ruby>んだはいいが、<ruby class="v1">腹<rt>はら</rt></ruby>がぱんぱんに<ruby class="v1">膨<rt>ふく</rt></ruby>れ<ruby class="v1">上<rt>あ</rt></ruby>がって、<ruby class="v1">身動<rt>みうご</rt></ruby>きもとれない<ruby class="v1">様子<rt>ようす</rt></ruby>。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【不思議な葉っぱ】</span>
+                    <ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>が<ruby class="v1">息<rt>いき</rt></ruby>をひそめて<ruby class="v1">見<rt>み</rt></ruby>ておりますと、<ruby class="v2">蛇<rt>へび</rt></ruby>はのそのそと<ruby class="v1">這<rt>は</rt></ruby>っていって、そこらの<ruby class="v1">草<rt>くさ</rt></ruby>むらから<ruby class="v1">一枚<rt>いちまい</rt></ruby>の<ruby class="v1">葉<rt>は</rt></ruby>っぱを<ruby class="v1">見<rt>み</rt></ruby>つけ<ruby class="v1">出<rt>だ</rt></ruby>し、それをむしゃむしゃと<ruby class="v1">噛<rt>か</rt></ruby>みしめました。するとどうでしょう、みるみるうちに<ruby class="v2">蛇<rt>へび</rt></ruby>の<ruby class="v1">膨<rt>ふく</rt></ruby>れ<ruby class="v1">上<rt>あ</rt></ruby>がった<ruby class="v1">腹<rt>はら</rt></ruby>が、すうっと<ruby class="v1">元<rt>もと</rt></ruby>の<ruby class="v1">細<rt>ほそ</rt></ruby>さに<ruby class="v1">戻<rt>もど</rt></ruby>ってしまったのでございます。<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>は<ruby class="v1">目<rt>め</rt></ruby>を<ruby class="v1">丸<rt>まる</rt></ruby>くして、<br><strong>清兵衛：</strong>「こいつは<ruby class="v1">何<rt>なに</rt></ruby>かある」<br>と、その<ruby class="v1">葉<rt>は</rt></ruby>っぱをこっそり<ruby class="v1">摘<rt>つ</rt></ruby>み<ruby class="v1">取<rt>と</rt></ruby>って<ruby class="v1">懐<rt>ふところ</rt></ruby>に<ruby class="v1">入<rt>い</rt></ruby>れました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【大食い勝負を仕掛ける】</span>
+                    <ruby class="v1">江戸<rt>えど</rt></ruby>に<ruby class="v1">戻<rt>もど</rt></ruby>った<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>、あの<ruby class="v1">葉<rt>は</rt></ruby>っぱを<ruby class="v1">使<rt>つか</rt></ruby>えばどんなに<ruby class="v1">食<rt>た</rt></ruby>べても<ruby class="v2">胃<rt>い</rt></ruby>の<ruby class="v2">腑<rt>ふ</rt></ruby>に<ruby class="v1">収<rt>おさ</rt></ruby>まってしまうに<ruby class="v1">違<rt>ちが</rt></ruby>いないと<ruby class="v1">考<rt>かんが</rt></ruby>えます。そこで<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">賭<rt>か</rt></ruby>け<ruby class="v2">蕎麦<rt>そば</rt></ruby>の<ruby class="v1">勝負<rt>しょうぶ</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>ちかけました。<br><strong>清兵衛：</strong>「<ruby class="v2">蕎麦清<rt>そばせい</rt></ruby>、<ruby class="v1">百杯<rt>ひゃっぱい</rt></ruby><ruby class="v1">食<rt>た</rt></ruby>べられるか」<br>というので、あちこちから<ruby class="v1">見物人<rt>けんぶつにん</rt></ruby>が<ruby class="v1">集<rt>あつ</rt></ruby>まり、<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">金<rt>かね</rt></ruby>が<ruby class="v1">賭<rt>か</rt></ruby>けられます。<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>は<ruby class="v2">自信満々<rt>じしんまんまん</rt></ruby>、あの<ruby class="v1">葉<rt>は</rt></ruby>っぱを<ruby class="v1">懐<rt>ふところ</rt></ruby>にしのばせて<ruby class="v1">勝負<rt>しょうぶ</rt></ruby>の<ruby class="v1">日<rt>ひ</rt></ruby>を<ruby class="v1">待<rt>ま</rt></ruby>ちました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【勝負本番】</span>
+                    <ruby class="v1">当日<rt>とうじつ</rt></ruby>、<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>は<ruby class="v1">集<rt>あつ</rt></ruby>まった<ruby class="v1">見物人<rt>けんぶつにん</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で、<ruby class="v1">次<rt>つぎ</rt></ruby>から<ruby class="v1">次<rt>つぎ</rt></ruby>へと<ruby class="v2">蕎麦<rt>そば</rt></ruby>をたぐり<ruby class="v1">始<rt>はじ</rt></ruby>めます。<ruby class="v1">三十杯<rt>さんじゅっぱい</rt></ruby>、<ruby class="v1">五十杯<rt>ごじゅっぱい</rt></ruby>とすさまじい<ruby class="v1">勢<rt>いきお</rt></ruby>いで<ruby class="v1">平<rt>たい</rt></ruby>らげ、<ruby class="v1">周<rt>まわ</rt></ruby>りは<ruby class="v1">驚<rt>おどろ</rt></ruby>きの<ruby class="v1">声<rt>こえ</rt></ruby>。<ruby class="v1">七十杯<rt>ななじゅっぱい</rt></ruby>を<ruby class="v1">過<rt>す</rt></ruby>ぎたあたりで<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>はそっと<ruby class="v1">奥<rt>おく</rt></ruby>の<ruby class="v1">部屋<rt>へや</rt></ruby>に<ruby class="v1">下<rt>さ</rt></ruby>がると、<ruby class="v1">例<rt>れい</rt></ruby>の<ruby class="v1">葉<rt>は</rt></ruby>っぱを<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>してぺろりと<ruby class="v1">舐<rt>な</rt></ruby>めました。そして<ruby class="v1">再<rt>ふたた</rt></ruby>び<ruby class="v1">現<rt>あらわ</rt></ruby>れると、また<ruby class="v1">凄<rt>すさ</rt></ruby>まじい<ruby class="v1">勢<rt>いきお</rt></ruby>いで<ruby class="v2">蕎麦<rt>そば</rt></ruby>をかき<ruby class="v1">込<rt>こ</rt></ruby>み<ruby class="v1">始<rt>はじ</rt></ruby>め、<ruby class="v1">見物人<rt>けんぶつにん</rt></ruby>は<br><strong>見物人：</strong>「<ruby class="v1">化<rt>ば</rt></ruby>け<ruby class="v1">物<rt>もの</rt></ruby>だ」<br>と<ruby class="v1">大喜<rt>おおよろこ</rt></ruby>び。<ruby class="v1">百杯<rt>ひゃっぱい</rt></ruby>を<ruby class="v1">超<rt>こ</rt></ruby>えてもまだまだ<ruby class="v1">食<rt>た</rt></ruby>べ<ruby class="v1">続<rt>つづ</rt></ruby>けるので、さすがに<ruby class="v1">心配<rt>しんぱい</rt></ruby>になった<ruby class="v1">周<rt>まわ</rt></ruby>りの<ruby class="v1">者<rt>もの</rt></ruby>が<br><strong>周りの者：</strong>「ちょいと<ruby class="v1">奥<rt>おく</rt></ruby>で<ruby class="v1">休<rt>やす</rt></ruby>んでおいで」<br>と<ruby class="v1">勧<rt>すす</rt></ruby>め、<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>はふらふらと<ruby class="v1">奥<rt>おく</rt></ruby>の<ruby class="v1">部屋<rt>へや</rt></ruby>へと<ruby class="v1">下<rt>さ</rt></ruby>がっていきました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    しばらく<ruby class="v1">経<rt>た</rt></ruby>っても<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>てまいりません。<ruby class="v1">心配<rt>しんぱい</rt></ruby>した<ruby class="v1">仲間<rt>なかま</rt></ruby>が<ruby class="v1">様子<rt>ようす</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>に<ruby class="v1">奥<rt>おく</rt></ruby>の<ruby class="v1">部屋<rt>へや</rt></ruby>をのぞいてみますと、そこには<ruby class="v1">誰<rt>だれ</rt></ruby>もおらず、ただ<ruby class="v2">清兵衛<rt>せいべえ</rt></ruby>の<ruby class="v1">着<rt>き</rt></ruby>ていた<ruby class="v1">着物<rt>きもの</rt></ruby>と<ruby class="v1">帯<rt>おび</rt></ruby>だけが、<ruby class="v1">水<rt>みず</rt></ruby>たまりのようにびしょりと<ruby class="v1">濡<rt>ぬ</rt></ruby>れて<ruby class="v1">畳<rt>たたみ</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>に<ruby class="v1">残<rt>のこ</rt></ruby>されていた、という一<ruby class="v1">席<rt>せき</rt></ruby>でございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. There are people in this world with the most astonishing talents. Competitive eating, in particular, is quite a sight — and they say that even back in the Edo period, there was a man who could devour mountains of soba noodles like some kind of monster. Today's tale is about just such a boastful big eater, who put a bit of cleverness to work and ended up in the most unimaginable predicament — "Soba-Sei."</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SOBA-SEI'S REPUTATION]</span>Around the Kanda district there lived a man named Seibei — thin and wiry, looking utterly unremarkable at first glance. And yet when it came to soba, no one could match him; he was such a formidable eater that he never lost a bet, and before long people took to calling him "Soba-Sei," and his fame spread. He could put away twenty, even thirty bowls, slurping down every last drop of broth without leaving a trace.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GREAT SNAKE ON THE MOUNTAIN ROAD]</span>One day, while traveling on business along a mountain road in Shinshū, Seibei heard a rustling in the bushes by the roadside. Peering in to see what it was, he found a great snake in the middle of swallowing a mountain pheasant nearly twice its own size, whole. Having gulped it down, though, its belly swelled up tight as a drum, and it could barely move.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MYSTERIOUS LEAF]</span>Holding his breath, Seibei watched as the snake slithered slowly over to a patch of grass, found a single leaf, and chewed it thoroughly. And then — wonder of wonders — the snake's swollen belly shrank right back down to its normal slender shape before his very eyes. Seibei's eyes went wide.<br><strong>Seibei:</strong> "There's something to this."<br>He quietly plucked the leaf and tucked it away inside his robe.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SETTING UP THE WAGER]</span>Back in Edo, Seibei reasoned that if he used that leaf, no matter how much he ate, it would surely all settle safely in his stomach. So he proposed an enormous eating wager.<br><strong>Seibei:</strong> "Can Soba-Sei eat a hundred bowls?"<br>Word spread, spectators gathered from all around, and huge sums were staked on the bet. Brimming with confidence, Seibei tucked the leaf into his robe and waited for the day of the contest.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CONTEST]</span>On the day itself, Seibei began slurping down bowl after bowl before the assembled crowd. Thirty, fifty bowls disappeared at a terrifying pace, and the onlookers gasped in astonishment. Somewhere past seventy bowls, Seibei quietly slipped into the back room, pulled out the leaf, and licked it clean. Reappearing, he tore into the noodles again with the same ferocious speed, and the crowd cried out with delight,<br><strong>Spectators:</strong> "He's a monster!"<br>Even past a hundred bowls he kept right on eating, until the people around him grew genuinely worried and urged him,<br><strong>Bystander:</strong> "Why don't you go rest in the back for a bit."<br>Seibei staggered off unsteadily into the back room.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Quite some time passed, and Seibei never came back out. Worried, his companions went to check on him in the back room — and found no one there at all. Only his kimono and sash lay behind, soaked through like a puddle on the tatami mat. And that, ladies and gentlemen, is where our story ends.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Il existe en ce monde des gens dotés de talents proprement stupéfiants. La compétition de dévoration de nourriture, en particulier, est un spectacle réjouissant — et l'on raconte qu'à l'époque d'Edo vivait un homme capable d'engloutir des montagnes de nouilles soba comme une véritable bête. L'histoire d'aujourd'hui parle justement d'un tel glouton fanfaron, qui usa d'un peu de malice et se retrouva dans une situation des plus inimaginables — « Soba-Sei ».</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SOBA-SEI'S REPUTATION]</span>Dans le quartier de Kanda vivait un homme du nom de Seibei — mince et sec, d'apparence tout à fait quelconque au premier regard. Et pourtant, en matière de soba, personne ne pouvait le battre ; c'était un mangeur si redoutable qu'il ne perdait jamais un pari, si bien qu'on finit par l'appeler « Soba-Sei », et sa réputation se répandit. Il pouvait engloutir vingt, voire trente bols, buvant jusqu'à la dernière goutte de bouillon sans en laisser trace.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GREAT SNAKE ON THE MOUNTAIN ROAD]</span>Un jour, alors qu'il voyageait pour affaires sur une route de montagne à Shinshū, Seibei entendit un bruissement dans les buissons au bord du chemin. En regardant de plus près, il découvrit un grand serpent en train d'avaler tout rond un faisan de montagne presque deux fois plus gros que lui. L'ayant englouti, son ventre se gonfla comme un tambour, si bien qu'il pouvait à peine bouger.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MYSTERIOUS LEAF]</span>Retenant son souffle, Seibei observa le serpent ramper lentement jusqu'à un carré d'herbe, trouver une feuille, et la mâcher soigneusement. Et alors — ô merveille — le ventre gonflé du serpent se dégonfla d'un coup pour retrouver sa forme mince habituelle, sous ses yeux mêmes. Seibei écarquilla les yeux.<br><strong>Seibei :</strong> « Il y a quelque chose là-dedans. »<br>Il cueillit discrètement la feuille et la glissa dans son kimono.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SETTING UP THE WAGER]</span>De retour à Edo, Seibei se dit que s'il utilisait cette feuille, peu importe la quantité qu'il mangerait, tout se logerait sans problème dans son estomac. Il proposa donc un pari de dévoration monumental.<br><strong>Seibei :</strong> « Soba-Sei peut-il manger cent bols ? »<br>La nouvelle se répandit, des spectateurs affluèrent de partout, et d'énormes sommes furent misées. Débordant de confiance, Seibei glissa la feuille dans son kimono et attendit le jour du duel.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CONTEST]</span>Le jour venu, Seibei se mit à engloutir bol après bol devant la foule rassemblée. Trente, cinquante bols disparurent à une vitesse effrayante, et les spectateurs poussaient des cris d'étonnement. Passé les soixante-dix bols, Seibei se glissa discrètement dans l'arrière-salle, sortit la feuille et la lécha. Réapparaissant, il se remit à dévorer les nouilles avec la même vitesse féroce, et la foule s'exclama de joie :<br><strong>Spectateurs :</strong> « C'est un monstre ! »<br>Même après cent bols, il continuait de manger, si bien que les gens autour de lui, sincèrement inquiets, l'exhortèrent :<br><strong>Un badaud :</strong> « Va donc te reposer un peu dans l'arrière-salle. »<br>Seibei titubait en se dirigeant vers l'arrière-salle.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Un bon moment passa, et Seibei ne revint jamais. Inquiets, ses compagnons allèrent voir dans l'arrière-salle — et n'y trouvèrent personne du tout. Seuls son kimono et sa ceinture restaient là, trempés comme une flaque d'eau sur le tatami. Et c'est ainsi, mesdames et messieurs, que se termine notre histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permítanme contarles una historia. Hay en este mundo personas con talentos verdaderamente asombrosos. Comer en competencia, en particular, es todo un espectáculo — y se dice que incluso en la época de Edo vivió un hombre capaz de devorar montañas de fideos soba como si fuera un monstruo. La historia de hoy trata justamente de un glotón fanfarrón así, que puso en práctica un poco de astucia y terminó en la situación más inimaginable — "Soba-Sei".</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SOBA-SEI'S REPUTATION]</span>Por el barrio de Kanda vivía un hombre llamado Seibei — delgado y enjuto, de aspecto de lo más común a primera vista. Y sin embargo, en cuestión de soba, nadie podía igualarlo; era un comedor tan formidable que jamás perdía una apuesta, así que pronto empezaron a llamarlo "Soba-Sei", y su fama se extendió. Podía devorar veinte, incluso treinta tazones, apurando hasta la última gota de caldo sin dejar rastro.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GREAT SNAKE ON THE MOUNTAIN ROAD]</span>Un día, mientras viajaba por negocios por un camino de montaña en Shinshū, Seibei escuchó un crujido entre los arbustos junto al camino. Al asomarse para ver qué era, encontró una enorme serpiente tragándose entera a un faisán de montaña casi el doble de su propio tamaño. Habiéndolo engullido, su vientre se hinchó como un tambor, y apenas podía moverse.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MYSTERIOUS LEAF]</span>Conteniendo la respiración, Seibei observó a la serpiente arrastrarse lentamente hasta un matorral, encontrar una sola hoja, y masticarla a conciencia. Y entonces — maravilla de maravillas — el vientre hinchado de la serpiente se desinfló de golpe hasta recuperar su forma delgada normal, ante sus propios ojos. Los ojos de Seibei se abrieron como platos.<br><strong>Seibei:</strong> "Aquí hay algo."<br>Arrancó la hoja en silencio y la guardó dentro de su kimono.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SETTING UP THE WAGER]</span>De vuelta en Edo, Seibei pensó que si usaba esa hoja, sin importar cuánto comiera, todo se acomodaría sin problema en su estómago. Así que propuso una apuesta de comida descomunal.<br><strong>Seibei:</strong> "¿Puede Soba-Sei comer cien tazones?"<br>La noticia se difundió, los espectadores acudieron de todas partes, y se apostaron enormes sumas de dinero. Rebosante de confianza, Seibei guardó la hoja en su kimono y esperó el día del desafío.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CONTEST]</span>El día señalado, Seibei empezó a devorar tazón tras tazón ante la multitud reunida. Treinta, cincuenta tazones desaparecieron a una velocidad aterradora, y los espectadores exclamaban de asombro. Pasados los setenta tazones, Seibei se deslizó discretamente hacia la trastienda, sacó la hoja y la lamió. Al reaparecer, volvió a atacar los fideos con la misma velocidad feroz, y la multitud gritó de alegría:<br><strong>Espectadores:</strong> "¡Es un monstruo!"<br>Incluso después de cien tazones seguía comiendo, así que la gente a su alrededor, genuinamente preocupada, lo instó:<br><strong>Un espectador:</strong> "Anda, ve a descansar un poco a la trastienda."<br>Seibei se tambaleó hacia la trastienda.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Pasó un buen rato y Seibei nunca volvió a salir. Preocupados, sus compañeros fueron a ver cómo estaba en la trastienda — y no encontraron a nadie en absoluto. Solo quedaban su kimono y su faja, empapados como un charco sobre el tatami. Y así, señoras y señores, termina nuestra historia.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②そば清の評判","③山道で大蛇","④不思議な葉っぱ","⑤大食い勝負を仕掛ける","⑥勝負本番","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② Soba-sei's reputation","③ The great snake on the mountain road","④ The mysterious leaf","⑤ Setting up the wager","⑥ The contest","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

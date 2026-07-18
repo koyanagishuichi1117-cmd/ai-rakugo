@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>子別れ TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 子別れ TTS ジェネレーター</h1>
+<p class="subtitle">全8パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全8パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全8パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（24ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（32ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='103%' pitch='0st'>え〜、よく「子は鎹」なんて申しますが、これはどんなに夫婦の仲がこじれてしまっても、間に子供が一人いるだけで、また元通りに結びつくことがある、という意味の言葉でございます。<break time='500ms'/>今日はそんな、酒と女に溺れてしまった一人の職人が、我が子のおかげで、もう一度やり直すことになる、そんな人情噺を一席申し上げます。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②熊五郎の乱れ", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>腕はいいが酒癖の悪い大工がおりました。名を熊五郎と申します。<break time='400ms'/>女房のお徳との間には、亀吉という五つになる可愛い息子がおりまして、貧しいながらも仲睦まじく暮らしておりました。<break time='500ms'/>ところがこの熊五郎、ある時から夜な夜な飲み歩くようになり、そのうち近所の酌婦とねんごろになってしまいます。<break time='400ms'/>仕事にも身が入らず、稼いだ金はすっかり女のところへ。家に帰れば、お徳や亀吉に当たり散らす始末でございます。<break time='500ms'/></prosody><prosody rate='100%' pitch='+1st'>おまえさん、いい加減にしておくれよ。亀吉がどれだけ寂しい思いをしてるか<break time='400ms'/></prosody><prosody rate='118%' pitch='-2st'>うるせえ、亭主のやることに口を出すんじゃねえ<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③お徳の決意", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>そんな日が続いたある晩、熊五郎は酔った勢いで、とうとうお徳に手を上げてしまいました。それを見た亀吉が、火がついたように泣き出します。<break time='500ms'/>お徳はその夜、じっと考えた末に、心を決めました。<break time='500ms'/></prosody><prosody rate='95%' pitch='0st'>おまえさんとは、もうやっていけません。亀吉と二人で、出て行かせてもらいます<break time='500ms'/></prosody><prosody rate='115%' pitch='-1st'>な、何を言い出すんだ。お前ら、俺なしでどうやって食っていくんだ<break time='400ms'/></prosody><prosody rate='95%' pitch='0st'>亀吉の手を引いて、どんなに苦労しようと、こんな暮らしを続けるよりよほどましです<break time='500ms'/></prosody><prosody rate='103%' pitch='0st'>お徳は亀吉の手を引いて、その日のうちに家を出てしまいました。長屋の連中も、みな陰でお徳に同情したということでございます。<break time='700ms'/></prosody></speak>" },
+  { id:'p4', title:"④独りぼっちの後悔", ssml:true, text:"<speak><prosody rate='100%' pitch='-1st'>女房子供に出て行かれた熊五郎、はじめのうちは強がっておりましたが、独りぼっちの部屋に帰るたび、亀吉の小さな下駄が置いてあった場所や、お徳の作った味噌汁の匂いを思い出しては、涙がこぼれる始末。<break time='500ms'/>仕事も手につかず、酒はますます増えるばかり。<break time='500ms'/>しかしある朝、二日酔いの頭で鏡を覗き込んだ熊五郎は、やつれ果てた自分の顔にはっといたしました。<break time='500ms'/></prosody><prosody rate='85%' pitch='-2st'>俺は一体、何をやっているんだ<break time='500ms'/></prosody><prosody rate='102%' pitch='0st'>その日を境に、熊五郎はぴたりと酒をやめ、大工道具を取り出して、もう一度真面目に仕事へ向かうようになったのでございます。<break time='700ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤腕を取り戻して", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>それから三年の月日が流れました。熊五郎はすっかり酒を断ち、真面目に仕事に打ち込んだおかげで、以前にも増して腕のいい大工として評判を取り戻しておりました。<break time='400ms'/>棟梁からも頼りにされ、近頃では弟子まで持つようになったと申します。<break time='400ms'/>しかし、心の中には、いつもお徳と亀吉のことがございました。<break time='500ms'/></prosody><prosody rate='90%' pitch='-1st'>あいつらは今頃、どうしているだろうか。せめて亀吉だけでも、一目会いたいもんだ<break time='500ms'/></prosody><prosody rate='98%' pitch='0st'>そんなことを思いながら、独り身の熊五郎は、真面目に、しかしどこか寂しく、日々を過ごしておりました。<break time='700ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥亀吉との再会", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>ある日のこと、仕事の帰り道、熊五郎はふと、あるお店の前で凧を売っている一人の男の子に目を留めました。よく見れば、その顔立ち、背格好、どこか見覚えがある。<break time='500ms'/>おそるおそる声をかけてみますと、<break time='300ms'/></prosody><prosody rate='95%' pitch='0st'>坊主、お前さん、名は何てんだい<break time='400ms'/></prosody><prosody rate='105%' pitch='+2st'>亀吉って言います<break time='400ms'/></prosody><prosody rate='100%' pitch='0st'>熊五郎は心の臓が飛び出るかと思うほど驚きました。目の前にいるのは、紛れもなく我が子、あの亀吉でございます。三年前は五つだった子が、もう八つ、すっかり大きくなっておりました。<break time='500ms'/>熊五郎は込み上げる想いを抑えながら、そっと尋ねます。<break time='400ms'/></prosody><prosody rate='90%' pitch='-1st'>お前、母ちゃんは元気にしているかい<break time='400ms'/></prosody><prosody rate='108%' pitch='+2st'>うん、元気だよ。おいら、お店の手伝いをしてるんだ<break time='600ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦小遣いと言い付け", ssml:true, text:"<speak><prosody rate='100%' pitch='0st'>熊五郎は懐から財布を取り出し、有り金をそっくり亀吉の手に握らせました。<break time='400ms'/></prosody><prosody rate='90%' pitch='-1st'>これで何か美味い物でも買いな。母ちゃんにも、何か買ってあげるといい<break time='400ms'/></prosody><prosody rate='112%' pitch='+2st'>え、こんなに。おじさん、誰なの<break time='400ms'/></prosody><prosody rate='85%' pitch='-1st'>誰でもいいさ。ただな、坊主、このことは母ちゃんに黙っといておくれ。誰にもらったとか、そういうのは、言わなくていいから<break time='500ms'/></prosody><prosody rate='102%' pitch='0st'>亀吉は不思議そうな顔をしながらも、ぺこりと頭を下げて、嬉しそうに駆けていきました。<break time='400ms'/></prosody><prosody rate='85%' pitch='-1st'>熊五郎はその後ろ姿をいつまでも見送りながら、込み上げる涙を拭ったのでございます。<break time='700ms'/></prosody></speak>" },
+  { id:'p8', title:"⑧母への告白と再会", ssml:true, text:"<speak><prosody rate='108%' pitch='+1st'>家に帰った亀吉は、大喜びで、もらったばかりの小遣いをお徳の前にどさりと出しました。<break time='400ms'/></prosody><prosody rate='115%' pitch='+2st'>母ちゃん、見て。これでうまい物、買おう<break time='400ms'/></prosody><prosody rate='100%' pitch='0st'>まあ、大変なお金じゃないか。一体誰にもらったんだい<break time='400ms'/></prosody><prosody rate='105%' pitch='+1st'>それが、言っちゃいけないって言われたんだけど……なんだか、おいらのこと、じっと見て、優しい声で母ちゃんは元気かって聞いてきたんだ<break time='500ms'/></prosody><prosody rate='95%' pitch='0st'>その様子を聞くうちに、お徳の胸に、ある予感がよぎりました。目の色、声の調子、それはまさしく、忘れもしない熊五郎のものでございます。<break time='500ms'/>お徳の目から、堪えきれない涙がほろほろとこぼれ落ちました。<break time='600ms'/></prosody><prosody rate='90%' pitch='0st'>亀吉、その人にもう一度会ったら、教えておくれ。母ちゃんも、会いたいと伝えておくれ<break time='500ms'/></prosody><prosody rate='98%' pitch='0st'>数日後、亀吉に連れられて、熊五郎はとうとうお徳と顔を合わせることになりました。三年ぶりに向き合った二人は、しばらく何も言えず、ただ黙って涙を流すばかり。<break time='500ms'/>それを見た亀吉は、きょとんとしながらも、なんだか嬉しそうに、二人の間を行ったり来たりしております。<break time='500ms'/></prosody><prosody rate='85%' pitch='-1st'>すまなかった。もう一度、やり直させてくれないか<break time='500ms'/></prosody><prosody rate='90%' pitch='+1st'>亀吉のためにも……ええ、やり直しましょう<break time='600ms'/></prosody><prosody rate='95%' pitch='0st'>かくして、鎹となった一人の子供のおかげで、離れ離れになっていた親子三人は、めでたく元の鞘に収まったのでございます。<break time='800ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Well now, there’s a saying, ‘a child is the clamp that holds a family together.’ It means that no matter how badly a marriage falls apart, having just one child between a couple can sometimes bring them back together again. Today I’ll tell you a heartfelt human-interest tale about a craftsman who fell into drink and another woman’s arms, only to be given a second chance thanks to his own son." },
+    { id:'p2', title:"②熊五郎の乱れ", ssml:false, text:"There once was a carpenter, skilled with his hands but cursed with a weakness for drink. His name was Kumagoro. He and his wife Otoku had a sweet little five-year-old son named Kamekichi, and though poor, the family lived happily together. But at some point, Kumagoro took to drinking every single night, and before long he grew intimate with a barmaid from the neighborhood. He stopped putting his heart into his work, and whatever money he earned went straight to the woman. When he did come home, he took it out on Otoku and Kamekichi. Otoku: “Won’t you please stop this? Do you have any idea how lonely Kamekichi feels?” Kumagoro: “Shut up. Don’t go poking your nose into a husband’s business.”" },
+    { id:'p3', title:"③お徳の決意", ssml:false, text:"One night, after this had gone on for some time, Kumagoro, drunk, finally raised his hand against Otoku. Seeing this, little Kamekichi burst into tears as if something inside him had caught fire. That night, after much silent thought, Otoku made up her mind. Otoku: “I can’t go on with you any longer. Kamekichi and I are leaving.” Kumagoro: “Wh-what are you saying? How are the two of you going to eat without me?” Otoku: “However hard it may be, taking Kamekichi’s hand and struggling on our own is far better than continuing this life.” Otoku took Kamekichi by the hand and left the house that very day. It’s said that everyone in the tenement quietly sympathized with her." },
+    { id:'p4', title:"④独りぼっちの後悔", ssml:false, text:"Once his wife and child were gone, Kumagoro at first put on a brave face, but every time he came home to his empty room, the sight of where Kamekichi’s little sandals used to sit, or the remembered smell of Otoku’s miso soup, would bring tears to his eyes. He couldn’t focus on his work, and his drinking only grew worse. But one morning, looking into the mirror with a pounding hangover, Kumagoro was struck by the sight of his own haggard face. Kumagoro: “What in the world am I doing…” From that day on, he quit drinking cold turkey, took his carpentry tools back out, and began working seriously once again." },
+    { id:'p5', title:"⑤腕を取り戻して", ssml:false, text:"Three years passed. Having sworn off drink completely and thrown himself into honest work, Kumagoro had regained his reputation as an even better carpenter than before. His master craftsman relied on him, and it’s said he’d even taken on an apprentice of his own by then. But in his heart, Otoku and Kamekichi were never far from his thoughts. Kumagoro: “I wonder how those two are getting along these days. If only I could see Kamekichi, just once…” Thinking such thoughts, Kumagoro, still living alone, passed his days honestly, if with a quiet loneliness that never quite left him." },
+    { id:'p6', title:"⑥亀吉との再会", ssml:false, text:"One day, on his way home from work, Kumagoro’s eye happened to land on a young boy selling kites in front of a shop. Looking closer — that face, that build — something about him seemed familiar. Hesitantly, he called out. Kumagoro: “Hey there, kid. What’s your name?” Boy: “I’m Kamekichi.” Kumagoro’s heart nearly leapt out of his chest. Standing before him was, without question, his own son — that very Kamekichi. The boy who had been five three years ago was now eight, and quite grown. Holding back the surge of emotion welling up inside him, Kumagoro asked gently. Kumagoro: “Is your mother doing well?” Kamekichi: “Yeah, she’s fine. I help out at a shop now.”" },
+    { id:'p7', title:"⑦小遣いと言い付け", ssml:false, text:"Kumagoro pulled out his wallet and pressed every bit of money he had into Kamekichi’s hand. Kumagoro: “Here — buy yourself something good to eat with this. And get something nice for your mother too.” Kamekichi: “Whoa, this much? Mister, who are you?” Kumagoro: “Doesn’t matter who I am. But listen, kid — don’t tell your mother about this, alright? You don’t need to say who gave it to you or anything like that.” Kamekichi, looking a little puzzled, bowed his head politely and ran off happily. Kumagoro stood there watching his son’s small back for a long while, wiping away the tears that welled up in his eyes." },
+    { id:'p8', title:"⑧母への告白と再会", ssml:false, text:"When Kamekichi got home, overjoyed, he dumped the money he’d just been given right in front of Otoku. Kamekichi: “Mom, look! Let’s buy something delicious with this!” Otoku: “Goodness, that’s an awful lot of money. Just who gave you this?” Kamekichi: “Well, he told me not to say… but he looked at me for the longest time, and then asked, real gently, whether Mom was doing well.” As she listened, a certain feeling began to stir in Otoku’s chest. That look in his eyes, that tone of voice — it was unmistakably Kumagoro’s, the man she could never quite forget. Tears she could no longer hold back spilled from Otoku’s eyes. Otoku: “Kamekichi, if you see that person again, let me know. Tell him… tell him your mother would like to see him too.” A few days later, led by Kamekichi, Kumagoro finally came face to face with Otoku again. Standing before each other for the first time in three years, neither could speak for a long while — they simply stood in silence, tears falling. Watching this, Kamekichi, looking a little bewildered but somehow happy, kept glancing back and forth between the two of them. Kumagoro: “I’m sorry. Would you let me try again, one more time?” Otoku: “For Kamekichi’s sake too… yes. Let’s start over.” And so, thanks to the one small child who had become their clamp, the three members of that separated family were happily reunited, back where they belonged." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Eh bien, on dit souvent qu’« un enfant est l’agrafe qui tient une famille ensemble ». Cela signifie que, peu importe à quel point un mariage se brise, un seul enfant entre deux époux peut parfois les réunir à nouveau. Aujourd’hui, je vais vous conter une histoire humaine et touchante, celle d’un artisan tombé dans la boisson et dans les bras d’une autre femme, à qui son propre fils offrira une seconde chance." },
+    { id:'p2', title:"②熊五郎の乱れ", ssml:false, text:"Il était une fois un charpentier, habile de ses mains mais maudit par un penchant pour la boisson. Il s’appelait Kumagoro. Lui et sa femme Otoku avaient un doux petit garçon de cinq ans nommé Kamekichi, et bien que pauvre, la famille vivait heureuse. Mais à un moment donné, Kumagoro se mit à boire chaque soir, et bientôt il se lia intimement avec une serveuse du quartier. Il cessa de mettre du cœur à l’ouvrage, et le peu d’argent qu’il gagnait filait tout droit chez cette femme. Quand il rentrait, c’est sur Otoku et Kamekichi qu’il passait ses nerfs. Otoku : « Tu ne veux pas arrêter, s’il te plaît ? Sais-tu seulement à quel point Kamekichi se sent seul ? » Kumagoro : « Tais-toi. Ne te mêle pas des affaires d’un mari. »" },
+    { id:'p3', title:"③お徳の決意", ssml:false, text:"Un soir, après que cela eut duré un certain temps, Kumagoro, ivre, finit par lever la main sur Otoku. En voyant cela, le petit Kamekichi éclata en sanglots comme si quelque chose s’était enflammé en lui. Cette nuit-là, après une longue réflexion silencieuse, Otoku prit sa décision. Otoku : « Je ne peux plus continuer avec toi. Kamekichi et moi, nous partons. » Kumagoro : « Qu... qu’est-ce que tu racontes ? Comment allez-vous manger sans moi ? » Otoku : « Aussi difficile que ce soit, prendre la main de Kamekichi et nous débrouiller seuls vaut bien mieux que de continuer cette vie. » Otoku prit Kamekichi par la main et quitta la maison ce jour-là même. On dit que tous les habitants de l’immeuble compatissaient discrètement avec elle." },
+    { id:'p4', title:"④独りぼっちの後悔", ssml:false, text:"Une fois sa femme et son fils partis, Kumagoro fit d’abord bonne figure, mais chaque fois qu’il rentrait dans sa chambre vide, la vue de l’endroit où se trouvaient jadis les petites sandales de Kamekichi, ou l’odeur imaginée de la soupe miso d’Otoku, lui arrachaient des larmes. Il ne parvenait plus à se concentrer sur son travail, et sa consommation d’alcool ne faisait qu’empirer. Mais un matin, en se regardant dans le miroir avec une gueule de bois carabinée, Kumagoro fut frappé par le spectacle de son propre visage émacié. Kumagoro : « Mais qu’est-ce que je fabrique, bon sang… » À partir de ce jour, il arrêta l’alcool net, ressortit ses outils de charpentier, et se remit sérieusement au travail." },
+    { id:'p5', title:"⑤腕を取り戻して", ssml:false, text:"Trois années passèrent. Ayant complètement renoncé à la boisson et s’étant plongé dans un travail honnête, Kumagoro avait retrouvé sa réputation de charpentier encore meilleur qu’avant. Son maître artisan comptait sur lui, et l’on dit qu’il avait même pris un apprenti à son compte. Mais dans son cœur, Otoku et Kamekichi n’étaient jamais bien loin de ses pensées. Kumagoro : « Je me demande comment vont ces deux-là ces temps-ci. Si seulement je pouvais voir Kamekichi, ne serait-ce qu’une fois… » En pensant ainsi, Kumagoro, toujours seul, passait ses jours honnêtement, mais avec une solitude discrète qui ne le quittait jamais tout à fait." },
+    { id:'p6', title:"⑥亀吉との再会", ssml:false, text:"Un jour, en rentrant du travail, le regard de Kumagoro se posa sur un jeune garçon qui vendait des cerfs-volants devant une boutique. En y regardant de plus près — ce visage, cette carrure — quelque chose lui semblait familier. Hésitant, il l’interpella. Kumagoro : « Dis-moi, petit. Comment tu t’appelles ? » Le garçon : « Je m’appelle Kamekichi. » Le cœur de Kumagoro faillit lui sortir de la poitrine. Celui qui se tenait devant lui était, sans le moindre doute, son propre fils — ce Kamekichi lui-même. L’enfant qui avait cinq ans trois ans plus tôt en avait maintenant huit, et avait bien grandi. Retenant la vague d’émotion qui montait en lui, Kumagoro demanda doucement. Kumagoro : « Ta mère va bien ? » Kamekichi : « Oui, elle va bien. J’aide dans une boutique maintenant. »" },
+    { id:'p7', title:"⑦小遣いと言い付け", ssml:false, text:"Kumagoro sortit son porte-monnaie et pressa dans la main de Kamekichi tout l’argent qu’il possédait. Kumagoro : « Tiens — achète-toi quelque chose de bon à manger avec ça. Et achète aussi quelque chose de gentil pour ta mère. » Kamekichi : « Wouah, autant que ça ? Monsieur, qui êtes-vous ? » Kumagoro : « Peu importe qui je suis. Mais écoute, petit — ne dis rien de ceci à ta mère, d’accord ? Tu n’as pas besoin de dire qui te l’a donné ni rien de tout ça. » Kamekichi, l’air un peu perplexe, inclina poliment la tête et partit en courant, tout heureux. Kumagoro resta là à regarder longtemps le petit dos de son fils s’éloigner, essuyant les larmes qui lui montaient aux yeux." },
+    { id:'p8', title:"⑧母への告白と再会", ssml:false, text:"Quand Kamekichi rentra chez lui, débordant de joie, il déversa l’argent qu’on venait de lui donner devant Otoku. Kamekichi : « Maman, regarde ! Achetons quelque chose de délicieux avec ça ! » Otoku : « Mon Dieu, c’est une somme énorme. Qui donc t’a donné ça ? » Kamekichi : « Eh bien, il m’a dit de ne pas le dire… mais il m’a regardé très longtemps, puis m’a demandé, très gentiment, si maman allait bien. » En écoutant cela, un certain pressentiment commença à naître dans la poitrine d’Otoku. Ce regard, ce ton de voix — c’était incontestablement celui de Kumagoro, cet homme qu’elle ne pouvait jamais tout à fait oublier. Des larmes qu’elle ne pouvait plus retenir jaillirent des yeux d’Otoku. Otoku : « Kamekichi, si tu revois cette personne, dis-le-moi. Dis-lui… dis-lui que ta mère aimerait le revoir aussi. » Quelques jours plus tard, guidé par Kamekichi, Kumagoro se retrouva enfin face à face avec Otoku. Debout l’un devant l’autre pour la première fois en trois ans, aucun des deux ne put parler pendant un long moment — ils restèrent simplement silencieux, les larmes coulant. En regardant cela, Kamekichi, l’air un peu perplexe mais quelque part heureux, n’arrêtait pas de regarder tour à tour l’un et l’autre. Kumagoro : « Je suis désolé. Me laisserais-tu essayer à nouveau, une fois de plus ? » Otoku : « Pour Kamekichi aussi… oui. Recommençons. » Et c’est ainsi que, grâce à ce petit enfant devenu leur agrafe, les trois membres de cette famille séparée furent heureusement réunis, retrouvant enfin leur place." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Bueno, se dice a menudo que «un hijo es la grapa que mantiene unida a una familia». Significa que, sin importar cuánto se rompa un matrimonio, un solo hijo entre una pareja puede a veces volver a unirlos. Hoy les contaré una entrañable historia humana, la de un artesano que cayó en la bebida y en los brazos de otra mujer, a quien su propio hijo le dará una segunda oportunidad." },
+    { id:'p2', title:"②熊五郎の乱れ", ssml:false, text:"Había una vez un carpintero, hábil con las manos pero maldecido con debilidad por la bebida. Se llamaba Kumagoro. Él y su esposa Otoku tenían un dulce hijito de cinco años llamado Kamekichi, y aunque pobres, la familia vivía feliz. Pero en cierto momento, Kumagoro empezó a beber todas las noches, y pronto se hizo íntimo de una camarera del vecindario. Dejó de poner el corazón en su trabajo, y el poco dinero que ganaba iba directo a esa mujer. Cuando volvía a casa, se desquitaba con Otoku y Kamekichi. Otoku: «¿No puedes parar de una vez? ¿Tienes idea de lo solo que se siente Kamekichi?» Kumagoro: «Cállate. No te metas en los asuntos de un marido.»" },
+    { id:'p3', title:"③お徳の決意", ssml:false, text:"Una noche, después de que esto hubiera durado un tiempo, Kumagoro, borracho, finalmente levantó la mano contra Otoku. Al ver esto, el pequeño Kamekichi rompió a llorar como si algo se hubiera encendido dentro de él. Esa noche, tras una larga reflexión silenciosa, Otoku tomó su decisión. Otoku: «Ya no puedo seguir contigo. Kamekichi y yo nos vamos.» Kumagoro: «¿Qu-qué estás diciendo? ¿Cómo van a comer sin mí?» Otoku: «Por difícil que sea, tomar la mano de Kamekichi y arreglárnoslas solos es mucho mejor que seguir con esta vida.» Otoku tomó a Kamekichi de la mano y dejó la casa ese mismo día. Dicen que todos en el vecindario simpatizaron en silencio con ella." },
+    { id:'p4', title:"④独りぼっちの後悔", ssml:false, text:"Una vez que su esposa e hijo se fueron, Kumagoro al principio hizo de tripas corazón, pero cada vez que volvía a su habitación vacía, la vista del lugar donde solían estar las sandalias del pequeño Kamekichi, o el recuerdo del olor de la sopa de miso de Otoku, le hacían llorar. No podía concentrarse en el trabajo, y su bebida solo empeoraba. Pero una mañana, mirándose al espejo con una resaca terrible, Kumagoro quedó impactado por la visión de su propio rostro demacrado. Kumagoro: «Qué demonios estoy haciendo…» A partir de ese día, dejó de beber de golpe, sacó de nuevo sus herramientas de carpintero y volvió a trabajar en serio." },
+    { id:'p5', title:"⑤腕を取り戻して", ssml:false, text:"Pasaron tres años. Habiendo dejado por completo la bebida y entregándose a un trabajo honesto, Kumagoro había recuperado su reputación como un carpintero aún mejor que antes. Su maestro artesano confiaba en él, y se dice que incluso había tomado un aprendiz propio. Pero en su corazón, Otoku y Kamekichi nunca estaban lejos de sus pensamientos. Kumagoro: «Me pregunto cómo estarán esos dos por estos días. Si al menos pudiera ver a Kamekichi, aunque fuera una vez…» Pensando así, Kumagoro, todavía solo, pasaba sus días con honestidad, aunque con una soledad callada que nunca lo abandonaba del todo." },
+    { id:'p6', title:"⑥亀吉との再会", ssml:false, text:"Un día, de camino a casa desde el trabajo, la mirada de Kumagoro se posó en un niño que vendía cometas frente a una tienda. Mirando más de cerca, ese rostro, esa complexión, algo le resultaba familiar. Vacilante, lo llamó. Kumagoro: «Oye, muchacho. ¿Cómo te llamas?» Niño: «Me llamo Kamekichi.» El corazón de Kumagoro casi se le sale del pecho. El que estaba frente a él era, sin duda alguna, su propio hijo, ese mismo Kamekichi. El niño que tenía cinco años tres años atrás ahora tenía ocho, y había crecido bastante. Conteniendo la ola de emoción que crecía dentro de él, Kumagoro preguntó con suavidad. Kumagoro: «¿Tu madre está bien?» Kamekichi: «Sí, está bien. Ahora ayudo en una tienda.»" },
+    { id:'p7', title:"⑦小遣いと言い付け", ssml:false, text:"Kumagoro sacó su cartera y puso todo el dinero que tenía en la mano de Kamekichi. Kumagoro: «Toma, cómprate algo rico de comer con esto. Y cómprale también algo lindo a tu madre.» Kamekichi: «Vaya, ¿tanto? Señor, ¿quién es usted?» Kumagoro: «No importa quién soy. Pero escucha, muchacho, no le digas nada de esto a tu madre, ¿de acuerdo? No hace falta que digas quién te lo dio ni nada de eso.» Kamekichi, con expresión algo perpleja, hizo una reverencia educada y se fue corriendo, feliz. Kumagoro se quedó mirando la pequeña espalda de su hijo alejarse durante largo rato, secándose las lágrimas que le brotaban de los ojos." },
+    { id:'p8', title:"⑧母への告白と再会", ssml:false, text:"Cuando Kamekichi llegó a casa, encantado, dejó caer el dinero que acababan de darle justo delante de Otoku. Kamekichi: «¡Mamá, mira! ¡Compremos algo delicioso con esto!» Otoku: «Cielos, es muchísimo dinero. ¿Quién te dio esto?» Kamekichi: «Bueno, me dijo que no lo dijera… pero me miró durante muchísimo rato, y luego me preguntó, con mucha dulzura, si mamá estaba bien.» Mientras escuchaba, cierto presentimiento comenzó a agitarse en el pecho de Otoku. Esa mirada, ese tono de voz, era inconfundiblemente el de Kumagoro, aquel hombre que nunca pudo olvidar del todo. Lágrimas que ya no pudo contener brotaron de los ojos de Otoku. Otoku: «Kamekichi, si vuelves a ver a esa persona, avísame. Dile… dile que tu madre también quisiera verlo.» Unos días después, guiado por Kamekichi, Kumagoro finalmente se encontró cara a cara con Otoku de nuevo. De pie el uno frente al otro por primera vez en tres años, ninguno de los dos pudo hablar durante largo rato: simplemente permanecieron en silencio, con lágrimas cayendo. Al ver esto, Kamekichi, con expresión algo desconcertada pero de algún modo feliz, no dejaba de mirar alternadamente a uno y a otro. Kumagoro: «Lo siento. ¿Me dejarías intentarlo de nuevo, una vez más?» Otoku: «También por Kamekichi… sí. Empecemos de nuevo.» Y así, gracias a aquel pequeño niño que se convirtió en su grapa, los tres miembros de esa familia separada se reunieron felizmente, de vuelta en el lugar que les correspondía." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 24;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

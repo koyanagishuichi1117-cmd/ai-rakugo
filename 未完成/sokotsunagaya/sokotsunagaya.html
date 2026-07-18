@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>粗忽長屋 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.11 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">粗忽長屋</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Sokotsu Nagaya / The Absent-Minded Duo</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②行き倒れ</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③「これはお前だ」</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④八五郎を呼びに行く</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤問答</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥死体を抱く</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class="v1">世<rt>よ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>には、<ruby class="v2">粗忽<rt>そこつ</rt></ruby>という、なんとも<ruby class="v1">困<rt>こま</rt></ruby>った<ruby class="v2">性分<rt>しょうぶん</rt></ruby>の<ruby class="v1">人<rt>ひと</rt></ruby>がおりましてね。<ruby class="v1">傘<rt>かさ</rt></ruby>を<ruby class="v1">差<rt>さ</rt></ruby>したまま「あれ、<ruby class="v1">傘<rt>かさ</rt></ruby>がねぇ」と<ruby class="v1">探<rt>さが</rt></ruby>し<ruby class="v1">回<rt>まわ</rt></ruby>ったり、<ruby class="v2">足袋<rt>たび</rt></ruby>を<ruby class="v1">左右<rt>さゆう</rt></ruby>あべこべに<ruby class="v1">履<rt>は</rt></ruby>いて<ruby class="v1">一日中<rt>いちにちじゅう</rt></ruby>それに<ruby class="v1">気<rt>き</rt></ruby>づかなかったり。まぁ、この<ruby class="v1">手<rt>て</rt></ruby>の<ruby class="v2">粗忽者<rt>そこつもの</rt></ruby>は、どこの<ruby class="v1">町<rt>まち</rt></ruby>にも<ruby class="v1">一人<rt>ひとり</rt></ruby>や<ruby class="v1">二人<rt>ふたり</rt></ruby>はいるもので。とある<ruby class="v1">長屋<rt>ながや</rt></ruby>にも、<ruby class="v1">輪<rt>わ</rt></ruby>を<ruby class="v1">掛<rt>か</rt></ruby>けて<ruby class="v2">粗忽<rt>そこつ</rt></ruby>な<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>という<ruby class="v1">男<rt>おとこ</rt></ruby>が<ruby class="v1">住<rt>す</rt></ruby>んでおりまして、これがまぁ、<ruby class="v1">今日<rt>きょう</rt></ruby>のお<ruby class="v1">話<rt>はなし</rt></ruby>の<ruby class="v1">主人公<rt>しゅじんこう</rt></ruby>でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【行き倒れ】</span>
+                    さて、ある<ruby class="v1">朝<rt>あさ</rt></ruby>のこと、<ruby class="v1">神田<rt>かんだ</rt></ruby>の<ruby class="v1">川端<rt>かわばた</rt></ruby>で<ruby class="v1">行<rt>ゆ</rt></ruby>き<ruby class="v1">倒<rt>だお</rt></ruby>れの<ruby class="v1">死体<rt>したい</rt></ruby>が一つ、<ruby class="v1">見<rt>み</rt></ruby>つかりましてね。<ruby class="v1">身元<rt>みもと</rt></ruby>がわからないというので、<ruby class="v1">近所<rt>きんじょ</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>たちが<ruby class="v1">大勢<rt>おおぜい</rt></ruby><ruby class="v1">集<rt>あつ</rt></ruby>まって<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">囲<rt>かこ</rt></ruby>んでおりました。そこへ、<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>がふらりと<ruby class="v1">通<rt>とお</rt></ruby>りかかりましてね。<br><strong>熊五郎：</strong>「おや、なんの<ruby class="v1">騒<rt>さわ</rt></ruby>ぎだい？」<br><strong>野次馬：</strong>「なんでも、<ruby class="v1">身元<rt>みもと</rt></ruby>のわからない<ruby class="v1">仏<rt>ほとけ</rt></ruby>さんが<ruby class="v1">上<rt>あ</rt></ruby>がったんだと。」<br><ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>は<ruby class="v1">別<rt>べつ</rt></ruby>に<ruby class="v1">興味<rt>きょうみ</rt></ruby>もなかったんですが、なんとなく<ruby class="v1">人<rt>ひと</rt></ruby>だかりに<ruby class="v1">押<rt>お</rt></ruby>されて、<ruby class="v1">死体<rt>したい</rt></ruby>の<ruby class="v1">顔<rt>かお</rt></ruby>をのぞき<ruby class="v1">込<rt>こ</rt></ruby>むことになりました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【「これはお前だ」】</span>
+                    すると<ruby class="v1">野次馬<rt>やじうま</rt></ruby>の<ruby class="v1">一人<rt>ひとり</rt></ruby>が、<ruby class="v1">死体<rt>したい</rt></ruby>の<ruby class="v1">顔<rt>かお</rt></ruby>をしげしげと<ruby class="v1">見<rt>み</rt></ruby>て、こう<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>しましてね。<br><strong>野次馬：</strong>「おや、これは<ruby class="v1">長屋<rt>ながや</rt></ruby>の<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>さんじゃねぇか。」<br><strong>別の野次馬：</strong>「なるほど、<ruby class="v1">言<rt>い</rt></ruby>われてみりゃ、たしかに<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>さんだ。」<br><ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>も<ruby class="v1">釣<rt>つ</rt></ruby>られて<ruby class="v1">死体<rt>したい</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>ますと、たしかに<ruby class="v1">仲<rt>なか</rt></ruby>の<ruby class="v1">良<rt>よ</rt></ruby>い<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>に<ruby class="v1">似<rt>に</rt></ruby>ていなくもない。<br><strong>熊五郎：</strong>「そう<ruby class="v1">言<rt>い</rt></ruby>われてみりゃ……こいつぁ<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>だ！<ruby class="v1">俺<rt>おれ</rt></ruby>の<ruby class="v1">友達<rt>ともだち</rt></ruby>の<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>に<ruby class="v1">間違<rt>まちが</rt></ruby>いねぇ！」<br><ruby class="v1">大勢<rt>おおぜい</rt></ruby>が<ruby class="v1">口々<rt>くちぐち</rt></ruby>に「そうだそうだ」と<ruby class="v1">言<rt>い</rt></ruby>うものだから、<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>もすっかりその<ruby class="v1">気<rt>き</rt></ruby>になって、これは<ruby class="v1">大変<rt>たいへん</rt></ruby>だと、<ruby class="v1">青<rt>あお</rt></ruby>くなってしまいました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【八五郎を呼びに行く】</span>
+                    <ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>はいてもたってもいられず、「これは<ruby class="v1">大変<rt>たいへん</rt></ruby>だ、<ruby class="v1">本人<rt>ほんにん</rt></ruby>に<ruby class="v1">知<rt>し</rt></ruby>らせなきゃ」と、<ruby class="v1">当<rt>とう</rt></ruby>の<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>の<ruby class="v1">長屋<rt>ながや</rt></ruby>へ<ruby class="v1">飛<rt>と</rt></ruby>んでいきました。<ruby class="v1">当然<rt>とうぜん</rt></ruby>、<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>はぴんぴんしておりまして、<ruby class="v2">呑気<rt>のんき</rt></ruby>に<ruby class="v1">朝飯<rt>あさめし</rt></ruby>を<ruby class="v1">食<rt>く</rt></ruby>っておりました。<br><strong>熊五郎：</strong>「<ruby class="v1">八<rt>はち</rt></ruby>っつぁん！<ruby class="v1">大変<rt>たいへん</rt></ruby>だ<ruby class="v1">大変<rt>たいへん</rt></ruby>だ！お<ruby class="v1">前<rt>まえ</rt></ruby>が<ruby class="v1">神田<rt>かんだ</rt></ruby>の<ruby class="v1">川端<rt>かわばた</rt></ruby>で<ruby class="v1">死<rt>し</rt></ruby>んでるんだよ！」<br><strong>八五郎：</strong>「なに<ruby class="v1">言<rt>い</rt></ruby>ってやがる、<ruby class="v1">俺<rt>おれ</rt></ruby>はこの<ruby class="v1">通<rt>とお</rt></ruby>りぴんぴんしてらぁ。」<br>と、<ruby class="v1">当<rt>とう</rt></ruby>の<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>は<ruby class="v1">笑<rt>わら</rt></ruby>って<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">合<rt>あ</rt></ruby>いませんでしたが、<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>は<ruby class="v1">真剣<rt>しんけん</rt></ruby>そのもので、なおも<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">募<rt>つの</rt></ruby>ります。<br><strong>熊五郎：</strong>「いいから<ruby class="v1">来<rt>こ</rt></ruby>い！<ruby class="v1">大勢<rt>おおぜい</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>が<ruby class="v1">見<rt>み</rt></ruby>て、みんなお<ruby class="v1">前<rt>まえ</rt></ruby>だって<ruby class="v1">言<rt>い</rt></ruby>ってるんだ！」
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【問答】</span>
+                    <ruby class="v1">八五郎<rt>はちごろう</rt></ruby>も<ruby class="v1">初<rt>はじ</rt></ruby>めは<ruby class="v1">笑<rt>わら</rt></ruby>っておりましたが、<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>があんまり<ruby class="v1">真剣<rt>しんけん</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>で<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">張<rt>は</rt></ruby>るものだから、だんだん<ruby class="v1">怪<rt>あや</rt></ruby>しくなってまいりました。<br><strong>八五郎：</strong>「だがおかしいじゃねぇか。<ruby class="v1">死<rt>し</rt></ruby>んだのがこの<ruby class="v1">俺<rt>おれ</rt></ruby>だってんなら、こうして<ruby class="v1">生<rt>い</rt></ruby>きてしゃべってる<ruby class="v1">俺<rt>おれ</rt></ruby>は、いったい<ruby class="v1">何者<rt>なにもの</rt></ruby>なんだ？」<br><strong>熊五郎：</strong>「そんなこたぁ、<ruby class="v1">俺<rt>おれ</rt></ruby>にわかるかい。だがな、あれだけ<ruby class="v1">大勢<rt>おおぜい</rt></ruby>の<ruby class="v1">人<rt>ひと</rt></ruby>が、<ruby class="v1">口<rt>くち</rt></ruby>を<ruby class="v1">揃<rt>そろ</rt></ruby>えてお<ruby class="v1">前<rt>まえ</rt></ruby>だって<ruby class="v1">言<rt>い</rt></ruby>うんだ。あれだけの<ruby class="v1">人数<rt>にんずう</rt></ruby>が<ruby class="v1">揃<rt>そろ</rt></ruby>いも<ruby class="v1">揃<rt>そろ</rt></ruby>って<ruby class="v1">間違<rt>まちが</rt></ruby>えるわけがねぇ。」<br><strong>八五郎：</strong>「う〜ん……<ruby class="v1">言<rt>い</rt></ruby>われてみりゃそうだ。<ruby class="v1">俺<rt>おれ</rt></ruby>ぁゆうべ<ruby class="v1">酒<rt>さけ</rt></ruby>を<ruby class="v1">飲<rt>の</rt></ruby>んで、そのまま<ruby class="v1">寝<rt>ね</rt></ruby>ちまったが……もしかして、あれから<ruby class="v1">知<rt>し</rt></ruby>らねぇうちに<ruby class="v1">死<rt>し</rt></ruby>んじまったのかもしれねぇな。」<br><strong>熊五郎：</strong>「そうともよ！<ruby class="v1">自分<rt>じぶん</rt></ruby>で<ruby class="v1">死<rt>し</rt></ruby>んだこともわからねぇなんてのは、いかにもお<ruby class="v1">前<rt>まえ</rt></ruby>らしいや。」<br>と、<ruby class="v2">粗忽者<rt>そこつもの</rt></ruby><ruby class="v1">二人<rt>ふたり</rt></ruby>の<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">問答<rt>もんどう</rt></ruby>の<ruby class="v1">末<rt>すえ</rt></ruby>、とうとう<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>は「<ruby class="v1">自分<rt>じぶん</rt></ruby>は<ruby class="v1">死<rt>し</rt></ruby>んだのだ」とすっかり<ruby class="v1">信<rt>しん</rt></ruby>じ<ruby class="v1">込<rt>こ</rt></ruby>んでしまいました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【死体を抱く】</span>
+                    すっかりその<ruby class="v1">気<rt>き</rt></ruby>になった<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>は、<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>に<ruby class="v1">連<rt>つ</rt></ruby>れられて、<ruby class="v1">神田<rt>かんだ</rt></ruby>の<ruby class="v1">川端<rt>かわばた</rt></ruby>まで<ruby class="v1">戻<rt>もど</rt></ruby>ってまいりました。<ruby class="v1">死体<rt>したい</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>ちますと、<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>はしみじみと<ruby class="v1">涙<rt>なみだ</rt></ruby>ぐみましてね。<br><strong>八五郎：</strong>「ああ……こいつぁたしかに<ruby class="v1">俺<rt>おれ</rt></ruby>だ。かわいそうに、<ruby class="v1">冷<rt>つめ</rt></ruby>たくなっちまって。」<br>と、<ruby class="v1">両手<rt>りょうて</rt></ruby>で<ruby class="v1">死体<rt>したい</rt></ruby>をぐいっと<ruby class="v1">抱<rt>だ</rt></ruby>き<ruby class="v1">起<rt>お</rt></ruby>こしましてね。<br><strong>八五郎：</strong>「おい、しっかりしろ！かわいそうに、<ruby class="v1">早<rt>はや</rt></ruby>く<ruby class="v1">仏<rt>ほとけ</rt></ruby>にしてやらなきゃな……」<br>と、<ruby class="v1">自分<rt>じぶん</rt></ruby>の「<ruby class="v1">遺体<rt>いたい</rt></ruby>」をひしと<ruby class="v1">抱<rt>だ</rt></ruby>きしめて、しくしくと<ruby class="v1">泣<rt>な</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>す<ruby class="v1">始末<rt>しまつ</rt></ruby>でございます。<ruby class="v1">周<rt>まわ</rt></ruby>りの<ruby class="v1">者<rt>もの</rt></ruby>たちも、なんだか<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">光景<rt>こうけい</rt></ruby>に<ruby class="v1">呆気<rt>あっけ</rt></ruby>にとられて<ruby class="v1">見<rt>み</rt></ruby>ておりました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">死体<rt>したい</rt></ruby>を<ruby class="v1">抱<rt>だ</rt></ruby>きかかえたまま、<ruby class="v1">八五郎<rt>はちごろう</rt></ruby>はふと、なにか<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">疑問<rt>ぎもん</rt></ruby>にぶつかったような<ruby class="v1">顔<rt>かお</rt></ruby>になりましてね。<br><strong>八五郎：</strong>「まてよ……<ruby class="v1">熊<rt>くま</rt></ruby>さん。ここで<ruby class="v1">死<rt>し</rt></ruby>んでるのが、たしかに<ruby class="v1">俺<rt>おれ</rt></ruby>だとするな。」<br><strong>熊五郎：</strong>「おう、そうだそうだ。」<br><strong>八五郎：</strong>「だったら……こうして<ruby class="v1">今<rt>いま</rt></ruby>、この<ruby class="v1">俺<rt>おれ</rt></ruby>を<ruby class="v1">抱<rt>だ</rt></ruby>いているのは、いってぇ<ruby class="v1">誰<rt>だれ</rt></ruby>なんだろうなぁ？」<br>という、なんとも<ruby class="v1">奇妙<rt>きみょう</rt></ruby>な<ruby class="v1">一言<rt>ひとこと</rt></ruby>を<ruby class="v1">残<rt>のこ</rt></ruby>しまして。<ruby class="v2">粗忽<rt>そこつ</rt></ruby>には<ruby class="v2">粗忽<rt>そこつ</rt></ruby>を<ruby class="v1">重<rt>かさ</rt></ruby>ねた<ruby class="v1">末<rt>すえ</rt></ruby>の、なんとも<ruby class="v2">頓珍漢<rt>とんちんかん</rt></ruby>なオチでございます。<ruby class="v2">粗忽長屋<rt>そこつながや</rt></ruby>、これにて<ruby class="v1">一席<rt>いっせき</rt></ruby>。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Now, there are certain unfortunate souls in this world cursed with what we call 'sokotsu' — chronic absent-mindedness. Some hold an open umbrella overhead while frantically searching for their umbrella. Others wear their socks on the wrong feet all day without ever noticing. Every neighborhood has at least one or two of this sort wandering around. And in a certain row house lived a man even more scatterbrained than most, named Kumagorou — and he happens to be the hero of today's tale.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BODY BY THE RIVER]</span>One morning, a body was found collapsed by the riverbank in Kanda. Since no one could identify who it was, a large crowd of neighbors gathered around to gawk. Kumagorou happened to wander by.<br><strong>Kumagorou:</strong> "Oh? What's all the commotion?"<br><strong>Bystander:</strong> "Apparently they found some poor soul who drowned, and nobody knows who he is."<br>Kumagorou wasn't particularly interested, but caught up in the crush of the crowd, he found himself peering down at the dead man's face.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CROWD INSISTS IT'S HIM]</span>Then one of the onlookers, studying the dead man's face closely, spoke up.<br><strong>Bystander:</strong> "Wait, isn't this Hachigorou from the tenement?"<br><strong>Another bystander:</strong> "Now that you mention it, yeah, that's definitely Hachigorou."<br>Kumagorou, swept along, took another look at the body — and sure enough, it did resemble his good friend Hachigorou.<br><strong>Kumagorou:</strong> "Now that you say it... this IS Hachigorou! No doubt about it, this is my friend Hachigorou!"<br>With everyone chiming in, "That's right, that's right," Kumagorou became completely convinced, and turned pale, thinking, this is terrible.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[FETCHING THE LIVING HACHIGOROU]</span>Kumagorou couldn't sit still. "This is terrible, I have to tell him myself," he thought, and dashed off to Hachigorou's own tenement. Naturally, Hachigorou was alive and well, calmly eating his breakfast.<br><strong>Kumagorou:</strong> "Hacchan! Terrible news, terrible news! You're lying dead by the riverbank in Kanda!"<br><strong>Hachigorou:</strong> "What are you talking about? I'm right here, fit as a fiddle."<br>The real Hachigorou just laughed it off, but Kumagorou was dead serious, and kept pressing the point.<br><strong>Kumagorou:</strong> "Just come with me! A whole crowd of people saw the body and every one of them says it's you!"</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CIRCULAR ARGUMENT]</span>At first Hachigorou just laughed it off, but Kumagorou insisted so earnestly that he began to feel unsettled.<br><strong>Hachigorou:</strong> "But wait, that doesn't make sense. If I'm the one who died, then who exactly is this person alive and talking right now?"<br><strong>Kumagorou:</strong> "How should I know? But look — that many people, all agreeing it's you. That many people couldn't all be wrong."<br><strong>Hachigorou:</strong> "Hmm... now that you put it that way. I did drink last night and just passed out... maybe, without realizing it, I really did die sometime after that."<br><strong>Kumagorou:</strong> "That's it exactly! Not even noticing your own death — that's so like you."<br>And so, after this bizarre exchange between two scatterbrains, Hachigorou finally became completely convinced that he himself had died.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[EMBRACING HIS OWN CORPSE]</span>Now fully convinced, Hachigorou let Kumagorou lead him back to the riverbank in Kanda. Standing before the body, Hachigorou grew genuinely tearful.<br><strong>Hachigorou:</strong> "Ahh... this really is me. Poor thing, gone cold like this."<br>He gathered the body up in both arms.<br><strong>Hachigorou:</strong> "Hey, hang in there! Poor fellow, we'd better give you a proper send-off soon..."<br>And with that, he clutched his own "remains" tightly to his chest and began to sob. The onlookers stood by, utterly dumbfounded by the bizarre scene unfolding before them.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Still clutching the body, Hachigorou's face suddenly took on the look of a man confronting some enormous, unanswerable question.<br><strong>Hachigorou:</strong> "Wait a moment... Kuma. Let's say the one who died here really is me."<br><strong>Kumagorou:</strong> "Right, right, that's the one."<br><strong>Hachigorou:</strong> "Then... just who exactly is it that's holding me right now?"<br>And with that thoroughly baffling remark, he left everyone speechless. Two scatterbrains, stacking one absurdity atop another, arrived at this wonderfully nonsensical punchline. And that concludes our tale of the Absent-Minded Duo.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Voyez-vous, il existe en ce monde des âmes malheureuses affligées de ce qu'on appelle le « sokotsu » — une étourderie chronique. Certains tiennent un parapluie ouvert au-dessus de leur tête tout en le cherchant frénétiquement. D'autres portent leurs chaussettes à l'envers toute la journée sans jamais s'en apercevoir. Chaque quartier compte au moins un ou deux individus de cette espèce. Et dans une certaine maison à loyer vivait un homme encore plus étourdi que la moyenne, nommé Kumagorou — et c'est justement le héros de notre histoire du jour.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BODY BY THE RIVER]</span>Un matin, on trouva un corps effondré au bord de la rivière à Kanda. Comme personne ne pouvait l'identifier, une foule nombreuse de voisins s'était rassemblée pour regarder. Kumagorou passait justement par là.<br><strong>Kumagorou :</strong> « Tiens, quel est ce raffut ? »<br><strong>Badaud :</strong> « Il paraît qu'on a repêché un pauvre bougre noyé, et personne ne sait qui c'est. »<br>Kumagorou n'était pas particulièrement intéressé, mais entraîné par la cohue, il se retrouva à scruter le visage du défunt.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CROWD INSISTS IT'S HIM]</span>Alors l'un des badauds, examinant attentivement le visage du mort, prit la parole.<br><strong>Badaud :</strong> « Attends, n'est-ce pas Hachigorou du logement ? »<br><strong>Un autre badaud :</strong> « Maintenant que tu le dis, oui, c'est bien Hachigorou. »<br>Kumagorou, entraîné par le mouvement, regarda de nouveau le corps — et effectivement, cela ressemblait bien à son bon ami Hachigorou.<br><strong>Kumagorou :</strong> « Maintenant que tu le dis... c'est bien Hachigorou ! Aucun doute, c'est mon ami Hachigorou ! »<br>Avec tout le monde répétant en chœur « C'est vrai, c'est vrai », Kumagorou en devint totalement convaincu, et pâlit, se disant que c'était terrible.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[FETCHING THE LIVING HACHIGOROU]</span>Kumagorou ne tenait plus en place. « C'est terrible, il faut que je le prévienne moi-même », pensa-t-il, et il courut jusqu'au logement d'Hachigorou. Naturellement, Hachigorou était bien vivant, en train de manger tranquillement son petit-déjeuner.<br><strong>Kumagorou :</strong> « Hacchan ! Terrible nouvelle, terrible nouvelle ! Tu es mort au bord de la rivière à Kanda ! »<br><strong>Hachigorou :</strong> « De quoi tu parles ? Je suis là, en pleine forme. »<br>Le vrai Hachigorou prit ça à la légère en riant, mais Kumagorou était on ne peut plus sérieux, et insistait de plus belle.<br><strong>Kumagorou :</strong> « Viens avec moi, un point c'est tout ! Toute une foule a vu le corps et tout le monde dit que c'est toi ! »</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CIRCULAR ARGUMENT]</span>Au début, Hachigorou en riait, mais Kumagorou insistait avec un tel sérieux qu'il commença à se sentir troublé.<br><strong>Hachigorou :</strong> « Mais attends, ça n'a pas de sens. Si c'est moi qui suis mort, alors qui est cette personne bien vivante en train de te parler ? »<br><strong>Kumagorou :</strong> « Comment veux-tu que je le sache ? Mais regarde — autant de gens, tous d'accord que c'est toi. Autant de monde ne peut pas se tromper. »<br><strong>Hachigorou :</strong> « Hmm... vu sous cet angle. J'ai bu hier soir et je me suis endormi comme ça... peut-être que, sans m'en rendre compte, je suis vraiment mort après ça. »<br><strong>Kumagorou :</strong> « Voilà, exactement ! Ne même pas remarquer sa propre mort, ça te ressemble tellement. »<br>Et ainsi, après cet échange bizarre entre deux étourdis, Hachigorou finit par être totalement convaincu qu'il était lui-même mort.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[EMBRACING HIS OWN CORPSE]</span>Désormais pleinement convaincu, Hachigorou se laissa ramener par Kumagorou jusqu'au bord de la rivière à Kanda. Debout devant le corps, Hachigorou fut pris de larmes sincères.<br><strong>Hachigorou :</strong> « Ah... c'est vraiment moi. Pauvre de moi, tout froid comme ça. »<br>Il souleva le corps dans ses deux bras.<br><strong>Hachigorou :</strong> « Allez, tiens bon ! Pauvre de toi, il faut vite t'organiser de belles funérailles... »<br>Et sur ce, il serra étroitement sa propre « dépouille » contre lui et se mit à sangloter. Les badauds, complètement abasourdis par cette scène insolite, restaient plantés là à regarder.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Toujours en train d'étreindre le corps, le visage d'Hachigorou prit soudain l'expression d'un homme confronté à une question immense et sans réponse.<br><strong>Hachigorou :</strong> « Attends un instant... Kuma. Disons que celui qui est mort ici, c'est vraiment moi. »<br><strong>Kumagorou :</strong> « Oui, oui, c'est bien ça. »<br><strong>Hachigorou :</strong> « Alors... qui donc est en train de me tenir dans ses bras en ce moment même ? »<br>Et sur cette remarque parfaitement déroutante, il laissa tout le monde sans voix. Deux étourdis, empilant une absurdité sur une autre, en arrivèrent à cette chute merveilleusement absurde. Et ainsi se conclut notre histoire du Duo Étourdi.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Verán, en este mundo existen ciertas almas desafortunadas aquejadas de lo que llamamos "sokotsu" — un despiste crónico. Algunos sostienen un paraguas abierto sobre la cabeza mientras lo buscan frenéticamente. Otros llevan los calcetines cambiados todo el día sin darse cuenta jamás. Cada barrio tiene al menos uno o dos individuos de este tipo. Y en cierta casa de vecindad vivía un hombre todavía más despistado de lo habitual, llamado Kumagorou — y él es precisamente el protagonista de la historia de hoy.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BODY BY THE RIVER]</span>Una mañana, encontraron un cuerpo desplomado junto al río en Kanda. Como nadie podía identificarlo, se reunió una gran multitud de vecinos para curiosear. Kumagorou pasaba por ahí casualmente.<br><strong>Kumagorou:</strong> "Vaya, ¿qué es todo este alboroto?"<br><strong>Curioso:</strong> "Al parecer sacaron a un pobre hombre ahogado, y nadie sabe quién es."<br>A Kumagorou no le interesaba particularmente, pero arrastrado por el gentío, terminó asomándose para mirar la cara del muerto.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CROWD INSISTS IT'S HIM]</span>Entonces uno de los curiosos, observando de cerca el rostro del muerto, habló.<br><strong>Curioso:</strong> "Oye, ¿no es este Hachigorou, el del vecindario?"<br><strong>Otro curioso:</strong> "Ahora que lo dices, sí, es Hachigorou sin duda."<br>Kumagorou, arrastrado por el ambiente, volvió a mirar el cuerpo — y en efecto, se parecía a su buen amigo Hachigorou.<br><strong>Kumagorou:</strong> "Ahora que lo dices... ¡este ES Hachigorou! ¡Sin duda, es mi amigo Hachigorou!"<br>Con todos repitiendo a coro "Así es, así es", Kumagorou quedó completamente convencido, y palideció, pensando que aquello era terrible.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[FETCHING THE LIVING HACHIGOROU]</span>Kumagorou no podía quedarse quieto. "Esto es terrible, tengo que avisarle yo mismo", pensó, y corrió hacia la vivienda de Hachigorou. Naturalmente, Hachigorou estaba vivito y coleando, comiendo tranquilamente su desayuno.<br><strong>Kumagorou:</strong> "¡Hacchan! ¡Noticias terribles, terribles! ¡Estás muerto junto al río en Kanda!"<br><strong>Hachigorou:</strong> "¿De qué hablas? Aquí estoy, sano y fuerte."<br>El verdadero Hachigorou se lo tomó a risa, pero Kumagorou hablaba completamente en serio, e insistía cada vez más.<br><strong>Kumagorou:</strong> "¡Ven conmigo y ya está! ¡Una multitud entera vio el cuerpo y todos dicen que eres tú!"</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CIRCULAR ARGUMENT]</span>Al principio, Hachigorou se reía, pero Kumagorou insistía con tanta seriedad que empezó a sentirse inquieto.<br><strong>Hachigorou:</strong> "Pero espera, eso no tiene sentido. Si el que murió soy yo, ¿entonces quién es esta persona bien viva que te está hablando ahora mismo?"<br><strong>Kumagorou:</strong> "¿Cómo quieres que yo lo sepa? Pero mira — tanta gente, todos de acuerdo en que eres tú. Tanta gente no puede estar equivocada."<br><strong>Hachigorou:</strong> "Mmm... visto así. Anoche bebí y me quedé dormido sin más... tal vez, sin darme cuenta, de verdad morí después de eso."<br><strong>Kumagorou:</strong> "¡Eso es exactamente! No darte cuenta ni de tu propia muerte, eso sí que es típico de ti."<br>Y así, tras este extraño intercambio entre dos despistados, Hachigorou terminó completamente convencido de que él mismo había muerto.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[EMBRACING HIS OWN CORPSE]</span>Ya plenamente convencido, Hachigorou dejó que Kumagorou lo llevara de vuelta a la orilla del río en Kanda. De pie frente al cuerpo, a Hachigorou se le llenaron los ojos de lágrimas genuinas.<br><strong>Hachigorou:</strong> "Ah... este soy realmente yo. Pobrecito, ya frío así."<br>Levantó el cuerpo entre sus brazos.<br><strong>Hachigorou:</strong> "¡Vamos, aguanta! Pobre de ti, hay que organizarte un buen funeral pronto..."<br>Y dicho esto, estrechó sus propios "restos" contra el pecho y rompió a sollozar. Los curiosos, completamente atónitos ante la extraña escena, se quedaron mirando sin poder creerlo.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Todavía abrazando el cuerpo, el rostro de Hachigorou adoptó de repente la expresión de un hombre enfrentado a una pregunta enorme y sin respuesta.<br><strong>Hachigorou:</strong> "Espera un momento... Kuma. Digamos que el que murió aquí de verdad soy yo."<br><strong>Kumagorou:</strong> "Sí, sí, eso es."<br><strong>Hachigorou:</strong> "Entonces... ¿quién demonios es el que me está sosteniendo ahora mismo?"<br>Y con esa observación absolutamente desconcertante, dejó a todos sin palabras. Dos despistados, apilando un disparate sobre otro, llegaron a este final maravillosamente absurdo. Y así concluye nuestra historia del Dúo Despistado.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②行き倒れ","③「これはお前だ」","④八五郎を呼びに行く","⑤問答","⑥死体を抱く","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The body by the river","③ The crowd insists it's him","④ Fetching the living Hachigorou","⑤ The circular argument","⑥ Embracing his own corpse","⑦ Punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

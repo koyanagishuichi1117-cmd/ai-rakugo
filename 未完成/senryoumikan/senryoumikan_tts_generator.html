@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>千両みかん TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 千両みかん TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>え〜、食べ物の恨みは恐ろしい、なんて申しますが、人間、欲しいものが手に入らないとなると、とんでもない値段でもポンと払ってしまうことがございます。<break time='500ms'/>今日はそんな、たった一つの果物に千両もの大金が動いたという、なんとも贅沢な噺を一席申し上げます。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②若旦那の患い", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>江戸の日本橋に、さる大きな呉服屋がございました。<break time='400ms'/>ここの一人息子、若旦那が、真冬だというのに急にふさぎ込んでしまいましてね。<break time='400ms'/>飯も食わず、床に伏せったきり。医者を呼んでも、どこにも悪いところが見当たらない。ところが日に日にやつれていく。<break time='500ms'/>心配した番頭が、若旦那の枕元でそっと尋ねます。<break time='400ms'/></prosody><prosody rate='100%' pitch='-1st'>若旦那、一体何がご不満でございますか。何でも仰ってください<break time='400ms'/></prosody><prosody rate='85%' pitch='+1st'>実は……どうしても、みかんが食べたくて仕方がないんだ<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③季節外れの願い", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>番頭は仰天いたしました。真冬にみかんなど、どこを探しても見つかるはずがございません。<break time='400ms'/>しかし、このままでは若旦那の命に関わります。旦那様に相談いたしますと、旦那様も真っ青。<break time='500ms'/></prosody><prosody rate='100%' pitch='-1st'>みかんの一つや二つで、あれの命が助かるなら安いものだ。お前、なんとしても探してまいれ<break time='400ms'/></prosody><prosody rate='110%' pitch='+1st'>はい、必ず見つけてまいります<break time='400ms'/></prosody><prosody rate='105%' pitch='0st'>こうして番頭は、真冬のみかん探しという、とんでもない役目を仰せ付かったのでございます。<break time='600ms'/></prosody></speak>" },
+  { id:'p4', title:"④番頭の八方探し", ssml:true, text:"<speak><prosody rate='112%' pitch='0st'>番頭は朝から晩まで、江戸中の八百屋、果物屋という果物屋を訪ね歩きました。しかしどこへ行っても、<break time='300ms'/></prosody><prosody rate='115%' pitch='-1st'>旦那、真冬にみかんなんて、そんな無茶な<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と、けんもほろろに断られる始末。とうとう日も暮れかかった頃、神田の、みかんばかりを専門に扱う大きな問屋にたどり着きました。<break time='400ms'/>番頭はもう半ば諦めながら、蔵の奥まで案内してもらいます。<break time='500ms'/></prosody><prosody rate='95%' pitch='+1st'>すると、なんと、蔵の隅の方に、傷一つない、見事なみかんがたった一つ、ころんと転がっているではありませんか。<break time='700ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤千両の値", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>番頭が、これを売ってください、と頼み込むと、問屋の主人はしばらく黙り込んでから、こう申しました。<break time='400ms'/></prosody><prosody rate='92%' pitch='-2st'>旦那、これはこの冬、江戸中探しても、もうこれ一つしか残っていない代物でございます。お売りするのはようございますが……千両いただきとうございます<break time='600ms'/></prosody><prosody rate='115%' pitch='+1st'>番頭は腰を抜かしそうになりました。<break time='400ms'/></prosody><prosody rate='105%' pitch='0st'>千両といえば、家が何軒も建つほどの大金でございます。しかし、若旦那の命には代えられません。番頭はすぐさま店へ戻り、旦那様に事の次第を報告いたしました。<break time='500ms'/></prosody><prosody rate='98%' pitch='-1st'>よし、その値、払おう。倅の命には代えられぬ<break time='500ms'/></prosody><prosody rate='103%' pitch='0st'>こうして、みかん一つに千両という、前代未聞の取引が成立したのでございます。<break time='700ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥快復と三房のご褒美", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>みかんは早速、若旦那の枕元に運ばれました。若旦那は震える手で皮をむき、房を一つ口に含みますと、みるみるうちに顔色が良くなり、むっくりと起き上がったのでございます。<break time='500ms'/></prosody><prosody rate='95%' pitch='+1st'>ああ、美味しい。生き返るようだ<break time='400ms'/></prosody><prosody rate='105%' pitch='0st'>十房ほどあるみかんのうち、若旦那は両親にも分けて食べさせ、それでも三房ほど余りました。<break time='400ms'/>旦那様は大層喜んで、これまでの働きをねぎらい、番頭にその余った三房を褒美として与えたのでございます。<break time='400ms'/></prosody><prosody rate='98%' pitch='-1st'>お前のおかげで助かった。これはほんの気持ちだが、取っておくれ<break time='600ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦百両の一房", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>番頭は三房のみかんを大事そうに懐にしまい、いそいそと店を出て、家路をたどりました。<break time='400ms'/>歩きながら、ふと胸の内で算盤を弾きます。<break time='400ms'/></prosody><prosody rate='95%' pitch='+1st'>みかん一つが千両、房にすればおよそ十房。ということは、この一房、百両ということになるな<break time='500ms'/></prosody><prosody rate='90%' pitch='0st'>その考えが浮かんだ途端、番頭の足がぴたりと止まりました。<break time='500ms'/>手の中の三房は、しめて三百両。<break time='500ms'/>そう思うと、急に懐が重くなったような、いや、軽くなったような、妙な気分でございます。<break time='600ms'/></prosody><prosody rate='95%' pitch='-1st'>番頭はそのまま店には戻らず、ふらりと夜の闇の中へ姿を消してしまったとか、消さなかったとか。<break time='500ms'/></prosody><prosody rate='108%' pitch='+1st'>一房百両たあ、こいつは春から縁起がいい<break time='700ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Well now, they say a grudge over food is a frightening thing, but when a person truly can’t get what they crave, they’ll sometimes pay an outrageous price without blinking. Today I’ll tell you a wonderfully extravagant tale about a single piece of fruit that ended up costing a thousand ryo." },
+    { id:'p2', title:"②若旦那の患い", ssml:false, text:"In a certain great fabric shop in Nihonbashi, there lived an only son, a pampered young master, who suddenly fell into a deep gloom despite it being the dead of winter. He stopped eating, took to his bed, and stayed there. Doctors were called in, but they could find nothing physically wrong with him — and yet, day by day, he grew more haggard. Worried, the head clerk finally leaned close to the young master’s pillow and asked gently. Clerk: “Young master, whatever is troubling you? Please, tell me anything.” Young master: “Truth is… I simply can’t stop craving a mikan.”" },
+    { id:'p3', title:"③季節外れの願い", ssml:false, text:"The head clerk was stunned. A mikan in the dead of winter — there was no chance of finding one anywhere, search as he might. But if things went on like this, it could cost the young master his life. When he consulted the master of the house, the master turned pale as well. Master: “If one or two mikan can save that boy’s life, it’s a small price. Go — find one, no matter what it takes.” Clerk: “Yes, sir. I will find one, without fail.” And so the head clerk was saddled with the outrageous task of hunting down a mikan in the middle of winter." },
+    { id:'p4', title:"④番頭の八方探し", ssml:false, text:"From morning until night, the head clerk went door to door across all of Edo, visiting every greengrocer and fruit shop he could find. But everywhere he went, he was turned away flatly. Shopkeeper: “A mikan in the dead of winter? Don’t be absurd.” Finally, as the sun was beginning to set, he arrived at a large wholesale house in Kanda that dealt exclusively in mikan. Half-resigned already, he was led into the back of the storeroom — and there, in a corner, sat a single perfect mikan, without a single blemish, rolled quietly into view." },
+    { id:'p5', title:"⑤千両の値", ssml:false, text:"When the head clerk begged, ‘Please, sell this to me,’ the wholesaler’s master fell silent for a moment, then spoke. Wholesaler: “Sir, this is the very last one of its kind left anywhere in Edo this winter. I don’t mind selling it to you… but I must ask for a thousand ryo.” The head clerk nearly fainted on the spot. A thousand ryo was a fortune large enough to build several houses. But nothing could be worth more than the young master’s life. He rushed straight back to the shop and reported everything to the master. Master: “Very well. I’ll pay that price. Nothing compares to my son’s life.” And so, an unprecedented transaction was struck — one thousand ryo for a single mikan." },
+    { id:'p6', title:"⑥快復と三房のご褒美", ssml:false, text:"The mikan was quickly brought to the young master’s bedside. With trembling hands he peeled it and put a single segment in his mouth — and right before everyone’s eyes, the color returned to his face, and he sat up in bed. Young master: “Ah, delicious. I feel like I’ve come back to life.” Of the roughly ten segments in the mikan, the young master shared some with his parents too, and still about three segments were left over. The master of the house, overjoyed, praised the head clerk for all his effort and gave him those three leftover segments as a reward. Master: “Thanks to you, he’s been saved. This is only a small token, but please, take it.”" },
+    { id:'p7', title:"⑦百両の一房", ssml:false, text:"The head clerk tucked the three segments carefully into his robe and hurried out of the shop, heading for home. As he walked, he found himself doing sums in his head. ‘A whole mikan cost a thousand ryo, and it came in about ten segments. Which means… this one segment I’m holding is worth roughly a hundred ryo…’ The instant that thought crossed his mind, his feet stopped dead in their tracks. The three segments in his hand added up to three hundred ryo. At the thought, his robe suddenly felt strangely heavy — or strangely light, he couldn’t quite tell. And so, they say, the head clerk never made it back to the shop that night, vanishing quietly into the darkness — or perhaps he did go back after all, who’s to say. ‘A hundred ryo a segment — now that’s an auspicious way to start the new year,’ as they say in a different story entirely." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Eh bien, on dit qu’une rancune liée à la nourriture est une chose redoutable, mais quand une personne ne peut vraiment pas obtenir ce qu’elle désire, elle paiera parfois un prix exorbitant sans sourciller. Aujourd’hui, je vais vous conter une histoire merveilleusement extravagante à propos d’un simple fruit qui finit par coûter mille ryôs." },
+    { id:'p2', title:"②若旦那の患い", ssml:false, text:"Dans une grande boutique de tissus de Nihonbashi vivait un fils unique, un jeune maître choyé, qui sombra soudain dans une profonde mélancolie malgré le cœur de l’hiver. Il cessa de manger, s’alita, et n’en bougea plus. On appela des médecins, mais ils ne trouvèrent rien d’anormal chez lui — et pourtant, jour après jour, il dépérissait. Inquiet, le commis en chef finit par se pencher près de l’oreiller du jeune maître et lui demanda doucement. Le commis : « Jeune maître, qu’est-ce qui vous tourmente donc ? Dites-moi tout, je vous en prie. » Le jeune maître : « À vrai dire… je ne peux tout simplement pas cesser de désirer une mandarine. »" },
+    { id:'p3', title:"③季節外れの願い", ssml:false, text:"Le commis en chef fut abasourdi. Une mandarine en plein hiver — il n’y avait aucune chance d’en trouver une, où qu’il cherchât. Mais si les choses continuaient ainsi, cela pourrait coûter la vie au jeune maître. Lorsqu’il consulta le maître de maison, celui-ci pâlit également. Le maître : « Si une ou deux mandarines peuvent sauver la vie de ce garçon, c’est un prix bien modique. Va — trouves-en une, coûte que coûte. » Le commis : « Bien, monsieur. Je vais en trouver une, sans faute. » Et c’est ainsi que le commis en chef se vit confier la tâche extravagante de dénicher une mandarine en plein cœur de l’hiver." },
+    { id:'p4', title:"④番頭の八方探し", ssml:false, text:"Du matin jusqu’au soir, le commis en chef alla de porte en porte à travers tout Edo, visitant chaque marchand de légumes et chaque boutique de fruits qu’il pouvait trouver. Mais partout où il allait, on le renvoyait sèchement. Le marchand : « Une mandarine en plein hiver ? Ne dites pas de bêtises. » Enfin, alors que le soleil commençait à se coucher, il arriva à un grand entrepôt de Kanda spécialisé exclusivement dans les mandarines. Déjà à moitié résigné, on le conduisit au fond de l’entrepôt — et là, dans un coin, se trouvait une seule mandarine parfaite, sans la moindre tache, roulée doucement en vue." },
+    { id:'p5', title:"⑤千両の値", ssml:false, text:"Quand le commis en chef supplia : « Je vous en prie, vendez-moi ceci », le maître du grossiste resta silencieux un moment, puis parla. Le grossiste : « Monsieur, c’est la toute dernière de son espèce qui reste dans tout Edo cet hiver. Je veux bien vous la vendre… mais je dois demander mille ryôs. » Le commis en chef faillit s’évanouir sur place. Mille ryôs, c’était une fortune suffisante pour construire plusieurs maisons. Mais rien ne pouvait valoir plus que la vie du jeune maître. Il se précipita à la boutique et rapporta tout au maître de maison. Le maître : « Très bien. Je paierai ce prix. Rien ne vaut la vie de mon fils. » Et c’est ainsi que se conclut une transaction sans précédent : mille ryôs pour une seule mandarine." },
+    { id:'p6', title:"⑥快復と三房のご褒美", ssml:false, text:"La mandarine fut rapidement apportée au chevet du jeune maître. De ses mains tremblantes, il l’épluchit et mit un seul quartier dans sa bouche — et sous les yeux de tous, la couleur revint à son visage, et il se redressa dans son lit. Le jeune maître : « Ah, délicieux. J’ai l’impression de revivre. » Sur la dizaine de quartiers que comptait la mandarine, le jeune maître en partagea aussi avec ses parents, et il en resta encore environ trois. Le maître de maison, ravi, félicita le commis en chef pour tous ses efforts et lui donna ces trois quartiers restants en récompense. Le maître : « Grâce à toi, il a été sauvé. Ce n’est qu’une petite marque de gratitude, mais je t’en prie, prends-les. »" },
+    { id:'p7', title:"⑦百両の一房", ssml:false, text:"Le commis en chef rangea soigneusement les trois quartiers dans ses habits et se hâta de quitter la boutique, en direction de chez lui. Tout en marchant, il se surprit à faire des calculs dans sa tête. « Une mandarine entière coûtait mille ryôs, et elle comptait environ dix quartiers. Ce qui veut dire… que ce quartier que je tiens vaut environ cent ryôs… » Dès que cette pensée lui traversa l’esprit, ses pieds s’arrêtèrent net. Les trois quartiers dans sa main faisaient au total trois cents ryôs. À cette idée, ses habits lui parurent soudain étrangement lourds — ou étrangement légers, il n’aurait su dire. Et c’est ainsi, dit-on, que le commis en chef ne rentra jamais à la boutique cette nuit-là, disparaissant tranquillement dans l’obscurité — ou peut-être y retourna-t-il tout de même, qui sait. « Cent ryôs le quartier, voilà qui commence l’année du bon pied », comme on dit dans une tout autre histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Bueno, dicen que un rencor relacionado con la comida es algo temible, pero cuando una persona realmente no puede conseguir lo que anhela, a veces paga un precio exorbitante sin pestañear. Hoy les contaré una historia maravillosamente extravagante sobre una sola fruta que terminó costando mil ryo." },
+    { id:'p2', title:"②若旦那の患い", ssml:false, text:"En una gran tienda de telas de Nihonbashi vivía un hijo único, un joven amo mimado, que de repente cayó en una profunda melancolía a pesar de estar en pleno invierno. Dejó de comer, se acostó y no se levantó más. Llamaron a médicos, pero no encontraron nada anormal en él, y sin embargo, día tras día, se iba consumiendo. Preocupado, el empleado principal finalmente se acercó a la almohada del joven amo y le preguntó con suavidad. Empleado: «Joven amo, ¿qué es lo que le aflige? Por favor, dígame lo que sea.» Joven amo: «La verdad… es que no puedo dejar de desear una mandarina.»" },
+    { id:'p3', title:"③季節外れの願い", ssml:false, text:"El empleado principal quedó atónito. Una mandarina en pleno invierno: no había ninguna posibilidad de encontrar una, buscara donde buscara. Pero si las cosas seguían así, podría costarle la vida al joven amo. Cuando consultó al dueño de la casa, este también palideció. Dueño: «Si una o dos mandarinas pueden salvar la vida de ese muchacho, es un precio módico. Ve, encuentra una, cueste lo que cueste.» Empleado: «Sí, señor. La encontraré, sin falta.» Y así fue como al empleado principal le encomendaron la extravagante tarea de buscar una mandarina en pleno invierno." },
+    { id:'p4', title:"④番頭の八方探し", ssml:false, text:"Desde la mañana hasta la noche, el empleado principal fue de puerta en puerta por todo Edo, visitando cada verdulería y frutería que pudo encontrar. Pero en todas partes lo rechazaban de plano. Tendero: «¿Una mandarina en pleno invierno? No diga tonterías.» Finalmente, cuando el sol empezaba a ponerse, llegó a un gran almacén mayorista de Kanda especializado exclusivamente en mandarinas. Ya medio resignado, lo condujeron al fondo del depósito, y allí, en un rincón, había una sola mandarina perfecta, sin una sola mancha, que rodó suavemente a la vista." },
+    { id:'p5', title:"⑤千両の値", ssml:false, text:"Cuando el empleado principal suplicó: «Por favor, véndame esto», el dueño del mayorista guardó silencio un momento, y luego habló. Mayorista: «Señor, esta es la última que queda en todo Edo este invierno. No me importa vendérsela… pero debo pedir mil ryo.» El empleado principal casi se desmaya en el acto. Mil ryo era una fortuna suficiente para construir varias casas. Pero nada podía valer más que la vida del joven amo. Corrió de vuelta a la tienda e informó todo al dueño. Dueño: «Está bien. Pagaré ese precio. Nada se compara con la vida de mi hijo.» Y así se cerró una transacción sin precedentes: mil ryo por una sola mandarina." },
+    { id:'p6', title:"⑥快復と三房のご褒美", ssml:false, text:"La mandarina fue llevada rápidamente junto a la cama del joven amo. Con manos temblorosas la peló y se llevó un solo gajo a la boca, y ante los ojos de todos, el color volvió a su rostro, y se incorporó en la cama. Joven amo: «Ah, delicioso. Siento que he vuelto a la vida.» De los aproximadamente diez gajos que tenía la mandarina, el joven amo compartió también con sus padres, y aún quedaron unos tres gajos. El dueño de la casa, encantado, elogió al empleado principal por todo su esfuerzo y le dio esos tres gajos sobrantes como recompensa. Dueño: «Gracias a ti, se salvó. Esto es solo un pequeño gesto, pero por favor, tómalos.»" },
+    { id:'p7', title:"⑦百両の一房", ssml:false, text:"El empleado principal guardó cuidadosamente los tres gajos en su ropa y se apresuró a salir de la tienda, rumbo a casa. Mientras caminaba, se sorprendió haciendo cálculos mentales. «Una mandarina entera costó mil ryo, y tenía unos diez gajos. Lo que significa… que este gajo que llevo vale unos cien ryo…» En cuanto ese pensamiento cruzó su mente, sus pies se detuvieron en seco. Los tres gajos en su mano sumaban trescientos ryo en total. Al pensarlo, su ropa de pronto se sintió extrañamente pesada, o extrañamente ligera, no sabría decir cuál. Y así, dicen, el empleado principal nunca regresó a la tienda esa noche, desapareciendo tranquilamente en la oscuridad, o tal vez sí regresó después de todo, quién sabe. «Cien ryo el gajo, vaya manera de empezar el año con buena suerte», como dicen en otra historia completamente distinta." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

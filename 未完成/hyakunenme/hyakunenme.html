@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>百年目 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.30 🔥エース</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">百年目</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Hyakunenme / One Hundred Years</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p8.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                        <div class="part-dot" id="dot-7"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②堅物の番頭</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③こっそり抜け出す</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④花見の宴</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤旦那様との遭遇</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥眠れぬ夜</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦旦那の呼び出し</button>
+                    <button onclick="playPart(7)" id="part-btn-7" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑧藤棚の教え</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。むかしの<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">商家<rt>しょうか</rt></ruby>には、<ruby class="v2">番頭<rt>ばんとう</rt></ruby>と<ruby class="v1">申<rt>もう</rt></ruby>しまして、<ruby class="v1">主人<rt>しゅじん</rt></ruby>に<ruby class="v1">代<rt>か</rt></ruby>わって<ruby class="v1">店中<rt>みせじゅう</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">仕切<rt>しき</rt></ruby>る、<ruby class="v1">大変<rt>たいへん</rt></ruby><ruby class="v1">重<rt>おも</rt></ruby>い<ruby class="v1">役目<rt>やくめ</rt></ruby>の<ruby class="v1">人<rt>ひと</rt></ruby>がおりました。この<ruby class="v2">番頭<rt>ばんとう</rt></ruby>という<ruby class="v1">人種<rt>じんしゅ</rt></ruby>、とかく<ruby class="v1">堅物<rt>かたぶつ</rt></ruby>で<ruby class="v1">通<rt>とお</rt></ruby>っているもので、<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">者<rt>もの</rt></ruby>が<ruby class="v1">少<rt>すこ</rt></ruby>しでも<ruby class="v1">羽目<rt>はめ</rt></ruby>を<ruby class="v1">外<rt>はず</rt></ruby>そうものなら、これはもう<ruby class="v1">大変<rt>たいへん</rt></ruby>な<ruby class="v1">お<rt>お</rt></ruby><ruby class="v1">叱<rt>しか</rt></ruby>りでございます。ですが、これも<ruby class="v1">世<rt>よ</rt></ruby>の<ruby class="v1">常<rt>つね</rt></ruby>、どんなに<ruby class="v1">厳<rt>きび</rt></ruby>しく<ruby class="v1">見<rt>み</rt></ruby>える<ruby class="v1">人<rt>ひと</rt></ruby>にも、<ruby class="v1">裏<rt>うら</rt></ruby>の<ruby class="v1">顔<rt>かお</rt></ruby>というものがあるようで。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、ある<ruby class="v2">大店<rt>おおだな</rt></ruby>の<ruby class="v2">堅物番頭<rt>かたぶつばんとう</rt></ruby>が、とんだところで<ruby class="v1">化<rt>ば</rt></ruby>けの<ruby class="v1">皮<rt>かわ</rt></ruby>を<ruby class="v1">剥<rt>は</rt></ruby>がれてしまうという、<ruby class="v1">人情噺<rt>にんじょうばなし</rt></ruby>を<ruby class="v1">一<rt>ひと</rt></ruby>つ、じっくりと<ruby class="v1">聞<rt>き</rt></ruby>いていただきましょう。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【堅物の番頭】</span>
+                    さる<ruby class="v1">日本橋<rt>にほんばし</rt></ruby>の<ruby class="v2">大店<rt>おおだな</rt></ruby>、<ruby class="v1">屋号<rt>やごう</rt></ruby>を<ruby class="v1">近江屋<rt>おうみや</rt></ruby>と<ruby class="v1">申<rt>もう</rt></ruby>しまして、<ruby class="v1">手広<rt>てびろ</rt></ruby>く<ruby class="v1">商<rt>あきな</rt></ruby>いをしております<ruby class="v1">大<rt>だい</rt></ruby>きな<ruby class="v1">店<rt>みせ</rt></ruby>に、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>という<ruby class="v2">番頭<rt>ばんとう</rt></ruby>がおりました。この<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さん、<ruby class="v1">仕事<rt>しごと</rt></ruby>にかけては<ruby class="v1">実<rt>じつ</rt></ruby>に<ruby class="v1">見事<rt>みごと</rt></ruby>なもので、<ruby class="v1">帳簿<rt>ちょうぼ</rt></ruby>の<ruby class="v1">付<rt>つ</rt></ruby>け<ruby class="v1">方<rt>かた</rt></ruby>から<ruby class="v1">客<rt>きゃく</rt></ruby>あしらいまで、どれをとっても<ruby class="v1">非<rt>ひ</rt></ruby>の<ruby class="v1">打<rt>う</rt></ruby>ちどころがない。ですがその<ruby class="v1">分<rt>ぶん</rt></ruby>、<ruby class="v1">融通<rt>ゆうずう</rt></ruby>というものが<ruby class="v1">一切<rt>いっさい</rt></ruby>利<rt>き</rt>かず、<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">衆<rt>しゅう</rt></ruby>が<ruby class="v1">少<rt>すこ</rt></ruby>しでも<ruby class="v1">遊<rt>あそ</rt></ruby>び<ruby class="v1">心<rt>ごころ</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>せようものなら、<br><strong>治兵衛：</strong>「これ、<ruby class="v1">何<rt>なに</rt></ruby>を<ruby class="v1">締<rt>し</rt></ruby>まりのないことをしている。<ruby class="v1">商人<rt>あきんど</rt></ruby>たる<ruby class="v1">者<rt>もの</rt></ruby>が、<ruby class="v1">遊<rt>あそ</rt></ruby>びなぞにうつつを<ruby class="v1">抜<rt>ぬ</rt></ruby>かして、それで<ruby class="v1">身上<rt>しんしょう</rt></ruby>が<ruby class="v1">立<rt>た</rt></ruby>つと<ruby class="v1">思<rt>おも</rt></ruby>うか」<br>と、それはもう<ruby class="v1">雷<rt>かみなり</rt></ruby>のようなお<ruby class="v1">叱<rt>しか</rt></ruby>りが<ruby class="v1">飛<rt>と</rt></ruby>んでくる。<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">衆<rt>しゅう</rt></ruby>たちは、<ruby class="v1">陰<rt>かげ</rt></ruby>では<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんのことを「<ruby class="v1">鬼<rt>おに</rt></ruby>の<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>」などと<ruby class="v1">呼<rt>よ</rt></ruby>んで、<ruby class="v1">恐<rt>おそ</rt></ruby>れつつも<ruby class="v1">煙<rt>けむ</rt></ruby>たがっておりました。<ruby class="v1">本人<rt>ほんにん</rt></ruby>もそれを<ruby class="v1">承知<rt>しょうち</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>で、<ruby class="v1">己<rt>おのれ</rt></ruby>の<ruby class="v1">規律<rt>きりつ</rt></ruby>こそが<ruby class="v1">店<rt>みせ</rt></ruby>を<ruby class="v1">守<rt>まも</rt></ruby>るのだと、いよいよ<ruby class="v1">胸<rt>むね</rt></ruby>を<ruby class="v1">張<rt>は</rt></ruby>っている、そういう<ruby class="v1">人<rt>ひと</rt></ruby>でございました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【こっそり抜け出す】</span>
+                    ところがこの<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さん、<ruby class="v1">年<rt>とし</rt></ruby>に<ruby class="v1">一度<rt>いちど</rt></ruby>だけ、<ruby class="v1">誰<rt>だれ</rt></ruby>にも<ruby class="v1">知<rt>し</rt></ruby>られずにこっそりと<ruby class="v1">羽<rt>は</rt></ruby>を<ruby class="v1">伸<rt>の</rt></ruby>ばす<ruby class="v1">日<rt>ひ</rt></ruby>があったそうで。<ruby class="v1">桜<rt>さくら</rt></ruby>の<ruby class="v1">咲<rt>さ</rt></ruby>くこの<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">主人<rt>しゅじん</rt></ruby>から<ruby class="v1">用事<rt>ようじ</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>いつかったと<ruby class="v1">称<rt>しょう</rt></ruby>して<ruby class="v1">店<rt>みせ</rt></ruby>を<ruby class="v1">出<rt>で</rt></ruby>ると、<ruby class="v1">人目<rt>ひとめ</rt></ruby>につかない<ruby class="v1">路地<rt>ろじ</rt></ruby>に<ruby class="v1">入<rt>はい</rt></ruby>って、<ruby class="v1">羽織<rt>はおり</rt></ruby>を<ruby class="v1">脱<rt>ぬ</rt></ruby>ぎ<ruby class="v1">替<rt>か</rt></ruby>え、<ruby class="v1">頭巾<rt>ずきん</rt></ruby>をすっぽりとかぶって<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">隠<rt>かく</rt></ruby>す。<br><strong>治兵衛（<ruby class="v1">独<rt>ひと</rt></ruby>り<ruby class="v1">言<rt>ごと</rt></ruby>）：</strong>「ふふ、これで<ruby class="v1">誰<rt>だれ</rt></ruby>にも<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>とは<ruby class="v1">分<rt>わ</rt></ruby>かるまい。<ruby class="v1">一年<rt>いちねん</rt></ruby>に<ruby class="v1">一度<rt>いちど</rt></ruby>くらい、この<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>にも<ruby class="v1">息抜<rt>いきぬ</rt></ruby>きがあってもいいだろうよ」<br>と、まるで<ruby class="v1">別人<rt>べつじん</rt></ruby>のような<ruby class="v1">足取<rt>あしど</rt></ruby>りで、<ruby class="v1">向<rt>む</rt></ruby>かった<ruby class="v1">先<rt>さき</rt></ruby>は<ruby class="v1">向島<rt>むこうじま</rt></ruby>の<ruby class="v1">花見<rt>はなみ</rt></ruby>の<ruby class="v1">宴<rt>うたげ</rt></ruby>でございます。<ruby class="v1">店<rt>みせ</rt></ruby>では<ruby class="v1">鬼<rt>おに</rt></ruby>とまで<ruby class="v1">恐<rt>おそ</rt></ruby>れられるあの<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんが、<ruby class="v1">年<rt>ねん</rt></ruby>に<ruby class="v1">一度<rt>いちど</rt></ruby>だけ、<ruby class="v1">誰<rt>だれ</rt></ruby>もが<ruby class="v1">知<rt>し</rt></ruby>らない<ruby class="v1">別<rt>べつ</rt></ruby>の<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>せに<ruby class="v1">行<rt>い</rt></ruby>くという、なんとも<ruby class="v1">人間味<rt>にんげんみ</rt></ruby>のあるお<ruby class="v1">話<rt>はなし</rt></ruby>でございます。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【花見の宴】</span>
+                    <ruby class="v1">向島<rt>むこうじま</rt></ruby>の<ruby class="v1">土手<rt>どて</rt></ruby>には<ruby class="v1">満開<rt>まんかい</rt></ruby>の<ruby class="v1">桜<rt>さくら</rt></ruby>が<ruby class="v1">咲<rt>さ</rt></ruby>き<ruby class="v1">誇<rt>ほこ</rt></ruby>り、<ruby class="v1">幔幕<rt>まんまく</rt></ruby>を<ruby class="v1">張<rt>は</rt></ruby>った<ruby class="v1">宴席<rt>えんせき</rt></ruby>では<ruby class="v1">三味線<rt>しゃみせん</rt></ruby>の<ruby class="v1">音<rt>ね</rt></ruby>も<ruby class="v1">賑<rt>にぎ</rt></ruby>やかに、<ruby class="v1">芸者衆<rt>げいしゃしゅう</rt></ruby>を<ruby class="v1">呼<rt>よ</rt></ruby>んでの<ruby class="v1">大変<rt>たいへん</rt></ruby>な<ruby class="v1">賑<rt>にぎ</rt></ruby>わいでございます。<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんもすっかり<ruby class="v1">酒<rt>さけ</rt></ruby>が<ruby class="v1">回<rt>まわ</rt></ruby>って、<ruby class="v1">日頃<rt>ひごろ</rt></ruby>のしかめっ<ruby class="v1">面<rt>つら</rt></ruby>はどこへやら、<ruby class="v1">頬<rt>ほお</rt></ruby>を<ruby class="v1">紅<rt>あか</rt></ruby>くして<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">声<rt>こえ</rt></ruby>で<ruby class="v1">笑<rt>わら</rt></ruby>っております。<br><strong>治兵衛：</strong>「いよっ、これはめでたい、めでたい！<ruby class="v1">芸者<rt>げいしゃ</rt></ruby>さん、もう<ruby class="v1">一曲<rt>いっきょく</rt></ruby>お<ruby class="v1">願<rt>ねが</rt></ruby>いしますよ！」<br>と、<ruby class="v1">扇子<rt>せんす</rt></ruby>を<ruby class="v1">片手<rt>かたて</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>ち<ruby class="v1">上<rt>あ</rt></ruby>がり、<ruby class="v1">見<rt>み</rt></ruby>よう<ruby class="v1">見<rt>み</rt></ruby>まねで<ruby class="v1">踊<rt>おど</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>す<ruby class="v1">始末<rt>しまつ</rt></ruby>。<ruby class="v1">周<rt>まわ</rt></ruby>りの<ruby class="v1">芸者衆<rt>げいしゃしゅう</rt></ruby>も、<br><strong>芸者：</strong>「あら<ruby class="v1">旦那<rt>だんな</rt></ruby>、お<ruby class="v1">上手<rt>じょうず</rt></ruby>だこと」<br>とはやし<ruby class="v1">立<rt>た</rt></ruby>てる。ふだんの<ruby class="v1">堅苦<rt>かたくる</rt></ruby>しい<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんを<ruby class="v1">知<rt>し</rt></ruby>る<ruby class="v1">者<rt>もの</rt></ruby>が<ruby class="v1">見<rt>み</rt></ruby>たら、まず<ruby class="v1">別人<rt>べつじん</rt></ruby>と<ruby class="v1">思<rt>おも</rt></ruby>うに<ruby class="v1">違<rt>ちが</rt></ruby>いございません。この<ruby class="v1">日<rt>ひ</rt></ruby>ばかりは、<ruby class="v2">堅物番頭<rt>かたぶつばんとう</rt></ruby>もただの<ruby class="v1">一人<rt>ひとり</rt></ruby>の<ruby class="v1">人間<rt>にんげん</rt></ruby>として、<ruby class="v1">春<rt>はる</rt></ruby>の<ruby class="v1">一日<rt>いちにち</rt></ruby>を<ruby class="v1">心<rt>こころ</rt></ruby>ゆくまで<ruby class="v1">楽<rt>たの</rt></ruby>しんでおりました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【旦那様との遭遇】</span>
+                    ところがその<ruby class="v1">踊<rt>おど</rt></ruby>りの<ruby class="v1">輪<rt>わ</rt></ruby>から<ruby class="v1">少<rt>すこ</rt></ruby>し<ruby class="v1">離<rt>はな</rt></ruby>れた<ruby class="v1">床几<rt>しょうぎ</rt></ruby>に、こちらもお<ruby class="v1">忍<rt>しの</rt></ruby>びで<ruby class="v1">来<rt>き</rt></ruby>ていたらしい<ruby class="v1">近江屋<rt>おうみや</rt></ruby>の<ruby class="v1">旦那<rt>だんな</rt></ruby><ruby class="v1">自身<rt>じしん</rt></ruby>が、<ruby class="v1">静<rt>しず</rt></ruby>かに<ruby class="v1">盃<rt>さかずき</rt></ruby>を<ruby class="v1">傾<rt>かたむ</rt></ruby>けながら、この<ruby class="v1">様子<rt>ようす</rt></ruby>をじっと<ruby class="v1">見<rt>み</rt></ruby>ておりました。<ruby class="v1">踊<rt>おど</rt></ruby>りに<ruby class="v1">夢中<rt>むちゅう</rt></ruby>になっていた<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さん、ふと<ruby class="v1">視線<rt>しせん</rt></ruby>を<ruby class="v1">感<rt>かん</rt></ruby>じてそちらを<ruby class="v1">見<rt>み</rt></ruby>やった<ruby class="v1">瞬間<rt>しゅんかん</rt></ruby>、<ruby class="v1">血<rt>ち</rt></ruby>の<ruby class="v1">気<rt>け</rt></ruby>がさあっと<ruby class="v1">引<rt>ひ</rt></ruby>いていくのが<ruby class="v1">自分<rt>じぶん</rt></ruby>でも<ruby class="v1">分<rt>わ</rt></ruby>かりました。<br><strong>治兵衛（<ruby class="v1">胸中<rt>きょうちゅう</rt></ruby>）：</strong>「だ、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>——！なんということだ、よりにもよってこんなところを<ruby class="v1">見<rt>み</rt></ruby>られるとは」<br><ruby class="v1">扇子<rt>せんす</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>った<ruby class="v1">手<rt>て</rt></ruby>がぴたりと<ruby class="v1">止<rt>と</rt></ruby>まり、<ruby class="v1">顔<rt>かお</rt></ruby>から<ruby class="v1">笑<rt>わら</rt></ruby>みが<ruby class="v1">消<rt>き</rt></ruby>え、<ruby class="v1">頭巾<rt>ずきん</rt></ruby>を<ruby class="v1">深<rt>ふか</rt></ruby>くかぶり<ruby class="v1">直<rt>なお</rt></ruby>して、そそくさとその<ruby class="v1">場<rt>ば</rt></ruby>を<ruby class="v1">後<rt>あと</rt></ruby>にする。ですが<ruby class="v1">遅<rt>おそ</rt></ruby>い。<ruby class="v1">旦那<rt>だんな</rt></ruby>の<ruby class="v1">方<rt>ほう</rt></ruby>もしっかりと、あの<ruby class="v1">扇子<rt>せんす</rt></ruby>さばき、あの<ruby class="v1">後<rt>うし</rt></ruby>ろ<ruby class="v1">姿<rt>すがた</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、<ruby class="v1">誰<rt>だれ</rt></ruby>だか<ruby class="v1">気付<rt>きづ</rt></ruby>いていたのでございます。<ruby class="v1">帰<rt>かえ</rt></ruby>り<ruby class="v1">道<rt>みち</rt></ruby>、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">生<rt>い</rt></ruby>きた<ruby class="v1">心地<rt>ここち</rt></ruby>もせず、<ruby class="v1">一体<rt>いったい</rt></ruby>どんな<ruby class="v1">顔<rt>かお</rt></ruby>をして<ruby class="v1">明日<rt>あした</rt></ruby>から<ruby class="v1">店<rt>みせ</rt></ruby>に<ruby class="v1">出<rt>で</rt></ruby>ればいいのか、<ruby class="v1">思案<rt>しあん</rt></ruby>にくれておりました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【眠れぬ夜】</span>
+                    その<ruby class="v1">夜<rt>よる</rt></ruby>、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんはまんじりともせず、<ruby class="v1">布団<rt>ふとん</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>で<ruby class="v1">何度<rt>なんど</rt></ruby>も<ruby class="v1">寝返<rt>ねがえ</rt></ruby>りを<ruby class="v1">打<rt>う</rt></ruby>っておりました。<br><strong>治兵衛（<ruby class="v1">独<rt>ひと</rt></ruby>り<ruby class="v1">言<rt>ごと</rt></ruby>）：</strong>「<ruby class="v1">長年<rt>ながねん</rt></ruby>、<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>にあれほど<ruby class="v1">厳<rt>きび</rt></ruby>しく<ruby class="v1">言<rt>い</rt></ruby>ってきたこの<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>が、よりにもよって<ruby class="v1">花見<rt>はなみ</rt></ruby>の<ruby class="v1">席<rt>せき</rt></ruby>で<ruby class="v1">芸者<rt>げいしゃ</rt></ruby>と<ruby class="v1">踊<rt>おど</rt></ruby>り<ruby class="v1">狂<rt>くる</rt></ruby>っているところを、よりにもよって<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>に<ruby class="v1">見<rt>み</rt></ruby>られてしまった。これはもう、<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">逃<rt>のが</rt></ruby>れのしようがない」<br><ruby class="v1">天井<rt>てんじょう</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>つめながら、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">覚悟<rt>かくご</rt></ruby>を<ruby class="v1">決<rt>き</rt></ruby>めます。<br><strong>治兵衛（<ruby class="v1">独<rt>ひと</rt></ruby>り<ruby class="v1">言<rt>ごと</rt></ruby>）：</strong>「<ruby class="v1">口<rt>くち</rt></ruby>では<ruby class="v1">立派<rt>りっぱ</rt></ruby>なことを<ruby class="v1">言<rt>い</rt></ruby>っておきながら、<ruby class="v1">自分<rt>じぶん</rt></ruby>はこの<ruby class="v1">体<rt>てい</rt></ruby>たらく。<ruby class="v1">明日<rt>あした</rt></ruby>、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>にお<ruby class="v1">叱<rt>しか</rt></ruby>りを<ruby class="v1">受<rt>う</rt></ruby>けるのは<ruby class="v1">当然<rt>とうぜん</rt></ruby>、いや、それどころか<ruby class="v1">暇<rt>いとま</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>されても<ruby class="v1">文句<rt>もんく</rt></ruby>は<ruby class="v1">言<rt>い</rt></ruby>えまい」<br><ruby class="v1">夜<rt>よ</rt></ruby>が<ruby class="v1">白々<rt>しらじら</rt></ruby>と<ruby class="v1">明<rt>あ</rt></ruby>ける<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">静<rt>しず</rt></ruby>かに<ruby class="v1">起<rt>お</rt></ruby>き<ruby class="v1">上<rt>あ</rt></ruby>がると、<ruby class="v1">机<rt>つくえ</rt></ruby>に<ruby class="v1">向<rt>む</rt></ruby>かい、<ruby class="v1">震<rt>ふる</rt></ruby>える<ruby class="v1">手<rt>て</rt></ruby>で<ruby class="v1">辞表<rt>じひょう</rt></ruby>をしたためると、それを<ruby class="v1">懐<rt>ふところ</rt></ruby>に<ruby class="v1">忍<rt>しの</rt></ruby>ばせて、<ruby class="v1">重<rt>おも</rt></ruby>い<ruby class="v1">足取<rt>あしど</rt></ruby>りで<ruby class="v1">店<rt>みせ</rt></ruby>へと<ruby class="v1">向<rt>む</rt></ruby>かったのでございます。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【旦那の呼び出し】</span>
+                    <ruby class="v1">店<rt>みせ</rt></ruby>に<ruby class="v1">着<rt>つ</rt></ruby>くと、いつものように<ruby class="v1">帳場<rt>ちょうば</rt></ruby>に<ruby class="v1">座<rt>すわ</rt></ruby>るものの、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんの<ruby class="v1">顔<rt>かお</rt></ruby>には<ruby class="v1">生気<rt>せいき</rt></ruby>がございません。<ruby class="v1">昼<rt>ひる</rt></ruby>を<ruby class="v1">過<rt>す</rt></ruby>ぎた<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">丁稚<rt>でっち</rt></ruby>が<ruby class="v1">呼<rt>よ</rt></ruby>びに<ruby class="v1">参<rt>まい</rt></ruby>ります。<br><strong>丁稚：</strong>「<ruby class="v2">番頭<rt>ばんとう</rt></ruby>さん、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>が<ruby class="v1">奥座敷<rt>おくざしき</rt></ruby>へお<ruby class="v1">越<rt>こ</rt></ruby>しくださいとのことです」<br>いよいよ<ruby class="v1">来<rt>き</rt></ruby>たか、と<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">懐<rt>ふところ</rt></ruby>の<ruby class="v1">辞表<rt>じひょう</rt></ruby>をそっと<ruby class="v1">確<rt>たし</rt></ruby>かめ、<ruby class="v1">覚悟<rt>かくご</rt></ruby>を<ruby class="v1">決<rt>き</rt></ruby>めて<ruby class="v1">奥座敷<rt>おくざしき</rt></ruby>へと<ruby class="v1">向<rt>む</rt></ruby>かいます。<ruby class="v1">襖<rt>ふすま</rt></ruby>を<ruby class="v1">開<rt>あ</rt></ruby>けると、<ruby class="v1">旦那<rt>だんな</rt></ruby>は<ruby class="v1">静<rt>しず</rt></ruby>かに<ruby class="v1">茶<rt>ちゃ</rt></ruby>を<ruby class="v1">飲<rt>の</rt></ruby>んでおりました。<br><strong>治兵衛：</strong>「お<ruby class="v1">呼<rt>よ</rt></ruby>びでございましょうか」<br>と、<ruby class="v1">畳<rt>たたみ</rt></ruby>に<ruby class="v1">手<rt>て</rt></ruby>をついて<ruby class="v1">深々<rt>ふかぶか</rt></ruby>と<ruby class="v1">頭<rt>あたま</rt></ruby>を<ruby class="v1">下<rt>さ</rt></ruby>げる<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さん。<br><strong>旦那：</strong>「治兵衛、まあそう<ruby class="v1">硬<rt>かた</rt></ruby>くなるな。<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v1">説教<rt>せっきょう</rt></ruby>をしようというんじゃない」<br>その<ruby class="v1">声<rt>こえ</rt></ruby>は、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんが<ruby class="v1">覚悟<rt>かくご</rt></ruby>していたような<ruby class="v1">厳<rt>きび</rt></ruby>しいものではなく、むしろどこか<ruby class="v1">穏<rt>おだ</rt></ruby>やかで、<ruby class="v1">労<rt>いたわ</rt></ruby>るような<ruby class="v1">響<rt>ひび</rt></ruby>きを<ruby class="v1">持<rt>も</rt></ruby>っておりました。
+                </p>
+                <p id="line-7" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【藤棚の教え】</span>
+                    <ruby class="v1">旦那<rt>だんな</rt></ruby>は<ruby class="v1">茶<rt>ちゃ</rt></ruby>を<ruby class="v1">一口<rt>ひとくち</rt></ruby>すすると、<ruby class="v1">庭先<rt>にわさき</rt></ruby>の<ruby class="v1">藤棚<rt>ふじだな</rt></ruby>にちらりと<ruby class="v1">目<rt>め</rt></ruby>をやりながら、ゆっくりと<ruby class="v1">語<rt>かた</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>しました。<br><strong>旦那：</strong>「<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>、あの<ruby class="v1">藤棚<rt>ふじだな</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>てご<ruby class="v1">覧<rt>らん</rt></ruby>。あの<ruby class="v1">木<rt>き</rt></ruby>の<ruby class="v1">棚<rt>たな</rt></ruby>が<ruby class="v1">頑丈<rt>がんじょう</rt></ruby>で<ruby class="v1">曲<rt>ま</rt></ruby>がりもしなければ、あの<ruby class="v1">藤<rt>ふじ</rt></ruby>のつるはどうなると<ruby class="v1">思<rt>おも</rt></ruby>う」<br><strong>治兵衛：</strong>「はあ……それは、その、<ruby class="v1">枯<rt>か</rt></ruby>れてしまいましょうか」<br><strong>旦那：</strong>「その<ruby class="v1">通<rt>とお</rt></ruby>りだ。<ruby class="v1">棚<rt>たな</rt></ruby>にほんの<ruby class="v1">少<rt>すこ</rt></ruby>し、しなりというものがあるからこそ、あの<ruby class="v1">藤<rt>ふじ</rt></ruby>は<ruby class="v1">絡<rt>から</rt></ruby>みつき、<ruby class="v1">風<rt>かぜ</rt></ruby>に<ruby class="v1">揺<rt>ゆ</rt></ruby>られながらも<ruby class="v1">毎年<rt>まいとし</rt></ruby>あんなに<ruby class="v1">見事<rt>みごと</rt></ruby>な<ruby class="v1">花<rt>はな</rt></ruby>を<ruby class="v1">咲<rt>さ</rt></ruby>かせる。<ruby class="v1">人<rt>ひと</rt></ruby>も<ruby class="v1">同<rt>おな</rt></ruby>じことだよ、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>」<br><strong>治兵衛：</strong>「……」<br><strong>旦那：</strong>「わしは<ruby class="v1">昨日<rt>きのう</rt></ruby>、<ruby class="v1">向島<rt>むこうじま</rt></ruby>でお<ruby class="v1">前<rt>まえ</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>かけたよ。<ruby class="v1">扇子<rt>せんす</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>って、それは<ruby class="v1">楽<rt>たの</rt></ruby>しそうに<ruby class="v1">踊<rt>おど</rt></ruby>っていたな」<br><ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">畳<rt>たたみ</rt></ruby>に<ruby class="v1">額<rt>ひたい</rt></ruby>をこすりつけ、<br><strong>治兵衛：</strong>「<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">訳<rt>わけ</rt></ruby>ございません。この<ruby class="v1">通<rt>とお</rt></ruby>り、いかようにも<ruby class="v1">処分<rt>しょぶん</rt></ruby>をお<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">付<rt>つ</rt></ruby>けください」<br><strong>旦那：</strong>「<ruby class="v1">馬鹿<rt>ばか</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>うな。わしはむしろ、あの<ruby class="v1">日<rt>ひ</rt></ruby>のお<ruby class="v1">前<rt>まえ</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て<ruby class="v1">安心<rt>あんしん</rt></ruby>したのだ。<ruby class="v1">一年<rt>いちねん</rt></ruby><ruby class="v1">中<rt>じゅう</rt></ruby>、<ruby class="v1">一日<rt>いちにち</rt></ruby>たりとも<ruby class="v1">気<rt>き</rt></ruby>を<ruby class="v1">緩<rt>ゆる</rt></ruby>めない<ruby class="v1">男<rt>おとこ</rt></ruby>というのは、いつかぽっきりと<ruby class="v1">折<rt>お</rt></ruby>れてしまうものだ。お<ruby class="v1">前<rt>まえ</rt></ruby>にも<ruby class="v1">人並<rt>ひとな</rt></ruby>みに<ruby class="v1">息抜<rt>いきぬ</rt></ruby>きをする<ruby class="v1">心<rt>こころ</rt></ruby>があると<ruby class="v1">分<rt>わ</rt></ruby>かって、これほど<ruby class="v1">頼<rt>たの</rt></ruby>もしいことはない」<br><ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんは<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">上<rt>あ</rt></ruby>げ、<ruby class="v1">目<rt>め</rt></ruby>に<ruby class="v1">涙<rt>なみだ</rt></ruby>を<ruby class="v1">浮<rt>う</rt></ruby>かべておりました。<br><strong>治兵衛：</strong>「<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>……この<ruby class="v1">御恩<rt>ごおん</rt></ruby>、<ruby class="v1">終生<rt>しゅうせい</rt></ruby><ruby class="v1">忘<rt>わす</rt></ruby>れませぬ」<br><ruby class="v1">窓<rt>まど</rt></ruby>の<ruby class="v1">外<rt>そと</rt></ruby>では、<ruby class="v1">藤<rt>ふじ</rt></ruby>の<ruby class="v1">花<rt>はな</rt></ruby>が<ruby class="v1">風<rt>かぜ</rt></ruby>に<ruby class="v1">揺<rt>ゆ</rt></ruby>れながら、<ruby class="v1">静<rt>しず</rt></ruby>かに<ruby class="v1">薫<rt>かお</rt></ruby>っておりました。この<ruby class="v1">日<rt>ひ</rt></ruby>を<ruby class="v1">境<rt>さかい</rt></ruby>に、<ruby class="v1">治兵衛<rt>じへえ</rt></ruby>さんの<ruby class="v1">厳<rt>きび</rt></ruby>しさは<ruby class="v1">変<rt>か</rt></ruby>わらぬながらも、その<ruby class="v1">目<rt>め</rt></ruby>にはどこか<ruby class="v1">温<rt>あたた</rt></ruby>かみが<ruby class="v1">加<rt>くわ</rt></ruby>わったといわれております。<ruby class="v1">堅<rt>かた</rt></ruby>すぎる<ruby class="v1">木<rt>き</rt></ruby>は<ruby class="v1">折<rt>お</rt></ruby>れる、しなう<ruby class="v1">心<rt>こころ</rt></ruby>があってこそ、<ruby class="v1">人<rt>ひと</rt></ruby>は<ruby class="v1">美<rt>うつく</rt></ruby>しく<ruby class="v1">咲<rt>さ</rt></ruby>き<ruby class="v1">続<rt>つづ</rt></ruby>けられる——そんな<ruby class="v1">教<rt>おし</rt></ruby>えを<ruby class="v1">胸<rt>むね</rt></ruby>に、この<ruby class="v1">噺<rt>はなし</rt></ruby>はおしまいとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. In the great merchant houses of old, there was a role called banto - a head clerk who ran the whole shop in the master's stead, a position of tremendous responsibility. Men in this role tended, more often than not, to be famously rigid and humorless: let a young employee slip up even slightly, and a fearsome scolding was sure to follow. But that's the way of the world - even the sternest-looking person usually has another side hidden away. Today, let's settle in and listen closely to a heartfelt tale of just such a stern head clerk at a great trading house, and the day fate peeled back his stiff facade in the most unexpected way.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STRICT HEAD CLERK]</span>At a certain great trading house in the Nihonbashi district, called the Omiya, which conducted business on a grand scale, there worked a head clerk named Jihei. When it came to his job, Jihei was truly exceptional - from bookkeeping to handling customers, there wasn't a flaw to be found in his work. But precisely because of that, he allowed for absolutely no give. The moment any young employee showed even a hint of playfulness, a thunderous scolding would come crashing down.<br><strong>Jihei:</strong> "Now then, what is this slovenly behavior? Does a man of commerce truly believe he can build his fortune while chasing after idle amusements?"<br>Behind his back, the shop's young workers called him "Jihei the Demon," fearing him even as they found him exhausting to be around. Jihei himself knew full well what they called him, and only puffed his chest out further, believing that his own iron discipline was exactly what kept the shop standing strong.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[SNEAKING OUT]</span>And yet, this same Jihei apparently had one day each year when he secretly let his hair down, unknown to anyone. Around this time, when the cherry blossoms bloom, he would leave the shop claiming an errand for the master, duck into an unnoticed alley, change out of his formal coat, and pull a hood snugly down to hide his face.<br><strong>Jihei (to himself):</strong> "Heh. Not a soul will recognize me now. Surely even I am allowed one day of relief a year."<br>And with a spring in his step, quite unlike his usual self, he made his way to a cherry-blossom viewing party over in Mukojima. That this same Jihei, feared throughout the shop as a demon, showed a completely different, unknown face just once a year - there was something wonderfully human about it.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CHERRY BLOSSOM PARTY]</span>Along the embankment at Mukojima, the cherry trees were in full, glorious bloom. Under a curtained party pavilion, shamisen music rang out merrily, geisha entertainers had been called in, and the whole scene was one of tremendous festivity. Jihei, thoroughly warmed by sake, had lost every trace of his usual scowl, his cheeks flushed as he laughed loudly.<br><strong>Jihei:</strong> "Ha! What a splendid day, splendid! Miss geisha, one more song, if you please!"<br>He rose to his feet, fan in hand, and began dancing along in clumsy imitation. The geisha around him cheered him on.<br><strong>Geisha:</strong> "My, my, sir, you're quite the dancer!"<br>Anyone who knew the stiff, humorless Jihei of the shop would surely have taken him for a completely different man. On this one day, the rigid head clerk was simply a human being, savoring a spring day to the very fullest.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MASTER]</span>But at a bench set slightly apart from the dancing, the master of the Omiya himself - who had apparently also come in disguise - sat quietly sipping from a sake cup, watching the whole scene unfold. Jihei, lost in his dancing, suddenly felt a gaze upon him, glanced over, and in that instant felt the blood drain entirely from his face.<br><strong>Jihei (inwardly):</strong> "M-master! Of all things - to be seen like this, of all places!"<br>His fan-holding hand froze mid-motion, the smile vanished from his face, and he pulled his hood down low and hurried away from the scene. But it was too late. The master had gotten a good enough look at that fan work, that retreating back, to know exactly who it was. On the way home, Jihei felt barely alive, lost in anxious thought over what face he could possibly show at the shop come morning.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SLEEPLESS NIGHT]</span>That night, Jihei could not sleep a wink, tossing and turning endlessly beneath his blankets.<br><strong>Jihei (to himself):</strong> "All these years I have scolded the shop's employees so severely, and yet of all people, I - I was seen by the master himself, dancing like a madman with a geisha at a cherry-blossom party. There is no excuse I could possibly offer now."<br>Staring up at the ceiling, Jihei resolved himself to what must come.<br><strong>Jihei (to himself):</strong> "I preached such fine words with my mouth, while behaving like this myself. Tomorrow, a scolding from the master is only natural - no, more than that, I could hardly complain even if I were dismissed outright."<br>As the night began to pale toward dawn, Jihei quietly rose, sat at his writing desk, and with trembling hands composed a letter of resignation. Tucking it into his robe, he made his way to the shop with heavy, dragging steps.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[SUMMONED BY THE MASTER]</span>Back at the shop, Jihei took his usual seat at the counting desk, though there was no life left in his face. Past noon, an apprentice came to fetch him.<br><strong>Apprentice:</strong> "Head Clerk, the master asks that you come to the inner parlor."<br>So it has finally come, Jihei thought, quietly checking the resignation letter tucked in his robe, and steeling himself, he made his way to the inner parlor. Sliding open the door, he found the master quietly sipping tea.<br><strong>Jihei:</strong> "You called for me?"<br>He pressed his hands to the tatami and bowed deeply.<br><strong>Master:</strong> "Jihei, now, don't be so stiff. I haven't called you here to lecture you today."<br>The voice was nothing like the harsh tone Jihei had braced himself for - it carried, instead, a gentleness, almost a note of concern.</p>
+                <p id="line-en-7"><span class="text-xs font-bold text-stone-400 block mb-1">[THE WISTERIA TRELLIS TEACHING]</span>The master took a sip of tea, glanced briefly toward the wisteria trellis in the garden, and began speaking slowly.<br><strong>Master:</strong> "Jihei, look at that wisteria trellis. If that wooden frame were so sturdy it never gave an inch, what do you suppose would happen to the wisteria vines?"<br><strong>Jihei:</strong> "Ah... I suppose... they would wither, sir?"<br><strong>Master:</strong> "Exactly right. It's precisely because the frame has a little give, a little flexibility, that the wisteria can twine around it, and even as it sways in the wind, it blooms so magnificently every single year. People are just the same, Jihei."<br><strong>Jihei:</strong> "..."<br><strong>Master:</strong> "I saw you yesterday, at Mukojima. Fan in hand, dancing away, looking like you were having the time of your life."<br>Jihei pressed his forehead to the tatami.<br><strong>Jihei:</strong> "I am deeply sorry. Please, deal with me however you see fit."<br><strong>Master:</strong> "Don't be absurd. If anything, seeing you that day put my mind at ease. A man who never once lets himself relax, not for a single day of the year, is bound to snap eventually. Knowing that you, too, have an ordinary human heart capable of a little relief - nothing could reassure me more."<br>Jihei lifted his face, tears welling in his eyes.<br><strong>Jihei:</strong> "Master... I shall never forget this kindness, for as long as I live."<br>Outside the window, the wisteria blossoms swayed gently in the breeze, their fragrance drifting quietly through the air. From that day on, they say, Jihei's strictness never wavered - and yet somehow, his eyes carried a new warmth. A tree too rigid will eventually break; only a heart with a little give can go on blooming beautifully. With that teaching in mind, we bring this tale to its close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Dans les grandes maisons de commerce d'autrefois, il existait une fonction appelee banto - un premier commis qui dirigeait toute la boutique a la place du maitre, une position d'une immense responsabilite. Les hommes occupant ce role avaient tendance, le plus souvent, a etre reputes rigides et sans humour : qu'un jeune employe commette la moindre erreur, et une severe reprimande suivait a coup sur. Mais c'est ainsi que va le monde - meme la personne la plus severe en apparence cache generalement une autre facette. Aujourd'hui, installons-nous et ecoutons attentivement l'histoire touchante d'un tel premier commis severe dans une grande maison de commerce, et du jour ou le destin devoila sa facade rigide de la maniere la plus inattendue.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STRICT HEAD CLERK]</span>Dans une grande maison de commerce du quartier de Nihonbashi, appelee l'Omiya, qui menait ses affaires a grande echelle, travaillait un premier commis nomme Jihei. En ce qui concernait son travail, Jihei etait veritablement exceptionnel - de la tenue des comptes a l'accueil des clients, on ne trouvait pas la moindre faille dans son travail. Mais precisement a cause de cela, il n'accordait absolument aucune souplesse. Des qu'un jeune employe montrait ne serait-ce qu'une once de legerete, une reprimande tonitruante s'abattait aussitot.<br><strong>Jihei :</strong> « Alors, qu'est-ce que ce comportement relache ? Un homme de commerce croit-il vraiment pouvoir batir sa fortune en courant apres des amusements futiles ? »<br>Derriere son dos, les jeunes employes de la boutique l'appelaient « Jihei le Demon », le craignant tout en le trouvant epuisant a cotoyer. Jihei lui-meme savait parfaitement comment on le surnommait, et n'en bombait le torse que davantage, convaincu que sa propre discipline de fer etait exactement ce qui maintenait la boutique solide.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[SNEAKING OUT]</span>Et pourtant, ce meme Jihei avait apparemment un jour par an ou il se laissait secretement aller, sans que personne ne le sache. A cette epoque de l'annee, quand les cerisiers fleurissent, il quittait la boutique en pretextant une course pour le maitre, se glissait dans une ruelle discrete, changeait de manteau, et rabattait une capuche pour cacher son visage.<br><strong>Jihei (a lui-meme) :</strong> « Heh. Pas une ame ne me reconnaitra maintenant. Meme moi, j'ai bien droit a un jour de repit par an, non ? »<br>Et d'un pas leger, bien different de son allure habituelle, il se dirigea vers une fete de contemplation des cerisiers a Mukojima. Que ce meme Jihei, craint dans toute la boutique comme un demon, montre un tout autre visage inconnu de tous, ne serait-ce qu'une fois par an - il y avait la quelque chose de merveilleusement humain.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CHERRY BLOSSOM PARTY]</span>Le long de la digue de Mukojima, les cerisiers etaient en pleine et magnifique floraison. Sous un pavillon de fete drape de rideaux, la musique du shamisen resonnait joyeusement, des geishas avaient ete appelees, et toute la scene etait d'une extraordinaire animation. Jihei, bien echauffe par le sake, avait perdu toute trace de son air renfrogne habituel, les joues rougies alors qu'il riait fort.<br><strong>Jihei :</strong> « Ha ! Quelle magnifique journee, magnifique ! Mademoiselle geisha, encore une chanson, je vous prie ! »<br>Il se leva, eventail en main, et se mit a danser en imitation maladroite. Les geishas autour de lui l'encourageaient.<br><strong>Geisha :</strong> « Ma foi, monsieur, vous dansez fort bien ! »<br>Quiconque connaissait le Jihei rigide et sans humour de la boutique l'aurait certainement pris pour un tout autre homme. En ce seul jour, le premier commis rigide n'etait plus qu'un etre humain, savourant pleinement une journee de printemps.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MASTER]</span>Mais sur un banc un peu a l'ecart de la danse, le maitre de l'Omiya lui-meme - apparemment venu lui aussi deguise - etait assis tranquillement, sirotant une coupe de sake, observant toute la scene se derouler. Jihei, perdu dans sa danse, sentit soudain un regard pese sur lui, jeta un coup d'oeil, et a cet instant sentit tout le sang se retirer de son visage.<br><strong>Jihei (interieurement) :</strong> « M-monsieur ! De toutes les choses - etre vu ainsi, de tous les endroits ! »<br>Sa main tenant l'eventail se figea en plein mouvement, le sourire disparut de son visage, et il rabaissa sa capuche et s'eloigna precipitamment de la scene. Mais c'etait trop tard. Le maitre avait deja bien vu ce jeu d'eventail, ce dos qui s'eloignait, pour savoir exactement de qui il s'agissait. Sur le chemin du retour, Jihei se sentait a peine vivant, perdu dans des pensees anxieuses sur quel visage il pourrait bien montrer a la boutique des le lendemain.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SLEEPLESS NIGHT]</span>Cette nuit-la, Jihei ne put fermer l'oeil, se retournant sans cesse sous ses couvertures.<br><strong>Jihei (a lui-meme) :</strong> « Toutes ces annees, j'ai reprimande si severement les employes de la boutique, et pourtant, entre tous, c'est moi - moi que le maitre lui-meme a vu, dansant comme un fou avec une geisha lors d'une fete des cerisiers. Il n'existe aucune excuse que je pourrais offrir maintenant. »<br>Fixant le plafond, Jihei se resigna a ce qui devait venir.<br><strong>Jihei (a lui-meme) :</strong> « J'ai preche de si belles paroles de ma bouche, tout en me comportant ainsi moi-meme. Demain, une reprimande du maitre est tout naturel - non, plus que cela, je ne pourrais meme pas me plaindre si l'on me renvoyait purement et simplement. »<br>Alors que la nuit commencait a paler vers l'aube, Jihei se leva doucement, s'assit a son bureau, et de mains tremblantes, redigea une lettre de demission. La glissant dans sa robe, il se dirigea vers la boutique d'un pas lourd et trainant.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[SUMMONED BY THE MASTER]</span>De retour a la boutique, Jihei prit sa place habituelle au bureau des comptes, bien qu'il n'y eut plus aucune vie dans son visage. Passe midi, un apprenti vint le chercher.<br><strong>Apprenti :</strong> « Monsieur le premier commis, le maitre demande que vous veniez au salon interieur. »<br>Ca y est, ca vient enfin, pensa Jihei, verifiant discretement la lettre de demission glissee dans sa robe, et se raffermissant, il se dirigea vers le salon interieur. En faisant coulisser la porte, il trouva le maitre en train de siroter tranquillement du the.<br><strong>Jihei :</strong> « Vous m'avez fait appeler ? »<br>Il pressa ses mains sur le tatami et s'inclina profondement.<br><strong>Le maitre :</strong> « Jihei, allons, ne sois pas si raide. Je ne t'ai pas fait venir aujourd'hui pour te faire la lecon. »<br>Cette voix n'avait rien du ton severe auquel Jihei s'etait prepare - elle portait, au contraire, une douceur, presque une note de sollicitude.</p>
+                <p id="line-fr-7"><span class="text-xs font-bold text-stone-400 block mb-1">[THE WISTERIA TRELLIS TEACHING]</span>Le maitre prit une gorgee de the, jeta un bref coup d'oeil vers la treille de glycine dans le jardin, et se mit a parler lentement.<br><strong>Le maitre :</strong> « Jihei, regarde cette treille de glycine. Si ce cadre de bois etait si robuste qu'il ne cedait jamais d'un pouce, que crois-tu qu'il adviendrait des lianes de glycine ? »<br><strong>Jihei :</strong> « Ah... je suppose... qu'elles finiraient par se fletrir, monsieur ? »<br><strong>Le maitre :</strong> « Exactement. C'est precisement parce que le cadre a un peu de souplesse, un peu de flexibilite, que la glycine peut s'y enrouler, et meme en se balancant au vent, elle fleurit si magnifiquement chaque annee. Les hommes sont exactement pareils, Jihei. »<br><strong>Jihei :</strong> « ... »<br><strong>Le maitre :</strong> « Je t'ai vu hier, a Mukojima. Eventail en main, dansant, l'air de passer le plus beau moment de ta vie. »<br>Jihei pressa son front contre le tatami.<br><strong>Jihei :</strong> « Je suis profondement desole. Je vous en prie, disposez de moi comme bon vous semble. »<br><strong>Le maitre :</strong> « Ne dis pas de sottises. Au contraire, te voir ce jour-la m'a rassure. Un homme qui ne se detend jamais, pas meme un seul jour de l'annee, finit toujours par se briser. Savoir que toi aussi, tu as un coeur humain ordinaire capable d'un peu de repit - rien ne pourrait me rassurer davantage. »<br>Jihei leva le visage, les yeux embues de larmes.<br><strong>Jihei :</strong> « Maitre... je n'oublierai jamais cette bonte, tant que je vivrai. »<br>Dehors la fenetre, les fleurs de glycine se balancaient doucement dans la brise, leur parfum flottant tranquillement dans l'air. A partir de ce jour, dit-on, la severite de Jihei ne faiblit jamais - et pourtant, ses yeux portaient desormais une nouvelle chaleur. Un arbre trop rigide finit par se briser ; seul un coeur avec un peu de souplesse peut continuer de fleurir avec beaute. Avec cet enseignement en tete, nous menons ce conte a sa conclusion.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permitanme contarles una historia. En las grandes casas comerciales de antano, existia un puesto llamado banto: un empleado principal que dirigia toda la tienda en lugar del amo, una posicion de enorme responsabilidad. Los hombres en este puesto solian, casi siempre, ser famosos por su rigidez y falta de humor: si un empleado joven cometia el mas minimo desliz, una severa reprimenda era segura. Pero asi es el mundo: incluso la persona de aspecto mas severo suele esconder otra faceta. Hoy, acomodemonos y escuchemos con atencion la conmovedora historia de un empleado principal asi de severo en una gran casa comercial, y el dia en que el destino desvelo su fachada rigida de la manera mas inesperada.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STRICT HEAD CLERK]</span>En una gran casa comercial del distrito de Nihonbashi, llamada la Omiya, que llevaba sus negocios a gran escala, trabajaba un empleado principal llamado Jihei. En cuanto a su trabajo, Jihei era verdaderamente excepcional: desde la contabilidad hasta el trato con los clientes, no se le podia encontrar ni un solo defecto. Pero precisamente por eso, no permitia absolutamente ninguna flexibilidad. En cuanto un empleado joven mostraba el mas minimo indicio de ligereza, caia sobre el una reprimenda atronadora.<br><strong>Jihei:</strong> "Vamos, ¿que es este comportamiento tan descuidado? ¿Acaso un hombre de negocios cree de verdad que puede construir su fortuna persiguiendo diversiones ociosas?"<br>A sus espaldas, los jovenes empleados de la tienda lo llamaban "Jihei el Demonio", temiendole aunque tambien lo encontraban agotador. El propio Jihei sabia perfectamente como lo apodaban, y solo sacaba mas pecho, convencido de que su propia disciplina de hierro era exactamente lo que mantenia la tienda en pie.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[SNEAKING OUT]</span>Y sin embargo, este mismo Jihei aparentemente tenia un dia al ano en el que se soltaba en secreto, sin que nadie lo supiera. Por esta epoca, cuando florecen los cerezos, salia de la tienda con la excusa de un mandado para el amo, se metia en un callejon discreto, se cambiaba de abrigo y se calaba una capucha para ocultar el rostro.<br><strong>Jihei (para si mismo):</strong> "Je, je. Nadie me reconocera ahora. Hasta yo merezco un dia de descanso al ano, ¿no?"<br>Y con un paso ligero, muy distinto de su porte habitual, se dirigio a una fiesta para contemplar los cerezos en flor en Mukojima. Que este mismo Jihei, temido en toda la tienda como un demonio, mostrara un rostro completamente distinto y desconocido para todos, aunque fuera solo una vez al ano, tenia algo maravillosamente humano.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CHERRY BLOSSOM PARTY]</span>A lo largo del terraplen de Mukojima, los cerezos estaban en plena y gloriosa floracion. Bajo un pabellon de fiesta cubierto de cortinas, la musica del shamisen sonaba alegremente, se habia llamado a geishas, y toda la escena era de una tremenda animacion. Jihei, bien entonado por el sake, habia perdido todo rastro de su ceno fruncido habitual, con las mejillas sonrojadas mientras reia a carcajadas.<br><strong>Jihei:</strong> "¡Ja! Que dia tan espléndido, espléndido! ¡Senorita geisha, una cancion mas, por favor!"<br>Se puso de pie, abanico en mano, y comenzo a bailar en torpe imitacion. Las geishas a su alrededor lo animaban.<br><strong>Geisha:</strong> "Vaya, senor, ¡que bien baila usted!"<br>Cualquiera que conociera al rigido y humorless Jihei de la tienda sin duda lo habria tomado por un hombre completamente distinto. Solo por ese dia, el rigido empleado principal era simplemente un ser humano, disfrutando al maximo de un dia de primavera.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MASTER]</span>Pero en un banco un poco apartado del baile, el propio amo de la Omiya, quien al parecer tambien habia venido de incognito, estaba sentado tranquilamente bebiendo sake, observando toda la escena. Jihei, absorto en su baile, sintio de repente una mirada sobre el, miro hacia alli, y en ese instante sintio como toda la sangre se le iba del rostro.<br><strong>Jihei (para si):</strong> "¡A-amo! De todas las cosas, ¡que me vean asi, precisamente aqui!"<br>La mano que sostenia el abanico se detuvo a media accion, la sonrisa desaparecio de su rostro, y se calo la capucha bien abajo y se alejo apresuradamente de la escena. Pero ya era tarde. El amo ya habia visto bien ese manejo del abanico, esa espalda que se alejaba, como para saber exactamente quien era. De camino a casa, Jihei apenas se sentia vivo, perdido en pensamientos angustiados sobre que cara podria mostrar en la tienda a partir de manana.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SLEEPLESS NIGHT]</span>Esa noche, Jihei no pudo pegar ojo, dando vueltas sin cesar bajo las mantas.<br><strong>Jihei (para si):</strong> "Todos estos anos he regañado con tanta severidad a los empleados de la tienda, y sin embargo, entre todos, fui yo, yo a quien vio el propio amo, bailando como un loco con una geisha en una fiesta de cerezos. No existe excusa alguna que pueda ofrecer ahora."<br>Mirando fijamente el techo, Jihei se resigno a lo que debia venir.<br><strong>Jihei (para si):</strong> "Predique palabras tan nobles con mi boca, mientras yo mismo me comportaba asi. Manana, una reprimenda del amo es lo mas natural, no, mas que eso, no podria quejarme ni siquiera si me despidieran de inmediato."<br>Cuando la noche empezaba a palidecer hacia el amanecer, Jihei se levanto en silencio, se sento a su escritorio y, con manos temblorosas, redacto una carta de renuncia. Guardandola en su tunica, se dirigio a la tienda con pasos pesados y arrastrados.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[SUMMONED BY THE MASTER]</span>De vuelta en la tienda, Jihei ocupo su asiento habitual en el mostrador de cuentas, aunque no le quedaba vida alguna en el rostro. Pasado el mediodia, un aprendiz fue a buscarlo.<br><strong>Aprendiz:</strong> "Senor empleado principal, el amo pide que venga usted a la sala interior."<br>Por fin llego, penso Jihei, comprobando discretamente la carta de renuncia guardada en su tunica, y, armandose de valor, se dirigio a la sala interior. Al abrir la puerta corrediza, encontro al amo bebiendo te tranquilamente.<br><strong>Jihei:</strong> "¿Me mando llamar?"<br>Poso las manos en el tatami e hizo una profunda reverencia.<br><strong>Amo:</strong> "Jihei, vamos, no te pongas asi de tieso. No te he llamado hoy para sermonearte."<br>Aquella voz no tenia nada del tono severo para el que Jihei se habia preparado; llevaba, en cambio, una suavidad, casi una nota de preocupacion.</p>
+                <p id="line-es-7"><span class="text-xs font-bold text-stone-400 block mb-1">[THE WISTERIA TRELLIS TEACHING]</span>El amo tomo un sorbo de te, miro brevemente hacia el emparrado de glicina en el jardin, y comenzo a hablar lentamente.<br><strong>Amo:</strong> "Jihei, mira ese emparrado de glicina. Si ese marco de madera fuera tan robusto que nunca cediera ni un poco, ¿que crees que le pasaria a las enredaderas de glicina?"<br><strong>Jihei:</strong> "Ah... supongo... ¿que se marchitarian, senor?"<br><strong>Amo:</strong> "Exactamente. Es precisamente porque el marco tiene un poco de flexibilidad, un poco de holgura, que la glicina puede enroscarse en el, y aunque se balancee con el viento, florece tan magnificamente cada ano. Las personas son exactamente iguales, Jihei."<br><strong>Jihei:</strong> "..."<br><strong>Amo:</strong> "Te vi ayer, en Mukojima. Abanico en mano, bailando, con cara de estar pasando el mejor momento de tu vida."<br>Jihei presiono la frente contra el tatami.<br><strong>Jihei:</strong> "Lo siento profundamente. Por favor, haga conmigo lo que considere apropiado."<br><strong>Amo:</strong> "No digas tonterias. Al contrario, verte ese dia me tranquilizo. Un hombre que nunca se relaja, ni un solo dia del ano, termina por quebrarse tarde o temprano. Saber que tu tambien tienes un corazon humano corriente, capaz de un poco de descanso, no hay nada que me tranquilice mas."<br>Jihei levanto el rostro, con lagrimas asomando en los ojos.<br><strong>Jihei:</strong> "Amo... jamas olvidare esta bondad, mientras viva."<br>Fuera de la ventana, las flores de glicina se mecian suavemente con la brisa, su fragancia flotando tranquilamente en el aire. Desde ese dia, se dice, la severidad de Jihei nunca flaqueo, y sin embargo, sus ojos llevaban desde entonces una nueva calidez. Un arbol demasiado rigido termina por quebrarse; solo un corazon con algo de holgura puede seguir floreciendo con belleza. Con esta ensenanza en mente, llevamos este relato a su conclusion.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 8;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②堅物の番頭","③こっそり抜け出す","④花見の宴","⑤旦那様との遭遇","⑥眠れぬ夜","⑦旦那の呼び出し","⑧藤棚の教え"];
+        const partNamesEn = ["① Prologue","② The strict head clerk","③ Sneaking out","④ The cherry blossom party","⑤ Spotting the master","⑥ The sleepless night","⑦ Summoned by the master","⑧ The wisteria trellis teaching"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦","⑧"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p8.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

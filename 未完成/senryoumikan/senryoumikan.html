@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>千両みかん - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.17 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">千両みかん</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Senryou Mikan / The Thousand Ryo Mikan</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②若旦那の患い</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③季節外れの願い</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④番頭の八方探し</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤千両の値</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥快復と三房のご褒美</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦百両の一房</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class='v1'>食<rt>た</rt></ruby>べ<ruby class='v1'>物<rt>もの</rt></ruby>の<ruby class='v1'>恨<rt>うら</rt></ruby>みは<ruby class='v1'>恐<rt>おそ</rt></ruby>ろしい、なんて<ruby class='v1'>申<rt>もう</rt></ruby>しますが、<ruby class='v1'>人間<rt>にんげん</rt></ruby>、<ruby class='v1'>欲<rt>ほ</rt></ruby>しいものが<ruby class='v1'>手<rt>て</rt></ruby>に<ruby class='v1'>入<rt>はい</rt></ruby>らないとなると、とんでもない<ruby class='v1'>値段<rt>ねだん</rt></ruby>でもポンと<ruby class='v1'>払<rt>はら</rt></ruby>ってしまうことがございます。<ruby class='v1'>今日<rt>きょう</rt></ruby>はそんな、たった<ruby class='v1'>一<rt>ひと</rt></ruby>つの<ruby class='v1'>果物<rt>くだもの</rt></ruby>に<ruby class='v2'>千両<rt>せんりょう</rt></ruby>もの<ruby class='v1'>大金<rt>たいきん</rt></ruby>が<ruby class='v1'>動<rt>うご</rt></ruby>いたという、なんとも<ruby class='v2'>贅沢<rt>ぜいたく</rt></ruby>な<ruby class='v1'>噺<rt>はなし</rt></ruby>を<ruby class='v1'>一席<rt>いっせき</rt></ruby><ruby class='v1'>申<rt>もう</rt></ruby>し<ruby class='v1'>上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【若旦那の患い】</span>
+                    <ruby class='v1'>江戸<rt>えど</rt></ruby>の<ruby class='v1'>日本橋<rt>にほんばし</rt></ruby>に、さる<ruby class='v1'>大<rt>おお</rt></ruby>きな<ruby class='v2'>呉服屋<rt>ごふくや</rt></ruby>がございました。ここの<ruby class='v1'>一人息子<rt>ひとりむすこ</rt></ruby>、<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>が、<ruby class='v1'>真冬<rt>まふゆ</rt></ruby>だというのに<ruby class='v1'>急<rt>きゅう</rt></ruby>にふさぎ<ruby class='v1'>込<rt>こ</rt></ruby>んでしまいましてね。<ruby class='v1'>飯<rt>めし</rt></ruby>も<ruby class='v1'>食<rt>く</rt></ruby>わず、<ruby class='v1'>床<rt>とこ</rt></ruby>に<ruby class='v1'>伏<rt>ふ</rt></ruby>せったきり。<ruby class='v1'>医者<rt>いしゃ</rt></ruby>を<ruby class='v1'>呼<rt>よ</rt></ruby>んでも、どこにも<ruby class='v1'>悪<rt>わる</rt></ruby>いところが<ruby class='v1'>見当<rt>みあ</rt></ruby>たらない。ところが<ruby class='v1'>日<rt>ひ</rt></ruby>に<ruby class='v1'>日<rt>ひ</rt></ruby>にやつれていく。<ruby class='v1'>心配<rt>しんぱい</rt></ruby>した<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>が、<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>の<ruby class='v2'>枕元<rt>まくらもと</rt></ruby>でそっと<ruby class='v1'>尋<rt>たず</rt></ruby>ねます。<br><strong>番頭：</strong>「<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>、<ruby class='v1'>一体<rt>いったい</rt></ruby><ruby class='v1'>何<rt>なに</rt></ruby>がご<ruby class='v1'>不満<rt>ふまん</rt></ruby>でございますか。<ruby class='v1'>何<rt>なん</rt></ruby>でも<ruby class='v1'>仰<rt>おっしゃ</rt></ruby>ってください」<br><strong>若旦那：</strong>「<ruby class='v1'>実<rt>じつ</rt></ruby>は……どうしても、みかんが<ruby class='v1'>食<rt>た</rt></ruby>べたくて<ruby class='v1'>仕方<rt>しかた</rt></ruby>がないんだ」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【季節外れの願い】</span>
+                    <ruby class='v2'>番頭<rt>ばんとう</rt></ruby>は<ruby class='v1'>仰天<rt>ぎょうてん</rt></ruby>いたしました。<ruby class='v1'>真冬<rt>まふゆ</rt></ruby>にみかんなど、どこを<ruby class='v1'>探<rt>さが</rt></ruby>しても<ruby class='v1'>見<rt>み</rt></ruby>つかるはずがございません。しかし、このままでは<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>の<ruby class='v1'>命<rt>いのち</rt></ruby>に<ruby class='v1'>関<rt>かか</rt></ruby>わります。<ruby class='v1'>旦那様<rt>だんなさま</rt></ruby>に<ruby class='v1'>相談<rt>そうだん</rt></ruby>いたしますと、<ruby class='v1'>旦那様<rt>だんなさま</rt></ruby>も<ruby class='v1'>真<rt>ま</rt></ruby>っ<ruby class='v1'>青<rt>さお</rt></ruby>。<br><strong>旦那：</strong>「みかんの<ruby class='v1'>一<rt>ひと</rt></ruby>つや<ruby class='v1'>二<rt>ふた</rt></ruby>つで、あれの<ruby class='v1'>命<rt>いのち</rt></ruby>が<ruby class='v1'>助<rt>たす</rt></ruby>かるなら<ruby class='v1'>安<rt>やす</rt></ruby>いものだ。お<ruby class='v1'>前<rt>まえ</rt></ruby>、なんとしても<ruby class='v1'>探<rt>さが</rt></ruby>してまいれ」<br><strong>番頭：</strong>「はい、<ruby class='v1'>必<rt>かなら</rt></ruby>ず<ruby class='v1'>見<rt>み</rt></ruby>つけてまいります」<br>こうして<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>は、<ruby class='v1'>真冬<rt>まふゆ</rt></ruby>のみかん<ruby class='v1'>探<rt>さが</rt></ruby>しという、とんでもない<ruby class='v1'>役目<rt>やくめ</rt></ruby>を<ruby class='v1'>仰<rt>おお</rt></ruby>せ<ruby class='v1'>付<rt>つ</rt></ruby>かったのでございます。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【番頭の八方探し】</span>
+                    <ruby class='v2'>番頭<rt>ばんとう</rt></ruby>は<ruby class='v1'>朝<rt>あさ</rt></ruby>から<ruby class='v1'>晩<rt>ばん</rt></ruby>まで、<ruby class='v1'>江戸中<rt>えどじゅう</rt></ruby>の<ruby class='v1'>八百屋<rt>やおや</rt></ruby>、<ruby class='v1'>果物屋<rt>くだものや</rt></ruby>という<ruby class='v1'>果物屋<rt>くだものや</rt></ruby>を<ruby class='v1'>訪<rt>たず</rt></ruby>ね<ruby class='v1'>歩<rt>ある</rt></ruby>きました。しかしどこへ<ruby class='v1'>行<rt>い</rt></ruby>っても、<br><strong>店主：</strong>「<ruby class='v1'>旦那<rt>だんな</rt></ruby>、<ruby class='v1'>真冬<rt>まふゆ</rt></ruby>にみかんなんて、そんな<ruby class='v1'>無茶<rt>むちゃ</rt></ruby>な」<br>と、けんもほろろに<ruby class='v1'>断<rt>ことわ</rt></ruby>られる<ruby class='v1'>始末<rt>しまつ</rt></ruby>。とうとう<ruby class='v1'>日<rt>ひ</rt></ruby>も<ruby class='v1'>暮<rt>く</rt></ruby>れかかった<ruby class='v1'>頃<rt>ころ</rt></ruby>、<ruby class='v1'>神田<rt>かんだ</rt></ruby>の、みかんばかりを<ruby class='v1'>専門<rt>せんもん</rt></ruby>に<ruby class='v1'>扱<rt>あつか</rt></ruby>う<ruby class='v1'>大<rt>おお</rt></ruby>きな<ruby class='v2'>問屋<rt>とんや</rt></ruby>にたどり<ruby class='v1'>着<rt>つ</rt></ruby>きました。<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>はもう<ruby class='v1'>半<rt>なか</rt></ruby>ば<ruby class='v1'>諦<rt>あきら</rt></ruby>めながら、<ruby class='v1'>蔵<rt>くら</rt></ruby>の<ruby class='v1'>奥<rt>おく</rt></ruby>まで<ruby class='v1'>案内<rt>あんない</rt></ruby>してもらいます。すると、なんと、<ruby class='v1'>蔵<rt>くら</rt></ruby>の<ruby class='v1'>隅<rt>すみ</rt></ruby>の<ruby class='v1'>方<rt>ほう</rt></ruby>に、<ruby class='v1'>傷<rt>きず</rt></ruby><ruby class='v1'>一<rt>ひと</rt></ruby>つない、<ruby class='v1'>見事<rt>みごと</rt></ruby>なみかんがたった<ruby class='v1'>一<rt>ひと</rt></ruby>つ、ころんと<ruby class='v1'>転<rt>ころ</rt></ruby>がっているではありませんか。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【千両の値】</span>
+                    <ruby class='v2'>番頭<rt>ばんとう</rt></ruby>が「これを<ruby class='v1'>売<rt>う</rt></ruby>ってください」と<ruby class='v1'>頼<rt>たの</rt></ruby>み<ruby class='v1'>込<rt>こ</rt></ruby>むと、<ruby class='v2'>問屋<rt>とんや</rt></ruby>の<ruby class='v1'>主人<rt>しゅじん</rt></ruby>はしばらく<ruby class='v1'>黙<rt>だま</rt></ruby>り<ruby class='v1'>込<rt>こ</rt></ruby>んでから、こう<ruby class='v1'>申<rt>もう</rt></ruby>しました。<br><strong>問屋の主人：</strong>「<ruby class='v1'>旦那<rt>だんな</rt></ruby>、これはこの<ruby class='v1'>冬<rt>ふゆ</rt></ruby>、<ruby class='v1'>江戸中<rt>えどじゅう</rt></ruby><ruby class='v1'>探<rt>さが</rt></ruby>しても、もうこれ<ruby class='v1'>一<rt>ひと</rt></ruby>つしか<ruby class='v1'>残<rt>のこ</rt></ruby>っていない<ruby class='v1'>代物<rt>しろもの</rt></ruby>でございます。お<ruby class='v1'>売<rt>う</rt></ruby>りするのはようございますが……<ruby class='v2'>千両<rt>せんりょう</rt></ruby>いただきとうございます」<br><ruby class='v2'>番頭<rt>ばんとう</rt></ruby>は<ruby class='v1'>腰<rt>こし</rt></ruby>を<ruby class='v1'>抜<rt>ぬ</rt></ruby>かしそうになりました。<ruby class='v2'>千両<rt>せんりょう</rt></ruby>といえば、<ruby class='v1'>家<rt>いえ</rt></ruby>が<ruby class='v1'>何軒<rt>なんげん</rt></ruby>も<ruby class='v1'>建<rt>た</rt></ruby>つほどの<ruby class='v1'>大金<rt>たいきん</rt></ruby>でございます。しかし、<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>の<ruby class='v1'>命<rt>いのち</rt></ruby>には<ruby class='v1'>代<rt>か</rt></ruby>えられません。<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>はすぐさま<ruby class='v1'>店<rt>みせ</rt></ruby>へ<ruby class='v1'>戻<rt>もど</rt></ruby>り、<ruby class='v1'>旦那様<rt>だんなさま</rt></ruby>に<ruby class='v1'>事<rt>こと</rt></ruby>の<ruby class='v1'>次第<rt>しだい</rt></ruby>を<ruby class='v1'>報告<rt>ほうこく</rt></ruby>いたしました。<br><strong>旦那：</strong>「よし、その<ruby class='v1'>値<rt>ね</rt></ruby>、<ruby class='v1'>払<rt>はら</rt></ruby>おう。<ruby class='v1'>倅<rt>せがれ</rt></ruby>の<ruby class='v1'>命<rt>いのち</rt></ruby>には<ruby class='v1'>代<rt>か</rt></ruby>えられぬ」<br>こうして、みかん<ruby class='v1'>一<rt>ひと</rt></ruby>つに<ruby class='v2'>千両<rt>せんりょう</rt></ruby>という、<ruby class='v2'>前代未聞<rt>ぜんだいみもん</rt></ruby>の<ruby class='v1'>取引<rt>とりひき</rt></ruby>が<ruby class='v1'>成立<rt>せいりつ</rt></ruby>したのでございます。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【快復と三房のご褒美】</span>
+                    みかんは<ruby class='v1'>早速<rt>さっそく</rt></ruby>、<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>の<ruby class='v2'>枕元<rt>まくらもと</rt></ruby>に<ruby class='v1'>運<rt>はこ</rt></ruby>ばれました。<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>は<ruby class='v1'>震<rt>ふる</rt></ruby>える<ruby class='v1'>手<rt>て</rt></ruby>で<ruby class='v1'>皮<rt>かわ</rt></ruby>をむき、<ruby class='v1'>房<rt>ふさ</rt></ruby>を<ruby class='v1'>一<rt>ひと</rt></ruby>つ<ruby class='v1'>口<rt>くち</rt></ruby>に<ruby class='v1'>含<rt>ふく</rt></ruby>みますと、みるみるうちに<ruby class='v1'>顔色<rt>かおいろ</rt></ruby>が<ruby class='v1'>良<rt>よ</rt></ruby>くなり、むっくりと<ruby class='v1'>起<rt>お</rt></ruby>き<ruby class='v1'>上<rt>あ</rt></ruby>がったのでございます。<br><strong>若旦那：</strong>「ああ、<ruby class='v1'>美味<rt>おい</rt></ruby>しい。<ruby class='v1'>生<rt>い</rt></ruby>き<ruby class='v1'>返<rt>かえ</rt></ruby>るようだ」<br><ruby class='v1'>十房<rt>とふさ</rt></ruby>ほどあるみかんのうち、<ruby class='v1'>若旦那<rt>わかだんな</rt></ruby>は<ruby class='v1'>両親<rt>りょうしん</rt></ruby>にも<ruby class='v1'>分<rt>わ</rt></ruby>けて<ruby class='v1'>食<rt>た</rt></ruby>べさせ、それでも<ruby class='v1'>三房<rt>みふさ</rt></ruby>ほど<ruby class='v1'>余<rt>あま</rt></ruby>りました。<ruby class='v1'>旦那様<rt>だんなさま</rt></ruby>は<ruby class='v1'>大層<rt>たいそう</rt></ruby><ruby class='v1'>喜<rt>よろこ</rt></ruby>んで、これまでの<ruby class='v1'>働<rt>はたら</rt></ruby>きをねぎらい、<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>にその<ruby class='v1'>余<rt>あま</rt></ruby>った<ruby class='v1'>三房<rt>みふさ</rt></ruby>を<ruby class='v1'>褒美<rt>ほうび</rt></ruby>として<ruby class='v1'>与<rt>あた</rt></ruby>えたのでございます。<br><strong>旦那：</strong>「お<ruby class='v1'>前<rt>まえ</rt></ruby>のおかげで<ruby class='v1'>助<rt>たす</rt></ruby>かった。これはほんの<ruby class='v1'>気持<rt>きも</rt></ruby>ちだが、<ruby class='v1'>取<rt>と</rt></ruby>っておくれ」
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【百両の一房】</span>
+                    <ruby class='v2'>番頭<rt>ばんとう</rt></ruby>は<ruby class='v1'>三房<rt>みふさ</rt></ruby>のみかんを<ruby class='v1'>大事<rt>だいじ</rt></ruby>そうに<ruby class='v1'>懐<rt>ふところ</rt></ruby>にしまい、いそいそと<ruby class='v1'>店<rt>みせ</rt></ruby>を<ruby class='v1'>出<rt>で</rt></ruby>て、<ruby class='v1'>家路<rt>いえじ</rt></ruby>をたどりました。<ruby class='v1'>歩<rt>ある</rt></ruby>きながら、ふと<ruby class='v1'>胸<rt>むね</rt></ruby>の<ruby class='v1'>内<rt>うち</rt></ruby>で<ruby class='v2'>算盤<rt>そろばん</rt></ruby>を<ruby class='v1'>弾<rt>はじ</rt></ruby>きます。「みかん<ruby class='v1'>一<rt>ひと</rt></ruby>つが<ruby class='v2'>千両<rt>せんりょう</rt></ruby>、<ruby class='v1'>房<rt>ふさ</rt></ruby>にすればおよそ<ruby class='v1'>十房<rt>とふさ</rt></ruby>。ということは、この<ruby class='v1'>一房<rt>ひとふさ</rt></ruby>、<ruby class='v1'>百両<rt>ひゃくりょう</rt></ruby>ということになるな……」その<ruby class='v1'>考<rt>かんが</rt></ruby>えが<ruby class='v1'>浮<rt>う</rt></ruby>かんだ<ruby class='v1'>途端<rt>とたん</rt></ruby>、<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>の<ruby class='v1'>足<rt>あし</rt></ruby>がぴたりと<ruby class='v1'>止<rt>と</rt></ruby>まりました。<ruby class='v1'>手<rt>て</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>の<ruby class='v1'>三房<rt>みふさ</rt></ruby>は、しめて<ruby class='v1'>三百両<rt>さんびゃくりょう</rt></ruby>。そう<ruby class='v1'>思<rt>おも</rt></ruby>うと、<ruby class='v1'>急<rt>きゅう</rt></ruby>に<ruby class='v1'>懐<rt>ふところ</rt></ruby>が<ruby class='v1'>重<rt>おも</rt></ruby>くなったような、いや、<ruby class='v1'>軽<rt>かる</rt></ruby>くなったような、<ruby class='v1'>妙<rt>みょう</rt></ruby>な<ruby class='v1'>気分<rt>きぶん</rt></ruby>でございます。<ruby class='v2'>番頭<rt>ばんとう</rt></ruby>はそのまま<ruby class='v1'>店<rt>みせ</rt></ruby>には<ruby class='v1'>戻<rt>もど</rt></ruby>らず、ふらりと<ruby class='v1'>夜<rt>よる</rt></ruby>の<ruby class='v1'>闇<rt>やみ</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>へ<ruby class='v1'>姿<rt>すがた</rt></ruby>を<ruby class='v1'>消<rt>け</rt></ruby>してしまったとか、<ruby class='v1'>消<rt>け</rt></ruby>さなかったとか。「<ruby class='v1'>一房<rt>ひとふさ</rt></ruby><ruby class='v1'>百両<rt>ひゃくりょう</rt></ruby>たあ、こいつは<ruby class='v1'>春<rt>はる</rt></ruby>から<ruby class='v1'>縁起<rt>えんぎ</rt></ruby>がいい」とは、また<ruby class='v1'>別<rt>べつ</rt></ruby>の<ruby class='v1'>噺<rt>はなし</rt></ruby>の<ruby class='v1'>言<rt>い</rt></ruby>い<ruby class='v1'>草<rt>ぐさ</rt></ruby>でございますが。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Well now, they say a grudge over food is a frightening thing, but when a person truly can’t get what they crave, they’ll sometimes pay an outrageous price without blinking. Today I’ll tell you a wonderfully extravagant tale about a single piece of fruit that ended up costing a thousand ryo.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MASTER'S ILLNESS]</span>In a certain great fabric shop in Nihonbashi, there lived an only son, a pampered young master, who suddenly fell into a deep gloom despite it being the dead of winter. He stopped eating, took to his bed, and stayed there. Doctors were called in, but they could find nothing physically wrong with him — and yet, day by day, he grew more haggard. Worried, the head clerk finally leaned close to the young master’s pillow and asked gently.<br><strong>Clerk:</strong> “Young master, whatever is troubling you? Please, tell me anything.”<br><strong>Young master:</strong> “Truth is… I simply can’t stop craving a mikan.”</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[AN IMPOSSIBLE CRAVING]</span>The head clerk was stunned. A mikan in the dead of winter — there was no chance of finding one anywhere, search as he might. But if things went on like this, it could cost the young master his life. When he consulted the master of the house, the master turned pale as well.<br><strong>Master:</strong> “If one or two mikan can save that boy’s life, it’s a small price. Go — find one, no matter what it takes.”<br><strong>Clerk:</strong> “Yes, sir. I will find one, without fail.”<br>And so the head clerk was saddled with the outrageous task of hunting down a mikan in the middle of winter.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SEARCH]</span>From morning until night, the head clerk went door to door across all of Edo, visiting every greengrocer and fruit shop he could find. But everywhere he went, he was turned away flatly.<br><strong>Shopkeeper:</strong> “A mikan in the dead of winter? Don’t be absurd.”<br>Finally, as the sun was beginning to set, he arrived at a large wholesale house in Kanda that dealt exclusively in mikan. Half-resigned already, he was led into the back of the storeroom — and there, in a corner, sat a single perfect mikan, without a single blemish, rolled quietly into view.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[A THOUSAND RYO]</span>When the head clerk begged, ‘Please, sell this to me,’ the wholesaler’s master fell silent for a moment, then spoke.<br><strong>Wholesaler:</strong> “Sir, this is the very last one of its kind left anywhere in Edo this winter. I don’t mind selling it to you… but I must ask for a thousand ryo.”<br>The head clerk nearly fainted on the spot. A thousand ryo was a fortune large enough to build several houses. But nothing could be worth more than the young master’s life. He rushed straight back to the shop and reported everything to the master.<br><strong>Master:</strong> “Very well. I’ll pay that price. Nothing compares to my son’s life.”<br>And so, an unprecedented transaction was struck — one thousand ryo for a single mikan.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[RECOVERY AND REWARD]</span>The mikan was quickly brought to the young master’s bedside. With trembling hands he peeled it and put a single segment in his mouth — and right before everyone’s eyes, the color returned to his face, and he sat up in bed.<br><strong>Young master:</strong> “Ah, delicious. I feel like I’ve come back to life.”<br>Of the roughly ten segments in the mikan, the young master shared some with his parents too, and still about three segments were left over. The master of the house, overjoyed, praised the head clerk for all his effort and gave him those three leftover segments as a reward.<br><strong>Master:</strong> “Thanks to you, he’s been saved. This is only a small token, but please, take it.”</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>The head clerk tucked the three segments carefully into his robe and hurried out of the shop, heading for home. As he walked, he found himself doing sums in his head. ‘A whole mikan cost a thousand ryo, and it came in about ten segments. Which means… this one segment I’m holding is worth roughly a hundred ryo…’ The instant that thought crossed his mind, his feet stopped dead in their tracks. The three segments in his hand added up to three hundred ryo. At the thought, his robe suddenly felt strangely heavy — or strangely light, he couldn’t quite tell. And so, they say, the head clerk never made it back to the shop that night, vanishing quietly into the darkness — or perhaps he did go back after all, who’s to say. ‘A hundred ryo a segment — now that’s an auspicious way to start the new year,’ as they say in a different story entirely.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Eh bien, on dit qu’une rancune liée à la nourriture est une chose redoutable, mais quand une personne ne peut vraiment pas obtenir ce qu’elle désire, elle paiera parfois un prix exorbitant sans sourciller. Aujourd’hui, je vais vous conter une histoire merveilleusement extravagante à propos d’un simple fruit qui finit par coûter mille ryôs.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MASTER'S ILLNESS]</span>Dans une grande boutique de tissus de Nihonbashi vivait un fils unique, un jeune maître choyé, qui sombra soudain dans une profonde mélancolie malgré le cœur de l’hiver. Il cessa de manger, s’alita, et n’en bougea plus. On appela des médecins, mais ils ne trouvèrent rien d’anormal chez lui — et pourtant, jour après jour, il dépérissait. Inquiet, le commis en chef finit par se pencher près de l’oreiller du jeune maître et lui demanda doucement.<br><strong>Le commis :</strong> « Jeune maître, qu’est-ce qui vous tourmente donc ? Dites-moi tout, je vous en prie. »<br><strong>Le jeune maître :</strong> « À vrai dire… je ne peux tout simplement pas cesser de désirer une mandarine. »</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[AN IMPOSSIBLE CRAVING]</span>Le commis en chef fut abasourdi. Une mandarine en plein hiver — il n’y avait aucune chance d’en trouver une, où qu’il cherchât. Mais si les choses continuaient ainsi, cela pourrait coûter la vie au jeune maître. Lorsqu’il consulta le maître de maison, celui-ci pâlit également.<br><strong>Le maître :</strong> « Si une ou deux mandarines peuvent sauver la vie de ce garçon, c’est un prix bien modique. Va — trouves-en une, coûte que coûte. »<br><strong>Le commis :</strong> « Bien, monsieur. Je vais en trouver une, sans faute. »<br>Et c’est ainsi que le commis en chef se vit confier la tâche extravagante de dénicher une mandarine en plein cœur de l’hiver.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SEARCH]</span>Du matin jusqu’au soir, le commis en chef alla de porte en porte à travers tout Edo, visitant chaque marchand de légumes et chaque boutique de fruits qu’il pouvait trouver. Mais partout où il allait, on le renvoyait sèchement.<br><strong>Le marchand :</strong> « Une mandarine en plein hiver ? Ne dites pas de bêtises. »<br>Enfin, alors que le soleil commençait à se coucher, il arriva à un grand entrepôt de Kanda spécialisé exclusivement dans les mandarines. Déjà à moitié résigné, on le conduisit au fond de l’entrepôt — et là, dans un coin, se trouvait une seule mandarine parfaite, sans la moindre tache, roulée doucement en vue.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[A THOUSAND RYO]</span>Quand le commis en chef supplia : « Je vous en prie, vendez-moi ceci », le maître du grossiste resta silencieux un moment, puis parla.<br><strong>Le grossiste :</strong> « Monsieur, c’est la toute dernière de son espèce qui reste dans tout Edo cet hiver. Je veux bien vous la vendre… mais je dois demander mille ryôs. »<br>Le commis en chef faillit s’évanouir sur place. Mille ryôs, c’était une fortune suffisante pour construire plusieurs maisons. Mais rien ne pouvait valoir plus que la vie du jeune maître. Il se précipita à la boutique et rapporta tout au maître de maison.<br><strong>Le maître :</strong> « Très bien. Je paierai ce prix. Rien ne vaut la vie de mon fils. »<br>Et c’est ainsi que se conclut une transaction sans précédent : mille ryôs pour une seule mandarine.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[RECOVERY AND REWARD]</span>La mandarine fut rapidement apportée au chevet du jeune maître. De ses mains tremblantes, il l’épluchit et mit un seul quartier dans sa bouche — et sous les yeux de tous, la couleur revint à son visage, et il se redressa dans son lit.<br><strong>Le jeune maître :</strong> « Ah, délicieux. J’ai l’impression de revivre. »<br>Sur la dizaine de quartiers que comptait la mandarine, le jeune maître en partagea aussi avec ses parents, et il en resta encore environ trois. Le maître de maison, ravi, félicita le commis en chef pour tous ses efforts et lui donna ces trois quartiers restants en récompense.<br><strong>Le maître :</strong> « Grâce à toi, il a été sauvé. Ce n’est qu’une petite marque de gratitude, mais je t’en prie, prends-les. »</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Le commis en chef rangea soigneusement les trois quartiers dans ses habits et se hâta de quitter la boutique, en direction de chez lui. Tout en marchant, il se surprit à faire des calculs dans sa tête. « Une mandarine entière coûtait mille ryôs, et elle comptait environ dix quartiers. Ce qui veut dire… que ce quartier que je tiens vaut environ cent ryôs… » Dès que cette pensée lui traversa l’esprit, ses pieds s’arrêtèrent net. Les trois quartiers dans sa main faisaient au total trois cents ryôs. À cette idée, ses habits lui parurent soudain étrangement lourds — ou étrangement légers, il n’aurait su dire. Et c’est ainsi, dit-on, que le commis en chef ne rentra jamais à la boutique cette nuit-là, disparaissant tranquillement dans l’obscurité — ou peut-être y retourna-t-il tout de même, qui sait. « Cent ryôs le quartier, voilà qui commence l’année du bon pied », comme on dit dans une tout autre histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Bueno, dicen que un rencor relacionado con la comida es algo temible, pero cuando una persona realmente no puede conseguir lo que anhela, a veces paga un precio exorbitante sin pestañear. Hoy les contaré una historia maravillosamente extravagante sobre una sola fruta que terminó costando mil ryo.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MASTER'S ILLNESS]</span>En una gran tienda de telas de Nihonbashi vivía un hijo único, un joven amo mimado, que de repente cayó en una profunda melancolía a pesar de estar en pleno invierno. Dejó de comer, se acostó y no se levantó más. Llamaron a médicos, pero no encontraron nada anormal en él, y sin embargo, día tras día, se iba consumiendo. Preocupado, el empleado principal finalmente se acercó a la almohada del joven amo y le preguntó con suavidad.<br><strong>Empleado:</strong> «Joven amo, ¿qué es lo que le aflige? Por favor, dígame lo que sea.»<br><strong>Joven amo:</strong> «La verdad… es que no puedo dejar de desear una mandarina.»</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[AN IMPOSSIBLE CRAVING]</span>El empleado principal quedó atónito. Una mandarina en pleno invierno: no había ninguna posibilidad de encontrar una, buscara donde buscara. Pero si las cosas seguían así, podría costarle la vida al joven amo. Cuando consultó al dueño de la casa, este también palideció.<br><strong>Dueño:</strong> «Si una o dos mandarinas pueden salvar la vida de ese muchacho, es un precio módico. Ve, encuentra una, cueste lo que cueste.»<br><strong>Empleado:</strong> «Sí, señor. La encontraré, sin falta.»<br>Y así fue como al empleado principal le encomendaron la extravagante tarea de buscar una mandarina en pleno invierno.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SEARCH]</span>Desde la mañana hasta la noche, el empleado principal fue de puerta en puerta por todo Edo, visitando cada verdulería y frutería que pudo encontrar. Pero en todas partes lo rechazaban de plano.<br><strong>Tendero:</strong> «¿Una mandarina en pleno invierno? No diga tonterías.»<br>Finalmente, cuando el sol empezaba a ponerse, llegó a un gran almacén mayorista de Kanda especializado exclusivamente en mandarinas. Ya medio resignado, lo condujeron al fondo del depósito, y allí, en un rincón, había una sola mandarina perfecta, sin una sola mancha, que rodó suavemente a la vista.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[A THOUSAND RYO]</span>Cuando el empleado principal suplicó: «Por favor, véndame esto», el dueño del mayorista guardó silencio un momento, y luego habló.<br><strong>Mayorista:</strong> «Señor, esta es la última que queda en todo Edo este invierno. No me importa vendérsela… pero debo pedir mil ryo.»<br>El empleado principal casi se desmaya en el acto. Mil ryo era una fortuna suficiente para construir varias casas. Pero nada podía valer más que la vida del joven amo. Corrió de vuelta a la tienda e informó todo al dueño.<br><strong>Dueño:</strong> «Está bien. Pagaré ese precio. Nada se compara con la vida de mi hijo.»<br>Y así se cerró una transacción sin precedentes: mil ryo por una sola mandarina.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[RECOVERY AND REWARD]</span>La mandarina fue llevada rápidamente junto a la cama del joven amo. Con manos temblorosas la peló y se llevó un solo gajo a la boca, y ante los ojos de todos, el color volvió a su rostro, y se incorporó en la cama.<br><strong>Joven amo:</strong> «Ah, delicioso. Siento que he vuelto a la vida.»<br>De los aproximadamente diez gajos que tenía la mandarina, el joven amo compartió también con sus padres, y aún quedaron unos tres gajos. El dueño de la casa, encantado, elogió al empleado principal por todo su esfuerzo y le dio esos tres gajos sobrantes como recompensa.<br><strong>Dueño:</strong> «Gracias a ti, se salvó. Esto es solo un pequeño gesto, pero por favor, tómalos.»</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>El empleado principal guardó cuidadosamente los tres gajos en su ropa y se apresuró a salir de la tienda, rumbo a casa. Mientras caminaba, se sorprendió haciendo cálculos mentales. «Una mandarina entera costó mil ryo, y tenía unos diez gajos. Lo que significa… que este gajo que llevo vale unos cien ryo…» En cuanto ese pensamiento cruzó su mente, sus pies se detuvieron en seco. Los tres gajos en su mano sumaban trescientos ryo en total. Al pensarlo, su ropa de pronto se sintió extrañamente pesada, o extrañamente ligera, no sabría decir cuál. Y así, dicen, el empleado principal nunca regresó a la tienda esa noche, desapareciendo tranquilamente en la oscuridad, o tal vez sí regresó después de todo, quién sabe. «Cien ryo el gajo, vaya manera de empezar el año con buena suerte», como dicen en otra historia completamente distinta.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②若旦那の患い","③季節外れの願い","④番頭の八方探し","⑤千両の値","⑥快復と三房のご褒美","⑦百両の一房"];
+        const partNamesEn = ["① Prologue","② The young master's illness","③ An impossible craving","④ The search","⑤ A thousand ryo","⑥ Recovery and reward","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>二十四孝 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 二十四孝 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">え〜、一席申し上げますが。むかし中国に「二十四孝」と申しまして、親孝行な子供たちの逸話を二十四人分集めた書物がございました。<break time=\"500ms\"/>氷の上に寝そべって魚を得た者やら、蚊に自分の血を吸わせて親を守った者やら、どれもこれも大層な親孝行の話ばかりでございます。<break time=\"500ms\"/>ところがこの立派なお手本も、受け取る人間によっては、とんでもない使い方をされることがあるようでして。<break time=\"500ms\"/>今日はそんな、親孝行のはき違えのお話でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②女房の小言", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">ある長屋に、あまり働き者とは言えない亭主がおりましてね。年老いた自分の母親を、日ごろから邪険に扱ってばかりいる。これを見かねた女房が、ある日とうとう小言を並べ立てます。<break time=\"500ms\"/></prosody><prosody rate=\"114%\" pitch=\"0st\">お前さん、少しはおっかさんを大事にしたらどうだい。同じ子供でも、大違いだよ。<break time=\"400ms\"/></prosody><prosody rate=\"97%\" pitch=\"-1st\">なんだよ、藪から棒に。<break time=\"400ms\"/></prosody><prosody rate=\"114%\" pitch=\"0st\">昔の中国にゃ二十四孝ってものがあってね、親のためなら我が身を投げ出す子供が、二十四人もいたっていうんだよ。お前さんもちったぁ見習ったらどうだい。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③孝行譚", ssml:true, text:"<speak><prosody rate=\"114%\" pitch=\"0st\">例えば王祥さんてお人は、継母が真冬に魚を食べたいって言ったら、氷の上に裸で寝転がって、自分の体の温もりで氷を溶かして、鯉を捕まえてご馳走したって言うじゃないか。<break time=\"500ms\"/></prosody><prosody rate=\"97%\" pitch=\"-1st\">へえ、そいつは大した根性だな。<break time=\"400ms\"/></prosody><prosody rate=\"114%\" pitch=\"0st\">呉猛さんてお人もそうだよ。家じゅう蚊が多くて親がゆっくり眠れないもんだから、自分が裸になって蚊に刺されて、親のそばで蚊除けの身代わりになったってさ。それに比べてお前さんときたら、口ばっかりで。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">亭主はすっかり言い負かされて、ぐうの音も出ません。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">よし、わかった。それほどまでに言うなら、あたしもひとつ、その二十四孝とやらをやってみせようじゃないか。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④氷への挑戦", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">亭主、これは一つ自分もやってみようと、妙な気を起こしましてね。折りしも真冬のこと、裏の溝に薄く氷が張っておりますのを見つけて、着物を脱いで素っ裸になり、その上にごろりと寝そべりました。<break time=\"500ms\"/></prosody><prosody rate=\"99%\" pitch=\"-1st\">えい、こうしていりゃ、そのうち氷が溶けて、鯉の一匹も飛び出してくるに違いねえ。<break time=\"400ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">ところが、いくら待っても氷は溶けず、体だけがどんどん冷えてまいります。がたがた震えながら、それでも意地になって動きません。通りかかった隣の男が呆れて声をかけます。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">おい、お前さん、そんなところで何をしてるんだ。風邪ひくよ。<break time=\"400ms\"/></prosody><prosody rate=\"99%\" pitch=\"-1st\">うるせえ、これは親孝行の修行だ、邪魔すんな。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤蚊の身代わり", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">氷の一件で懲りるかと思いきや、亭主、今度は蚊の話を真似ようと考えました。母親はもうとっくに奥の部屋でぐっすり眠っておりますのに、亭主はわざわざ縁側に裸で座り込みましてね。<break time=\"500ms\"/></prosody><prosody rate=\"99%\" pitch=\"-1st\">よし、蚊にたっぷり血を吸わせて、俺が身代わりになってやるぞ。<break time=\"400ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">ところが蚊にとっては誰の血でも同じこと、母親のところへなど行きはしません。ただ亭主の体ばかりがぷっくりと腫れ上がるだけでございます。そこへ女房が通りかかりましてね。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">お前さん、いったい何やってるんだい。おっかさんはちゃんと蚊帳の中で寝てるんだよ。お前が身代わりになる意味なんかないじゃないか。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"99%\" pitch=\"-1st\">なんだ、そうなのか。だったら、あたしゃ一体、誰のために刺されてたんだろうね。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">まったく、お前さんは肝心の孝行の心が抜けてて、形だけ真似するんだから。二十四孝が聞いて呆れるよ。<break time=\"500ms\"/></prosody><prosody rate=\"99%\" pitch=\"-1st\">なあに、心配すんな。氷の上も蚊に刺されるのも、もうこりごりだ。今度はせめて、おっかさんの肩の一つも揉んでやるとするか。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">それを早く言いなよ。<break time=\"500ms\"/></prosody><prosody rate=\"102%\" pitch=\"0st\">形ばかりの親孝行が、とんだ蚊にまつわる、いえ、間違いの元、というお話でございました。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Long ago in China, there was a book called 'The Twenty-Four Paragons of Filial Piety,' a collection of tales about twenty-four devoted children. One lay down on the ice to catch fish for an ailing parent; another let mosquitoes feast on his own blood to protect his sleeping mother and father. Every single story was an extraordinary example of devotion. But even the finest role models can be put to the most ridiculous use, depending on who's doing the imitating. Today's story is about a man who completely missed the point of filial piety." },
+    { id:'p2', title:"②女房の小言", ssml:false, text:"In a certain tenement lived a husband who could hardly be called hard-working, and who treated his own elderly mother with nothing but neglect. His wife, unable to bear it any longer, finally let him have it one day. Wife: \"Husband, don't you think you could treat your mother a little better? Some sons and their mothers are worlds apart from you and yours.\" Husband: \"What's brought this on all of a sudden?\" Wife: \"Back in old China there was something called the Twenty-Four Paragons of filial piety — twenty-four children who threw themselves body and soul into caring for their parents. You could stand to learn a thing or two from them.\"" },
+    { id:'p3', title:"③孝行譚", ssml:false, text:"Wife: \"Take Wang Xiang, for instance — when his stepmother said she craved fish in the dead of winter, he stripped naked and lay down on the ice, melting it with the warmth of his own body until a carp leapt out for him to cook for her.\" Husband: \"Well, that takes some nerve.\" Wife: \"And there was Wu Meng, too. His house was so full of mosquitoes his parents couldn't sleep, so he stripped bare and let the mosquitoes bite him instead, standing guard beside them all night. And compare that to you — all talk and no action.\" Thoroughly beaten in the argument, the husband couldn't say a word back. Husband: \"Fine, I get it. If you're going to go on about it that much, I'll show you — I'll do this Twenty-Four Paragons business myself.\"" },
+    { id:'p4', title:"④氷への挑戦", ssml:false, text:"The husband, determined to try it himself, hatched a strange scheme. It happened to be the dead of winter, and he found a thin layer of ice over the ditch behind the house. He stripped off his clothes, went completely bare, and flopped down on top of it. Husband: \"There. If I just stay like this, sooner or later the ice will melt and a carp is bound to pop out.\" But no matter how long he waited, the ice refused to melt — only his body kept getting colder and colder. Shivering and shaking, he stubbornly refused to move. A neighbor passing by stopped, astonished. Neighbor: \"Hey, what on earth are you doing lying there? You'll catch your death of cold.\" Husband: \"Quiet, this is training in filial devotion. Don't interrupt.\"" },
+    { id:'p5', title:"⑤蚊の身代わり", ssml:false, text:"You'd think the ice incident would have taught him a lesson, but instead the husband decided to imitate the mosquito story next. His mother was already sound asleep in the back room, yet he went and sat himself down, stark naked, on the veranda. Husband: \"Right then, let the mosquitoes drink their fill of me — I'll take her place.\" But to a mosquito, blood is blood — they had no reason to go anywhere near his mother. All that happened was that the husband's body swelled up with bites. Just then his wife happened to pass by. Wife: \"Husband, what on earth are you doing? Your mother is sleeping perfectly safe under the mosquito netting. There's no point at all in you taking her place.\"" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Husband: \"Wait, is that so? Then who exactly have I been getting bitten for all this time?\" Wife: \"Honestly, you're missing the whole point — the heart of filial devotion — and just copying the outward form. The Twenty-Four Paragons would be appalled.\" Husband: \"Well, don't worry. I've had quite enough of ice and mosquito bites. This time, how about I just go rub my mother's shoulders instead?\" Wife: \"Now you tell me — say that sooner next time!\" And so it was that hollow, form-only filial piety led to nothing but mosquito bites — or rather, a whole lot of missing the point. And that, ladies and gentlemen, is our story for today." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Il y a bien longtemps en Chine existait un livre intitulé « Les Vingt-Quatre Paragons de la Piété Filiale », un recueil d'histoires sur vingt-quatre enfants dévoués. L'un s'allongea sur la glace pour attraper du poisson pour un parent malade ; un autre laissa les moustiques se gorger de son propre sang pour protéger le sommeil de ses parents. Chaque histoire était un exemple extraordinaire de dévotion. Mais même les meilleurs modèles peuvent être utilisés de la façon la plus absurde, selon qui les imite. L'histoire d'aujourd'hui parle d'un homme qui passa complètement à côté du sens profond de la piété filiale." },
+    { id:'p2', title:"②女房の小言", ssml:false, text:"Dans un certain immeuble vivait un mari qu'on ne pouvait guère qualifier de travailleur, et qui ne traitait sa mère âgée qu'avec négligence. Sa femme, n'en pouvant plus, finit par le sermonner un jour. La femme : « Mon mari, tu ne pourrais pas traiter ta mère un peu mieux ? Certains fils et leurs mères sont aux antipodes de toi et de la tienne. » Le mari : « Qu'est-ce qui te prend, tout à coup ? » La femme : « Dans la Chine ancienne, il existait ce qu'on appelait les Vingt-Quatre Paragons de la piété filiale — vingt-quatre enfants qui se sont dévoués corps et âme pour leurs parents. Tu ferais bien de t'en inspirer un peu. »" },
+    { id:'p3', title:"③孝行譚", ssml:false, text:"La femme : « Prends Wang Xiang, par exemple — quand sa belle-mère lui dit qu'elle avait envie de poisson en plein hiver, il se déshabilla et s'allongea nu sur la glace, la faisant fondre avec la chaleur de son propre corps jusqu'à ce qu'une carpe surgisse, qu'il lui cuisina. » Le mari : « Eh bien, ça en dit long sur son cran. » La femme : « Et il y avait aussi Wu Meng. Sa maison était tellement infestée de moustiques que ses parents ne pouvaient pas dormir, alors il se mit nu et se laissa piquer à leur place, montant la garde à leurs côtés toute la nuit. Et toi, en comparaison — que des paroles, aucune action. » Complètement à court d'arguments, le mari ne trouva rien à répondre. Le mari : « Bon, j'ai compris. Si tu insistes autant, je vais te montrer — je vais faire moi-même ces histoires de Vingt-Quatre Paragons. »" },
+    { id:'p4', title:"④氷への挑戦", ssml:false, text:"Le mari, bien décidé à essayer par lui-même, échafauda un plan bizarre. C'était justement en plein hiver, et il trouva une fine couche de glace sur le fossé derrière la maison. Il ôta ses vêtements, se retrouva complètement nu, et s'affala dessus. Le mari : « Voilà. Si je reste comme ça, tôt ou tard la glace va fondre et une carpe finira bien par sortir. » Mais la glace refusa obstinément de fondre, aussi longtemps qu'il attendît — seul son corps devenait de plus en plus froid. Grelottant et tremblant, il refusait obstinément de bouger. Un voisin qui passait par là s'arrêta, stupéfait. Le voisin : « Dis donc, qu'est-ce que tu fabriques allongé là ? Tu vas attraper la mort. » Le mari : « Silence, c'est un entraînement à la piété filiale. Ne m'interromps pas. »" },
+    { id:'p5', title:"⑤蚊の身代わり", ssml:false, text:"On aurait pu croire que l'épisode de la glace lui aurait servi de leçon, mais le mari décida ensuite d'imiter l'histoire des moustiques. Sa mère dormait déjà profondément dans la chambre du fond, pourtant il alla s'asseoir, complètement nu, sur la véranda. Le mari : « Bon, que les moustiques se rassasient de moi — je prends sa place. » Mais pour un moustique, le sang est le sang — ils n'avaient aucune raison d'aller près de sa mère. Tout ce qui arriva, c'est que le corps du mari se couvrit de piqûres et gonfla. C'est alors que sa femme passa par là. La femme : « Mon mari, qu'est-ce que tu fabriques encore ? Ta mère dort parfaitement en sécurité sous la moustiquaire. Ça ne sert absolument à rien que tu prennes sa place. »" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Le mari : « Attends, c'est vrai ? Alors pour qui est-ce que je me suis fait piquer tout ce temps ? » La femme : « Franchement, tu passes complètement à côté de l'essentiel — le cœur de la piété filiale — et tu te contentes d'en copier la forme extérieure. Les Vingt-Quatre Paragons en seraient consternés. » Le mari : « Bon, ne t'en fais pas. J'en ai eu assez de la glace et des piqûres de moustiques. Cette fois, que dirais-tu si j'allais plutôt lui masser les épaules ? » La femme : « Voilà, il fallait le dire plus tôt ! » Et voilà comment une piété filiale creuse, réduite à sa seule forme, n'a mené qu'à des piqûres de moustiques — ou plutôt, à passer complètement à côté du sujet. Et voilà, mesdames et messieurs, notre histoire du jour." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Hace mucho tiempo en China existía un libro llamado «Los Veinticuatro Paragones de la Piedad Filial», una colección de relatos sobre veinticuatro hijos devotos. Uno se tendió sobre el hielo para pescar para un padre enfermo; otro dejó que los mosquitos se dieran un festín con su propia sangre para proteger el sueño de sus padres. Cada historia era un ejemplo extraordinario de devoción. Pero hasta los mejores modelos a seguir pueden usarse de la manera más absurda, según quién los imite. La historia de hoy trata de un hombre que no entendió en absoluto el verdadero sentido de la piedad filial." },
+    { id:'p2', title:"②女房の小言", ssml:false, text:"En cierto vecindario vivía un marido que difícilmente podía llamarse trabajador, y que trataba a su anciana madre con puro descuido. Su esposa, ya sin poder soportarlo más, terminó por reprenderlo un día. Esposa: «Marido, ¿no podrías tratar un poco mejor a tu madre? Algunos hijos y sus madres son un mundo aparte de ti y la tuya.» Marido: «¿Y ahora a qué viene esto?» Esposa: «En la antigua China existía algo llamado los Veinticuatro Paragones de la piedad filial: veinticuatro hijos que se entregaron en cuerpo y alma al cuidado de sus padres. No te vendría mal aprender algo de ellos.»" },
+    { id:'p3', title:"③孝行譚", ssml:false, text:"Esposa: «Mira a Wang Xiang, por ejemplo: cuando su madrastra dijo que en pleno invierno se le antojaba pescado, él se desnudó y se tendió sobre el hielo, derritiéndolo con el calor de su propio cuerpo hasta que salió una carpa que le cocinó.» Marido: «Vaya, eso sí que tiene agallas.» Esposa: «Y también estaba Wu Meng. Su casa estaba tan llena de mosquitos que sus padres no podían dormir, así que se desnudó y dejó que los mosquitos lo picaran a él, haciendo guardia junto a ellos toda la noche. Y comparado con eso, tú... puras palabras y nada de acción.» Completamente derrotado en la discusión, el marido no pudo decir nada. Marido: «Está bien, ya entendí. Si tanto insistes, te lo voy a demostrar: haré yo mismo eso de los Veinticuatro Paragones.»" },
+    { id:'p4', title:"④氷への挑戦", ssml:false, text:"El marido, decidido a probarlo él mismo, urdió un plan extraño. Resultó que era pleno invierno, y encontró una fina capa de hielo sobre la zanja detrás de la casa. Se quitó la ropa, se quedó completamente desnudo, y se dejó caer encima. Marido: «Ya está. Si me quedo así, tarde o temprano el hielo se derretirá y saldrá una carpa.» Pero por mucho que esperó, el hielo se negó a derretirse; solo su cuerpo se iba enfriando cada vez más. Temblando y tiritando, se negaba tercamente a moverse. Un vecino que pasaba por ahí se detuvo, atónito. Vecino: «Oye, ¿qué demonios haces ahí tirado? Vas a agarrar un resfriado de muerte.» Marido: «Silencio, esto es entrenamiento de piedad filial. No interrumpas.»" },
+    { id:'p5', title:"⑤蚊の身代わり", ssml:false, text:"Uno pensaría que el episodio del hielo le habría servido de lección, pero el marido decidió a continuación imitar la historia de los mosquitos. Su madre ya dormía profundamente en el cuarto del fondo, pero aun así él fue y se sentó, completamente desnudo, en el porche. Marido: «Bien, que los mosquitos se den un festín conmigo, yo ocuparé su lugar.» Pero para un mosquito, la sangre es sangre; no tenían ningún motivo para acercarse a su madre. Lo único que pasó fue que el cuerpo del marido se hinchó de picaduras. Justo entonces pasó por ahí su esposa. Esposa: «Marido, ¿qué demonios haces ahora? Tu madre duerme perfectamente segura bajo el mosquitero. No tiene ningún sentido que tú ocupes su lugar.»" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Marido: «Espera, ¿es cierto eso? Entonces, ¿para quién me he estado dejando picar todo este tiempo?» Esposa: «Francamente, se te escapa por completo lo esencial —el corazón de la piedad filial— y solo copias la forma exterior. Los Veinticuatro Paragones estarían consternados.» Marido: «Bueno, no te preocupes. Ya tuve suficiente hielo y picaduras de mosquito. Esta vez, ¿qué tal si mejor le froto los hombros?» Esposa: «¡Eso, eso, haberlo dicho antes!» Y así fue como una piedad filial vacía, reducida a la mera forma, no llevó a nada más que picaduras de mosquito, o mejor dicho, a perderse por completo el sentido. Y esa, señoras y señores, es la historia de hoy." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

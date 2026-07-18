@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>粗忽長屋 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 粗忽長屋 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、世の中には、粗忽という、なんとも困った性分の人がおりましてね。傘を差したまま「あれ、傘がねぇ」と探し回ったり、足袋を左右あべこべに履いて一日中それに気づかなかったり。<break time=\"500ms\"/>まぁ、この手の粗忽者は、どこの町にも一人や二人はいるもので。とある長屋にも、輪を掛けて粗忽な熊五郎という男が住んでおりまして、これがまぁ、今日のお話の主人公でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②行き倒れ", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">さて、ある朝のこと、神田の川端で行き倒れの死体が一つ、見つかりましてね。身元がわからないというので、近所の者たちが大勢集まって取り囲んでおりました。そこへ、熊五郎がふらりと通りかかりましてね。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">おや、なんの騒ぎだい？<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">なんでも、身元のわからない仏さんが上がったんだと。<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">熊五郎は別に興味もなかったんですが、なんとなく人だかりに押されて、死体の顔をのぞき込むことになりました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③「これはお前だ」", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">すると野次馬の一人が、死体の顔をしげしげと見て、こう言い出しましてね。<break time=\"350ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">おや、これは長屋の八五郎さんじゃねぇか。<break time=\"350ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">なるほど、言われてみりゃ、たしかに八五郎さんだ。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">熊五郎も釣られて死体を見ますと、たしかに仲の良い八五郎に似ていなくもない。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">そう言われてみりゃ……こいつぁ八五郎だ！俺の友達の八五郎に間違いねぇ！<break time=\"500ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">大勢が口々に「そうだそうだ」と言うものだから、熊五郎もすっかりその気になって、これは大変だと、青くなってしまいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④八五郎を呼びに行く", ssml:true, text:"<speak><prosody rate=\"115%\" pitch=\"+1st\">熊五郎はいてもたってもいられず、「これは大変だ、本人に知らせなきゃ」と、当の八五郎の長屋へ飛んでいきました。<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">当然、八五郎はぴんぴんしておりまして、呑気に朝飯を食っておりました。<break time=\"400ms\"/></prosody><prosody rate=\"122%\" pitch=\"+1st\">八っつぁん！大変だ大変だ！お前が神田の川端で死んでるんだよ！<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">なに言ってやがる、俺はこの通りぴんぴんしてらぁ。<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">と、当の八五郎は笑って取り合いませんでしたが、熊五郎は真剣そのもので、なおも言い募ります。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">いいから来い！大勢の者が見て、みんなお前だって言ってるんだ！<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤問答", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">八五郎も初めは笑っておりましたが、熊五郎があんまり真剣な顔で言い張るものだから、だんだん怪しくなってまいりました。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">だがおかしいじゃねぇか。死んだのがこの俺だってんなら、こうして生きてしゃべってる俺は、いったい何者なんだ？<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">そんなこたぁ、俺にわかるかい。だがな、あれだけ大勢の人が、口を揃えてお前だって言うんだ。あれだけの人数が揃いも揃って間違えるわけがねぇ。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">う〜ん……言われてみりゃそうだ。俺ぁゆうべ酒を飲んで、そのまま寝ちまったが……もしかして、あれから知らねぇうちに死んじまったのかもしれねぇな。<break time=\"500ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">そうともよ！自分で死んだこともわからねぇなんてのは、いかにもお前らしいや。<break time=\"500ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">と、粗忽者二人の妙な問答の末、とうとう八五郎は「自分は死んだのだ」とすっかり信じ込んでしまいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥死体を抱く", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">すっかりその気になった八五郎は、熊五郎に連れられて、神田の川端まで戻ってまいりました。死体の前に立ちますと、八五郎はしみじみと涙ぐみましてね。<break time=\"500ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">ああ……こいつぁたしかに俺だ。かわいそうに、冷たくなっちまって。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、両手で死体をぐいっと抱き起こしましてね。<break time=\"300ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">おい、しっかりしろ！かわいそうに、早く仏にしてやらなきゃな……<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"0st\">と、自分の「遺体」をひしと抱きしめて、しくしくと泣き出す始末でございます。周りの者たちも、なんだか妙な光景に呆気にとられて見ておりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"0st\">死体を抱きかかえたまま、八五郎はふと、なにか大きな疑問にぶつかったような顔になりましてね。<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">まてよ……熊さん。ここで死んでるのが、たしかに俺だとするな。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">おう、そうだそうだ。<break time=\"350ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">だったら……こうして今、この俺を抱いているのは、いってぇ誰なんだろうなぁ？<break time=\"800ms\"/></prosody><prosody rate=\"98%\" pitch=\"0st\">という、なんとも奇妙な一言を残しまして。粗忽には粗忽を重ねた末の、なんとも頓珍漢なオチでございます。粗忽長屋、これにて一席。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Now, there are certain unfortunate souls in this world cursed with what we call 'sokotsu' — chronic absent-mindedness. Some hold an open umbrella overhead while frantically searching for their umbrella. Others wear their socks on the wrong feet all day without ever noticing. Every neighborhood has at least one or two of this sort wandering around. And in a certain row house lived a man even more scatterbrained than most, named Kumagorou — and he happens to be the hero of today's tale." },
+    { id:'p2', title:"②行き倒れ", ssml:false, text:"One morning, a body was found collapsed by the riverbank in Kanda. Since no one could identify who it was, a large crowd of neighbors gathered around to gawk. Kumagorou happened to wander by. Kumagorou: \"Oh? What's all the commotion?\" Bystander: \"Apparently they found some poor soul who drowned, and nobody knows who he is.\" Kumagorou wasn't particularly interested, but caught up in the crush of the crowd, he found himself peering down at the dead man's face." },
+    { id:'p3', title:"③「これはお前だ」", ssml:false, text:"Then one of the onlookers, studying the dead man's face closely, spoke up. Bystander: \"Wait, isn't this Hachigorou from the tenement?\" Another bystander: \"Now that you mention it, yeah, that's definitely Hachigorou.\" Kumagorou, swept along, took another look at the body — and sure enough, it did resemble his good friend Hachigorou. Kumagorou: \"Now that you say it... this IS Hachigorou! No doubt about it, this is my friend Hachigorou!\" With everyone chiming in, \"That's right, that's right,\" Kumagorou became completely convinced, and turned pale, thinking, this is terrible." },
+    { id:'p4', title:"④八五郎を呼びに行く", ssml:false, text:"Kumagorou couldn't sit still. \"This is terrible, I have to tell him myself,\" he thought, and dashed off to Hachigorou's own tenement. Naturally, Hachigorou was alive and well, calmly eating his breakfast. Kumagorou: \"Hacchan! Terrible news, terrible news! You're lying dead by the riverbank in Kanda!\" Hachigorou: \"What are you talking about? I'm right here, fit as a fiddle.\" The real Hachigorou just laughed it off, but Kumagorou was dead serious, and kept pressing the point. Kumagorou: \"Just come with me! A whole crowd of people saw the body and every one of them says it's you!\"" },
+    { id:'p5', title:"⑤問答", ssml:false, text:"At first Hachigorou just laughed it off, but Kumagorou insisted so earnestly that he began to feel unsettled. Hachigorou: \"But wait, that doesn't make sense. If I'm the one who died, then who exactly is this person alive and talking right now?\" Kumagorou: \"How should I know? But look — that many people, all agreeing it's you. That many people couldn't all be wrong.\" Hachigorou: \"Hmm... now that you put it that way. I did drink last night and just passed out... maybe, without realizing it, I really did die sometime after that.\" Kumagorou: \"That's it exactly! Not even noticing your own death — that's so like you.\" And so, after this bizarre exchange between two scatterbrains, Hachigorou finally became completely convinced that he himself had died." },
+    { id:'p6', title:"⑥死体を抱く", ssml:false, text:"Now fully convinced, Hachigorou let Kumagorou lead him back to the riverbank in Kanda. Standing before the body, Hachigorou grew genuinely tearful. Hachigorou: \"Ahh... this really is me. Poor thing, gone cold like this.\" He gathered the body up in both arms. Hachigorou: \"Hey, hang in there! Poor fellow, we'd better give you a proper send-off soon...\" And with that, he clutched his own \"remains\" tightly to his chest and began to sob. The onlookers stood by, utterly dumbfounded by the bizarre scene unfolding before them." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Still clutching the body, Hachigorou's face suddenly took on the look of a man confronting some enormous, unanswerable question. Hachigorou: \"Wait a moment... Kuma. Let's say the one who died here really is me.\" Kumagorou: \"Right, right, that's the one.\" Hachigorou: \"Then... just who exactly is it that's holding me right now?\" And with that thoroughly baffling remark, he left everyone speechless. Two scatterbrains, stacking one absurdity atop another, arrived at this wonderfully nonsensical punchline. And that concludes our tale of the Absent-Minded Duo." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Voyez-vous, il existe en ce monde des âmes malheureuses affligées de ce qu'on appelle le « sokotsu » — une étourderie chronique. Certains tiennent un parapluie ouvert au-dessus de leur tête tout en le cherchant frénétiquement. D'autres portent leurs chaussettes à l'envers toute la journée sans jamais s'en apercevoir. Chaque quartier compte au moins un ou deux individus de cette espèce. Et dans une certaine maison à loyer vivait un homme encore plus étourdi que la moyenne, nommé Kumagorou — et c'est justement le héros de notre histoire du jour." },
+    { id:'p2', title:"②行き倒れ", ssml:false, text:"Un matin, on trouva un corps effondré au bord de la rivière à Kanda. Comme personne ne pouvait l'identifier, une foule nombreuse de voisins s'était rassemblée pour regarder. Kumagorou passait justement par là. Kumagorou : « Tiens, quel est ce raffut ? » Badaud : « Il paraît qu'on a repêché un pauvre bougre noyé, et personne ne sait qui c'est. » Kumagorou n'était pas particulièrement intéressé, mais entraîné par la cohue, il se retrouva à scruter le visage du défunt." },
+    { id:'p3', title:"③「これはお前だ」", ssml:false, text:"Alors l'un des badauds, examinant attentivement le visage du mort, prit la parole. Badaud : « Attends, n'est-ce pas Hachigorou du logement ? » Un autre badaud : « Maintenant que tu le dis, oui, c'est bien Hachigorou. » Kumagorou, entraîné par le mouvement, regarda de nouveau le corps — et effectivement, cela ressemblait bien à son bon ami Hachigorou. Kumagorou : « Maintenant que tu le dis... c'est bien Hachigorou ! Aucun doute, c'est mon ami Hachigorou ! » Avec tout le monde répétant en chœur « C'est vrai, c'est vrai », Kumagorou en devint totalement convaincu, et pâlit, se disant que c'était terrible." },
+    { id:'p4', title:"④八五郎を呼びに行く", ssml:false, text:"Kumagorou ne tenait plus en place. « C'est terrible, il faut que je le prévienne moi-même », pensa-t-il, et il courut jusqu'au logement d'Hachigorou. Naturellement, Hachigorou était bien vivant, en train de manger tranquillement son petit-déjeuner. Kumagorou : « Hacchan ! Terrible nouvelle, terrible nouvelle ! Tu es mort au bord de la rivière à Kanda ! » Hachigorou : « De quoi tu parles ? Je suis là, en pleine forme. » Le vrai Hachigorou prit ça à la légère en riant, mais Kumagorou était on ne peut plus sérieux, et insistait de plus belle. Kumagorou : « Viens avec moi, un point c'est tout ! Toute une foule a vu le corps et tout le monde dit que c'est toi ! »" },
+    { id:'p5', title:"⑤問答", ssml:false, text:"Au début, Hachigorou en riait, mais Kumagorou insistait avec un tel sérieux qu'il commença à se sentir troublé. Hachigorou : « Mais attends, ça n'a pas de sens. Si c'est moi qui suis mort, alors qui est cette personne bien vivante en train de te parler ? » Kumagorou : « Comment veux-tu que je le sache ? Mais regarde — autant de gens, tous d'accord que c'est toi. Autant de monde ne peut pas se tromper. » Hachigorou : « Hmm... vu sous cet angle. J'ai bu hier soir et je me suis endormi comme ça... peut-être que, sans m'en rendre compte, je suis vraiment mort après ça. » Kumagorou : « Voilà, exactement ! Ne même pas remarquer sa propre mort, ça te ressemble tellement. » Et ainsi, après cet échange bizarre entre deux étourdis, Hachigorou finit par être totalement convaincu qu'il était lui-même mort." },
+    { id:'p6', title:"⑥死体を抱く", ssml:false, text:"Désormais pleinement convaincu, Hachigorou se laissa ramener par Kumagorou jusqu'au bord de la rivière à Kanda. Debout devant le corps, Hachigorou fut pris de larmes sincères. Hachigorou : « Ah... c'est vraiment moi. Pauvre de moi, tout froid comme ça. » Il souleva le corps dans ses deux bras. Hachigorou : « Allez, tiens bon ! Pauvre de toi, il faut vite t'organiser de belles funérailles... » Et sur ce, il serra étroitement sa propre « dépouille » contre lui et se mit à sangloter. Les badauds, complètement abasourdis par cette scène insolite, restaient plantés là à regarder." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Toujours en train d'étreindre le corps, le visage d'Hachigorou prit soudain l'expression d'un homme confronté à une question immense et sans réponse. Hachigorou : « Attends un instant... Kuma. Disons que celui qui est mort ici, c'est vraiment moi. » Kumagorou : « Oui, oui, c'est bien ça. » Hachigorou : « Alors... qui donc est en train de me tenir dans ses bras en ce moment même ? » Et sur cette remarque parfaitement déroutante, il laissa tout le monde sans voix. Deux étourdis, empilant une absurdité sur une autre, en arrivèrent à cette chute merveilleusement absurde. Et ainsi se conclut notre histoire du Duo Étourdi." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Verán, en este mundo existen ciertas almas desafortunadas aquejadas de lo que llamamos \"sokotsu\" — un despiste crónico. Algunos sostienen un paraguas abierto sobre la cabeza mientras lo buscan frenéticamente. Otros llevan los calcetines cambiados todo el día sin darse cuenta jamás. Cada barrio tiene al menos uno o dos individuos de este tipo. Y en cierta casa de vecindad vivía un hombre todavía más despistado de lo habitual, llamado Kumagorou — y él es precisamente el protagonista de la historia de hoy." },
+    { id:'p2', title:"②行き倒れ", ssml:false, text:"Una mañana, encontraron un cuerpo desplomado junto al río en Kanda. Como nadie podía identificarlo, se reunió una gran multitud de vecinos para curiosear. Kumagorou pasaba por ahí casualmente. Kumagorou: \"Vaya, ¿qué es todo este alboroto?\" Curioso: \"Al parecer sacaron a un pobre hombre ahogado, y nadie sabe quién es.\" A Kumagorou no le interesaba particularmente, pero arrastrado por el gentío, terminó asomándose para mirar la cara del muerto." },
+    { id:'p3', title:"③「これはお前だ」", ssml:false, text:"Entonces uno de los curiosos, observando de cerca el rostro del muerto, habló. Curioso: \"Oye, ¿no es este Hachigorou, el del vecindario?\" Otro curioso: \"Ahora que lo dices, sí, es Hachigorou sin duda.\" Kumagorou, arrastrado por el ambiente, volvió a mirar el cuerpo — y en efecto, se parecía a su buen amigo Hachigorou. Kumagorou: \"Ahora que lo dices... ¡este ES Hachigorou! ¡Sin duda, es mi amigo Hachigorou!\" Con todos repitiendo a coro \"Así es, así es\", Kumagorou quedó completamente convencido, y palideció, pensando que aquello era terrible." },
+    { id:'p4', title:"④八五郎を呼びに行く", ssml:false, text:"Kumagorou no podía quedarse quieto. \"Esto es terrible, tengo que avisarle yo mismo\", pensó, y corrió hacia la vivienda de Hachigorou. Naturalmente, Hachigorou estaba vivito y coleando, comiendo tranquilamente su desayuno. Kumagorou: \"¡Hacchan! ¡Noticias terribles, terribles! ¡Estás muerto junto al río en Kanda!\" Hachigorou: \"¿De qué hablas? Aquí estoy, sano y fuerte.\" El verdadero Hachigorou se lo tomó a risa, pero Kumagorou hablaba completamente en serio, e insistía cada vez más. Kumagorou: \"¡Ven conmigo y ya está! ¡Una multitud entera vio el cuerpo y todos dicen que eres tú!\"" },
+    { id:'p5', title:"⑤問答", ssml:false, text:"Al principio, Hachigorou se reía, pero Kumagorou insistía con tanta seriedad que empezó a sentirse inquieto. Hachigorou: \"Pero espera, eso no tiene sentido. Si el que murió soy yo, ¿entonces quién es esta persona bien viva que te está hablando ahora mismo?\" Kumagorou: \"¿Cómo quieres que yo lo sepa? Pero mira — tanta gente, todos de acuerdo en que eres tú. Tanta gente no puede estar equivocada.\" Hachigorou: \"Mmm... visto así. Anoche bebí y me quedé dormido sin más... tal vez, sin darme cuenta, de verdad morí después de eso.\" Kumagorou: \"¡Eso es exactamente! No darte cuenta ni de tu propia muerte, eso sí que es típico de ti.\" Y así, tras este extraño intercambio entre dos despistados, Hachigorou terminó completamente convencido de que él mismo había muerto." },
+    { id:'p6', title:"⑥死体を抱く", ssml:false, text:"Ya plenamente convencido, Hachigorou dejó que Kumagorou lo llevara de vuelta a la orilla del río en Kanda. De pie frente al cuerpo, a Hachigorou se le llenaron los ojos de lágrimas genuinas. Hachigorou: \"Ah... este soy realmente yo. Pobrecito, ya frío así.\" Levantó el cuerpo entre sus brazos. Hachigorou: \"¡Vamos, aguanta! Pobre de ti, hay que organizarte un buen funeral pronto...\" Y dicho esto, estrechó sus propios \"restos\" contra el pecho y rompió a sollozar. Los curiosos, completamente atónitos ante la extraña escena, se quedaron mirando sin poder creerlo." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Todavía abrazando el cuerpo, el rostro de Hachigorou adoptó de repente la expresión de un hombre enfrentado a una pregunta enorme y sin respuesta. Hachigorou: \"Espera un momento... Kuma. Digamos que el que murió aquí de verdad soy yo.\" Kumagorou: \"Sí, sí, eso es.\" Hachigorou: \"Entonces... ¿quién demonios es el que me está sosteniendo ahora mismo?\" Y con esa observación absolutamente desconcertante, dejó a todos sin palabras. Dos despistados, apilando un disparate sobre otro, llegaron a este final maravillosamente absurdo. Y así concluye nuestra historia del Dúo Despistado." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

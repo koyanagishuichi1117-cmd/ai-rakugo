@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>替り目 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.24 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">替り目</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Kawarime / The Night Watch</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②酔って帰る亭主</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③惚気る亭主</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④蕎麦を所望</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤出前持ちがやってくる</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥惚気話を聞かせる</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。お<ruby class="v1">酒<rt>さけ</rt></ruby>というのは、<ruby class="v1">飲<rt>の</rt></ruby>む<ruby class="v1">人<rt>ひと</rt></ruby>によって、<ruby class="v1">良薬<rt>りょうやく</rt></ruby>にも<ruby class="v2">百薬<rt>ひゃくやく</rt></ruby>の<ruby class="v1">長<rt>ちょう</rt></ruby>にもなれば、<ruby class="v1">時<rt>とき</rt></ruby>にとんだ<ruby class="v1">厄介者<rt>やっかいもの</rt></ruby>にもなるという、まあ<ruby class="v1">不思議<rt>ふしぎ</rt></ruby>な<ruby class="v1">飲<rt>の</rt></ruby>み<ruby class="v1">物<rt>もの</rt></ruby>でございます。<br><ruby class="v1">特<rt>とく</rt></ruby>に、<ruby class="v1">酔<rt>よ</rt></ruby>っ<ruby class="v1">払<rt>ぱら</rt></ruby>うと<ruby class="v1">妙<rt>みょう</rt></ruby>にくどくなる、それでいて<ruby class="v2">惚気<rt>のろけ</rt></ruby>が<ruby class="v1">始<rt>はじ</rt></ruby>まるという、<ruby class="v1">始末<rt>しまつ</rt></ruby>に<ruby class="v1">困<rt>こま</rt></ruby>る<ruby class="v2">御仁<rt>ごじん</rt></ruby>がいらっしゃいましてね。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v1">酔<rt>よ</rt></ruby>って<ruby class="v1">帰<rt>かえ</rt></ruby>ってきた<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>と、それにつき<ruby class="v1">合<rt>あ</rt></ruby>わされる、<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">毒<rt>どく</rt></ruby>な<ruby class="v1">女房<rt>にょうぼう</rt></ruby>の一<ruby class="v1">席<rt>せき</rt></ruby>を<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【酔って帰る亭主】</span>
+                    <ruby class="v1">夜<rt>よる</rt></ruby>も<ruby class="v1">更<rt>ふ</rt></ruby>けた<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">表<rt>おもて</rt></ruby>でどんどんと<ruby class="v1">戸<rt>と</rt></ruby>を<ruby class="v1">叩<rt>たた</rt></ruby>く<ruby class="v1">音<rt>おと</rt></ruby>。<br><strong>亭主：</strong>「おーい、<ruby class="v1">開<rt>あ</rt></ruby>けてくれ、<ruby class="v1">開<rt>あ</rt></ruby>けてくれよ〜」<br><ruby class="v1">酔<rt>よ</rt></ruby>っ<ruby class="v1">払<rt>ぱら</rt></ruby>った<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>が、<ruby class="v2">千鳥足<rt>ちどりあし</rt></ruby>で<ruby class="v1">帰<rt>かえ</rt></ruby>って<ruby class="v1">参<rt>まい</rt></ruby>りました。<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が<ruby class="v1">眠<rt>ねむ</rt></ruby>い<ruby class="v1">目<rt>め</rt></ruby>をこすりながら<ruby class="v1">戸<rt>と</rt></ruby>を<ruby class="v1">開<rt>あ</rt></ruby>けると、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はふらふらと<ruby class="v1">座敷<rt>ざしき</rt></ruby>に<ruby class="v1">上<rt>あ</rt></ruby>がり<ruby class="v1">込<rt>こ</rt></ruby>み、いきなり<ruby class="v1">小言<rt>こごと</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">始<rt>はじ</rt></ruby>めます。<br><strong>亭主：</strong>「なんだいこの<ruby class="v1">部屋<rt>へや</rt></ruby>は、<ruby class="v2">行灯<rt>あんどん</rt></ruby>の<ruby class="v1">油<rt>あぶら</rt></ruby>ぐらいちゃんと<ruby class="v1">入<rt>い</rt></ruby>れておけ。それに<ruby class="v1">布団<rt>ふとん</rt></ruby>もまだ<ruby class="v1">敷<rt>し</rt></ruby>いてないのか、<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>かない<ruby class="v1">女<rt>おんな</rt></ruby>だなお<ruby class="v1">前<rt>まえ</rt></ruby>は」<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>は<ruby class="v1">慣<rt>な</rt></ruby>れた<ruby class="v1">様子<rt>ようす</rt></ruby>で、<ruby class="v1">黙<rt>だま</rt></ruby>って<ruby class="v1">布団<rt>ふとん</rt></ruby>を<ruby class="v1">敷<rt>し</rt></ruby>き<ruby class="v1">始<rt>はじ</rt></ruby>めます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【惚気る亭主】</span>
+                    ところが<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>、<ruby class="v1">小言<rt>こごと</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>ったかと<ruby class="v1">思<rt>おも</rt></ruby>うと、<ruby class="v1">急<rt>きゅう</rt></ruby>に<ruby class="v1">涙<rt>なみだ</rt></ruby>ぐんだような<ruby class="v1">声<rt>こえ</rt></ruby>になって、<br><strong>亭主：</strong>「…いや、<ruby class="v1">待<rt>ま</rt></ruby>てよ。よく<ruby class="v1">考<rt>かんが</rt></ruby>えてみりゃあ、お<ruby class="v1">前<rt>まえ</rt></ruby>ぐらい<ruby class="v1">良<rt>よ</rt></ruby>く<ruby class="v1">出来<rt>でき</rt></ruby>た<ruby class="v1">女房<rt>にょうぼう</rt></ruby>はいないよ。こんな<ruby class="v2">甲斐性<rt>かいしょう</rt></ruby>のない<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>に、<ruby class="v1">文句<rt>もんく</rt></ruby>一<ruby class="v1">つ<rt>つ</rt></ruby><ruby class="v1">言<rt>い</rt></ruby>わずについてきてくれて…ありがとうよ、<ruby class="v1">本当<rt>ほんとう</rt></ruby>にありがとうよ」<br>と、しんみり<ruby class="v2">惚気<rt>のろけ</rt></ruby>だす<ruby class="v1">始末<rt>しまつ</rt></ruby>。<ruby class="v1">女房<rt>にょうぼう</rt></ruby>は<ruby class="v1">驚<rt>おどろ</rt></ruby>いて、<br><strong>女房：</strong>「まあ、<ruby class="v1">藪<rt>やぶ</rt></ruby>から<ruby class="v1">棒<rt>ぼう</rt></ruby>に<ruby class="v1">何<rt>なに</rt></ruby>を<ruby class="v1">仰<rt>おっしゃ</rt></ruby>るんです、<ruby class="v1">気持<rt>きも</rt></ruby>ちが<ruby class="v1">悪<rt>わる</rt></ruby>いですよ」<br>と<ruby class="v1">笑<rt>わら</rt></ruby>いますが、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はなおも<br><strong>亭主：</strong>「いや、<ruby class="v1">本当<rt>ほんとう</rt></ruby>のことだ。お<ruby class="v1">前<rt>まえ</rt></ruby>あっての<ruby class="v1">俺<rt>おれ</rt></ruby>なんだから」<br>と、しつこく<ruby class="v1">繰<rt>く</rt></ruby>り<ruby class="v1">返<rt>かえ</rt></ruby>します。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【蕎麦を所望】</span>
+                    <ruby class="v2">惚気<rt>のろけ</rt></ruby>るだけ<ruby class="v2">惚気<rt>のろけ</rt></ruby>ると、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はまた<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>したように、<br><strong>亭主：</strong>「ああ、それはそうと、<ruby class="v1">腹<rt>はら</rt></ruby>が<ruby class="v1">減<rt>へ</rt></ruby>ったな。<ruby class="v1">何<rt>なに</rt></ruby>か、おでんか<ruby class="v1">蕎麦<rt>そば</rt></ruby>でも<ruby class="v2">誂<rt>あつら</rt></ruby>えてくれないか」<br>と<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>します。<br><strong>女房：</strong>「こんな<ruby class="v1">夜更<rt>よふ</rt></ruby>けに、この<ruby class="v1">寒<rt>さむ</rt></ruby>い<ruby class="v1">中<rt>なか</rt></ruby>をですか」<br>と<ruby class="v1">渋<rt>しぶ</rt></ruby>りますが、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>が<br><strong>亭主：</strong>「<ruby class="v1">頼<rt>たの</rt></ruby>むよ、お<ruby class="v1">前<rt>まえ</rt></ruby>しか<ruby class="v1">頼<rt>たの</rt></ruby>めないんだから」<br>と<ruby class="v1">拝<rt>おが</rt></ruby>み<ruby class="v1">倒<rt>たお</rt></ruby>すので、<ruby class="v1">仕方<rt>しかた</rt></ruby>なく<ruby class="v1">着物<rt>きもの</rt></ruby>を<ruby class="v1">羽織<rt>はお</rt></ruby>り、<ruby class="v1">表<rt>おもて</rt></ruby>の<ruby class="v1">蕎麦屋<rt>そばや</rt></ruby>を<ruby class="v1">探<rt>さが</rt></ruby>しに、<ruby class="v1">夜道<rt>よみち</rt></ruby>へ<ruby class="v1">出<rt>で</rt></ruby>て<ruby class="v1">行<rt>い</rt></ruby>きます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【出前持ちがやってくる】</span>
+                    <ruby class="v1">女房<rt>にょうぼう</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>て<ruby class="v1">行<rt>い</rt></ruby>って<ruby class="v1">暫<rt>しばら</rt></ruby>くすると、<ruby class="v1">表<rt>おもて</rt></ruby>で「<ruby class="v1">毎度<rt>まいど</rt></ruby>〜、お<ruby class="v1">蕎麦<rt>そば</rt></ruby>は<ruby class="v1">如何<rt>いかが</rt></ruby>でしょう」と、<ruby class="v1">出前持<rt>でまえも</rt></ruby>ちの<ruby class="v1">威勢<rt>いせい</rt></ruby>のいい<ruby class="v1">声<rt>こえ</rt></ruby>。<ruby class="v1">実<rt>じつ</rt></ruby>は、<ruby class="v1">出<rt>で</rt></ruby>がけに<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が<ruby class="v1">頼<rt>たの</rt></ruby>んでおいた<ruby class="v1">出前<rt>でまえ</rt></ruby>が<ruby class="v1">届<rt>とど</rt></ruby>いたのでございます。<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>は<ruby class="v1">上機嫌<rt>じょうきげん</rt></ruby>で<ruby class="v1">招<rt>まね</rt></ruby>き<ruby class="v1">入<rt>い</rt></ruby>れ、<br><strong>亭主：</strong>「おう、<ruby class="v1">待<rt>ま</rt></ruby>ってたよ、ま、<ruby class="v1">上<rt>あ</rt></ruby>がってちょいと一<ruby class="v1">杯<rt>ぱい</rt></ruby>どうだい」<br>と、<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">出前持<rt>でまえも</rt></ruby>ちを<ruby class="v1">引<rt>ひ</rt></ruby>き<ruby class="v1">止<rt>と</rt></ruby>めて、<ruby class="v1">話<rt>はなし</rt></ruby>し<ruby class="v1">相手<rt>あいて</rt></ruby>にしてしまいます。<ruby class="v1">出前持<rt>でまえも</rt></ruby>ちは<ruby class="v1">面食<rt>めんく</rt></ruby>らいながらも、せっかくのお<ruby class="v1">客<rt>きゃく</rt></ruby>ですから、と<ruby class="v1">腰<rt>こし</rt></ruby>を<ruby class="v1">下<rt>お</rt></ruby>ろします。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【惚気話を聞かせる】</span>
+                    <ruby class="v1">酔<rt>よ</rt></ruby>いも<ruby class="v1">手伝<rt>てつだ</rt></ruby>って<ruby class="v1">気<rt>き</rt></ruby>が<ruby class="v1">大<rt>おお</rt></ruby>きくなった<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>、<ruby class="v1">出前持<rt>でまえも</rt></ruby>ちを<ruby class="v1">相手<rt>あいて</rt></ruby>に、また<ruby class="v1">女房<rt>にょうぼう</rt></ruby>の<ruby class="v2">惚気話<rt>のろけばなし</rt></ruby>を<ruby class="v1">始<rt>はじ</rt></ruby>めます。<br><strong>亭主：</strong>「なあお<ruby class="v1">前<rt>まえ</rt></ruby>さん、<ruby class="v1">聞<rt>き</rt></ruby>いておくれよ。うちの<ruby class="v1">女房<rt>にょうぼう</rt></ruby>ってのはな、これがまた<ruby class="v1">出来<rt>でき</rt></ruby>た<ruby class="v1">女<rt>おんな</rt></ruby>でな。<ruby class="v1">今<rt>いま</rt></ruby>しがたも、こんな<ruby class="v1">寒<rt>さむ</rt></ruby>い<ruby class="v1">夜中<rt>よなか</rt></ruby>に、<ruby class="v1">俺<rt>おれ</rt></ruby>のためだけに<ruby class="v1">表<rt>おもて</rt></ruby>へ<ruby class="v1">出<rt>で</rt></ruby>てくれたんだ。<ruby class="v1">文句<rt>もんく</rt></ruby>も<ruby class="v1">言<rt>い</rt></ruby>わずに、なあ。ありがたいと<ruby class="v1">思<rt>おも</rt></ruby>わないかい」<br><ruby class="v1">出前持<rt>でまえも</rt></ruby>ちは<ruby class="v1">苦笑<rt>にがわら</rt></ruby>いをしながら、<ruby class="v1">生返事<rt>なまへんじ</rt></ruby>をするばかり。<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はそんなことにも<ruby class="v1">気付<rt>きづ</rt></ruby>かず、なおも<ruby class="v1">上機嫌<rt>じょうきげん</rt></ruby>でしゃべり<ruby class="v1">続<rt>つづ</rt></ruby>けます。<br><ruby class="v1">実<rt>じつ</rt></ruby>は、<ruby class="v1">話<rt>はな</rt></ruby>している<ruby class="v1">すぐ<rt>すぐ</rt></ruby><ruby class="v1">表<rt>おもて</rt></ruby>には、<ruby class="v1">蕎麦<rt>そば</rt></ruby>を<ruby class="v1">求<rt>もと</rt></ruby>めて<ruby class="v1">出掛<rt>でか</rt></ruby>けたはずの<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が、ちょうど<ruby class="v1">戻<rt>もど</rt></ruby>ってきて、<ruby class="v1">開<rt>あ</rt></ruby>けかけた<ruby class="v1">戸<rt>と</rt></ruby>の<ruby class="v1">陰<rt>かげ</rt></ruby>で、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>の<ruby class="v2">惚気話<rt>のろけばなし</rt></ruby>をすっかり<ruby class="v1">聞<rt>き</rt></ruby>いてしまっていたのでございます。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">出前持<rt>でまえも</rt></ruby>ちが、ふと<ruby class="v1">気<rt>き</rt></ruby>を<ruby class="v1">利<rt>き</rt></ruby>かせて<ruby class="v1">尋<rt>たず</rt></ruby>ねます。<br><strong>出前持ち：</strong>「<ruby class="v1">旦那<rt>だんな</rt></ruby>、そんなにご<ruby class="v1">新造<rt>しんぞ</rt></ruby>さんのお<ruby class="v1">話<rt>はなし</rt></ruby>が<ruby class="v1">続<rt>つづ</rt></ruby>くようでしたら、この<ruby class="v1">蕎麦<rt>そば</rt></ruby>の<ruby class="v1">汁<rt>つゆ</rt></ruby>、そろそろ<ruby class="v1">替<rt>か</rt></ruby>わりをお<ruby class="v1">持<rt>も</rt></ruby>ちしましょうか」<br>すると<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>、<ruby class="v1">赤<rt>あか</rt></ruby>い<ruby class="v1">顔<rt>かお</rt></ruby>のまま、ぐいと<ruby class="v1">胸<rt>むね</rt></ruby>を<ruby class="v1">張<rt>は</rt></ruby>ってこう<ruby class="v1">答<rt>こた</rt></ruby>えます。<br><strong>亭主：</strong>「おう、<ruby class="v1">汁<rt>つゆ</rt></ruby>の<ruby class="v1">替<rt>か</rt></ruby>わりならいくらでも<ruby class="v1">頼<rt>たの</rt></ruby>むが…<ruby class="v1">女房<rt>にょうぼう</rt></ruby>の<ruby class="v1">替<rt>か</rt></ruby>わりだきゃ、<ruby class="v1">無<rt>ね</rt></ruby>えんだよ」<br>ちょうどその<ruby class="v1">時<rt>とき</rt></ruby>、<ruby class="v1">戸口<rt>とぐち</rt></ruby>の<ruby class="v1">陰<rt>かげ</rt></ruby>から、じっと<ruby class="v1">聞<rt>き</rt></ruby>いていた<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が、<ruby class="v1">思<rt>おも</rt></ruby>わず<ruby class="v1">頬<rt>ほお</rt></ruby>を<ruby class="v1">赤<rt>あか</rt></ruby>らめる—というところで、一<ruby class="v1">席<rt>せき</rt></ruby>のお<ruby class="v1">開<rt>ひら</rt></ruby>きとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Well now, let me tell you a story. Sake, depending on who's drinking it, can be the finest of medicines — or, at times, an absolute menace. It's a strange sort of drink that way. In particular, there are certain gentlemen who, once drunk, get oddly long-winded, and then start gushing with sappy affection on top of it — a real handful to deal with. Today's tale is about just such a husband, stumbling home drunk, and the poor, put-upon wife who has to put up with him.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DRUNK HUSBAND COMES HOME]</span>Late at night, there comes a loud pounding on the front door. "Hey! Open up, open up already!" The drunken husband has come home, weaving on unsteady feet. His wife rubs her sleepy eyes and opens the door, and the husband stumbles into the front room, immediately launching into a string of complaints. "What's the matter with this room? Keep the lamp oil filled up properly, would you? And the bedding's not even laid out yet? What a thoughtless woman you are." His wife, used to all this by now, silently begins laying out the bedding without a word.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HUSBAND TURNS SENTIMENTAL]</span>But no sooner has the husband finished grumbling than his voice suddenly turns thick with what sounds like tears. "...No, wait a minute. Thinking about it properly, there's no wife in the world as fine as you. Sticking with a good-for-nothing husband like me all this time, never once complaining... thank you, really, thank you so much." And with that, he starts gushing with sentimental affection. His wife, startled, laughs it off. "Goodness, what's come over you all of a sudden? You're giving me the creeps." But the husband keeps at it. "No, I mean it. I'm nothing without you." He repeats this, over and over, with persistent sincerity.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[SENT OUT INTO THE COLD FOR NOODLES]</span>Having gushed all the sentimentality out of his system, the husband suddenly seems to remember something else. "Oh, and by the way, I'm getting hungry. Couldn't you go fetch me some oden or soba noodles or something?" His wife balks. "At this hour of the night, out in this cold?" But the husband keeps pleading. "Please, there's no one else I can ask but you." Worn down by his begging, she reluctantly throws on a coat and heads out into the night to find a soba stand.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DELIVERY BOY ARRIVES]</span>A short while after his wife leaves, there comes a cheerful voice from outside. "Evening, folks! Soba delivery for you!" It happens that the delivery she'd ordered on her way out has just arrived. The husband, in high spirits, waves the young delivery boy inside. "Ah, right on time! Come on in, sit down, have a little drink with me." And with that, he pulls the young man in and makes him his conversation partner. The delivery boy, a bit taken aback, sits down anyway, thinking he shouldn't refuse a customer.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING ABOUT HIS WIFE]</span>Emboldened by the drink, the husband, with the delivery boy as his captive audience, launches into yet another round of gushing about his wife. "Hey, listen to this. My wife, she's really something, you know. Just now, on a cold night like this, she went out into the streets just for my sake. Never a word of complaint, mind you. Doesn't that just make you grateful?" The delivery boy just gives an awkward laugh and mumbles noncommittal replies. The husband, oblivious to all this, keeps right on chattering away in high spirits. What he doesn't realize is that right outside, just beyond the door, his wife — who had gone out for soba — has just returned, and standing there in the shadow of the half-open door, has heard every single word of his gushing praise.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>The delivery boy, thinking to be helpful, asks, "Sir, if the stories about your wife are going to keep going this long, shall I bring you a refill of the broth soon?" The husband, still red in the face, puffs out his chest proudly and answers: "Ah, a refill of the broth, sure, ask for as many as you like... but a replacement for my wife — now that, there simply isn't any such thing." And just at that moment, from the shadow of the doorway, his wife, who had been listening in silence the whole time, can't help but blush — and on that note, we bring this story to a close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Eh bien, laissez-moi vous conter une histoire. Le saké, selon celui qui le boit, peut être le meilleur des remèdes — ou, parfois, un véritable fléau. C'est une drôle de boisson, en somme. Il existe en particulier certains messieurs qui, une fois ivres, deviennent étrangement bavards, puis se mettent à débiter des flatteries mielleuses par-dessus le marché — un vrai cas à gérer. L'histoire d'aujourd'hui parle justement d'un tel mari, rentrant ivre à la maison, et de sa pauvre épouse contrainte de le supporter.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DRUNK HUSBAND COMES HOME]</span>Tard dans la nuit, on entend cogner bruyamment à la porte d'entrée. « Eh ! Ouvre, ouvre donc ! » Le mari ivre est rentré, titubant sur ses jambes flageolantes. Sa femme se frotte les yeux endormis et ouvre la porte, et le mari titube jusqu'à la pièce principale, se lançant aussitôt dans une série de reproches. « Qu'est-ce qui ne va pas dans cette pièce ? Garde l'huile de la lampe bien remplie, tu veux ? Et la literie n'est même pas encore préparée ? Quelle femme peu attentionnée tu fais. » Sa femme, habituée depuis longtemps, se met en silence à préparer la literie sans un mot.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HUSBAND TURNS SENTIMENTAL]</span>Mais à peine le mari a-t-il fini de ronchonner que sa voix se fait soudain tremblante, comme au bord des larmes. « ...Non, attends une minute. En y réfléchissant bien, il n'existe pas de meilleure épouse que toi au monde. Rester avec un bon à rien comme moi tout ce temps, sans jamais te plaindre... merci, vraiment, merci beaucoup. » Et le voilà qui se met à débiter des flatteries sentimentales. Sa femme, surprise, en rit. « Mon Dieu, qu'est-ce qui te prend tout à coup ? Tu me donnes la chair de poule. » Mais le mari persiste. « Non, je le pense vraiment. Je ne suis rien sans toi. » Il répète cela, encore et encore, avec une sincérité tenace.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[SENT OUT INTO THE COLD FOR NOODLES]</span>Ayant épuisé tout son stock de flatteries sentimentales, le mari semble soudain se souvenir d'autre chose. « Ah, au fait, j'ai faim. Tu ne pourrais pas m'aller chercher un peu d'oden ou de nouilles soba ? » Sa femme rechigne. « À cette heure de la nuit, dans ce froid ? » Mais le mari continue de supplier. « S'il te plaît, il n'y a personne d'autre à qui je puisse demander ça que toi. » Lassée par ses supplications, elle enfile à contrecœur un manteau et sort dans la nuit à la recherche d'un vendeur de soba.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DELIVERY BOY ARRIVES]</span>Peu après le départ de sa femme, une voix joyeuse retentit dehors. « Bonsoir ! Livraison de soba pour vous ! » Il se trouve que la commande passée par sa femme en sortant vient justement d'arriver. Le mari, de fort bonne humeur, fait signe au jeune livreur d'entrer. « Ah, pile à l'heure ! Entre donc, assieds-toi, viens boire un petit coup avec moi. » Et sur ce, il attire le jeune homme et en fait son interlocuteur. Le livreur, un peu décontenancé, s'assoit tout de même, se disant qu'on ne refuse pas un client.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING ABOUT HIS WIFE]</span>Enhardi par la boisson, le mari, avec le livreur comme public captif, se lance dans une nouvelle vague de flatteries sur sa femme. « Écoute-moi ça. Ma femme, c'est vraiment quelqu'un de bien, tu sais. À l'instant même, par une nuit froide comme celle-ci, elle est sortie dans les rues rien que pour moi. Sans jamais se plaindre, tu vois. Ça ne te rend pas reconnaissant, ça ? » Le livreur se contente de rire gauchement et de marmonner des réponses évasives. Le mari, inconscient de tout cela, continue à bavarder de bonne humeur. Ce qu'il ne réalise pas, c'est que juste dehors, derrière la porte, sa femme — partie chercher du soba — vient tout juste de revenir, et se tenant là, dans l'ombre de la porte entrouverte, a entendu chaque mot de ses louanges.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Le livreur, pensant se rendre utile, demande : « Monsieur, si les histoires sur votre femme doivent encore durer un moment, dois-je vous apporter bientôt un supplément de bouillon ? » Le mari, toujours rouge de visage, bombe fièrement le torse et répond : « Ah, un supplément de bouillon, bien sûr, demandes-en autant que tu veux... mais un remplacement pour ma femme — ça, ça n'existe tout simplement pas. » Et juste à cet instant, depuis l'ombre de l'entrée, sa femme, qui avait écouté en silence tout du long, ne peut s'empêcher de rougir — et sur cette note, nous refermons cette histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Bueno, déjenme contarles una historia. El sake, según quién lo beba, puede ser la mejor de las medicinas — o, a veces, una auténtica plaga. Es una bebida curiosa, en fin. Existen en particular ciertos caballeros que, una vez ebrios, se vuelven extrañamente locuaces, y encima empiezan a soltar cursilerías empalagosas — todo un caso difícil de manejar. La historia de hoy trata justamente de un marido así, volviendo ebrio a casa, y de su pobre esposa obligada a aguantarlo.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DRUNK HUSBAND COMES HOME]</span>Bien entrada la noche, se oyen golpes fuertes en la puerta principal. «¡Eh! ¡Abre, abre ya!» El marido borracho ha llegado a casa, tambaleándose sobre piernas inestables. Su esposa se frota los ojos soñolientos y abre la puerta, y el marido se tambalea hacia la sala principal, lanzándose de inmediato a una serie de quejas. «¿Qué le pasa a esta habitación? Mantén el aceite de la lámpara bien lleno, ¿quieres? ¿Y la ropa de cama todavía no está tendida? Qué mujer más desconsiderada eres.» Su esposa, ya acostumbrada, comienza en silencio a tender la ropa de cama sin decir palabra.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HUSBAND TURNS SENTIMENTAL]</span>Pero apenas el marido termina de refunfuñar, su voz de repente se vuelve trémula, como al borde del llanto. «...No, espera un momento. Pensándolo bien, no hay esposa en el mundo tan buena como tú. Aguantar a un inútil como yo todo este tiempo, sin quejarte jamás... gracias, de verdad, muchas gracias.» Y ahí lo tienen, soltando cursilerías sentimentales. Su esposa, sorprendida, se ríe. «Dios mío, ¿qué te ha dado de repente? Me estás poniendo la piel de gallina.» Pero el marido insiste. «No, lo digo en serio. No soy nada sin ti.» Lo repite, una y otra vez, con tenaz sinceridad.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[SENT OUT INTO THE COLD FOR NOODLES]</span>Habiendo agotado todo su repertorio de cursilerías, el marido de repente parece recordar otra cosa. «Ah, por cierto, tengo hambre. ¿No podrías ir a buscarme un poco de oden o fideos soba?» Su esposa se resiste. «¿A estas horas de la noche, con este frío?» Pero el marido sigue insistiendo. «Por favor, no hay nadie más a quien pueda pedírselo que a ti.» Vencida por sus súplicas, ella se pone a regañadientes un abrigo y sale a la noche en busca de un puesto de soba.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DELIVERY BOY ARRIVES]</span>Poco después de que su esposa saliera, se oye una voz alegre desde afuera. «¡Buenas noches! ¡Entrega de soba!» Resulta que el pedido que ella había hecho al salir acaba de llegar. El marido, de muy buen humor, le hace señas al joven repartidor para que entre. «¡Ah, justo a tiempo! Pasa, siéntate, ven a tomar un traguito conmigo.» Y con eso, atrae al joven y lo convierte en su interlocutor. El repartidor, algo desconcertado, se sienta de todos modos, pensando que no debe rechazar a un cliente.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING ABOUT HIS WIFE]</span>Envalentonado por la bebida, el marido, con el repartidor como público cautivo, se lanza a otra ronda de elogios hacia su esposa. «Oye, escucha esto. Mi esposa, de verdad que vale mucho, ¿sabes? Justo ahora, en una noche fría como esta, salió a la calle solo por mí. Sin quejarse ni una vez, fíjate. ¿No te parece que eso da para estar agradecido?» El repartidor solo suelta una risa incómoda y murmura respuestas vagas. El marido, ajeno a todo esto, sigue parloteando de buen humor. Lo que no se da cuenta es que justo afuera, tras la puerta, su esposa —que había salido por soba— acaba de regresar, y de pie ahí, en la sombra de la puerta entreabierta, ha escuchado cada palabra de sus elogios.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>El repartidor, pensando en ser útil, pregunta: «Señor, si las historias sobre su esposa van a seguir así de largas, ¿le traigo pronto un poco más de caldo?» El marido, todavía con el rostro enrojecido, saca pecho con orgullo y responde: «Ah, más caldo, claro, pide todo el que quieras... pero un reemplazo para mi esposa — eso, eso sencillamente no existe.» Y justo en ese momento, desde la sombra de la entrada, su esposa, que había escuchado en silencio todo el tiempo, no puede evitar sonrojarse — y con esta nota, damos por concluida esta historia.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②酔って帰る亭主","③惚気る亭主","④蕎麦を所望","⑤出前持ちがやってくる","⑥惚気話を聞かせる","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The drunk husband comes home","③ The husband turns sentimental","④ Sent out into the cold for noodles","⑤ The delivery boy arrives","⑥ Boasting about his wife","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

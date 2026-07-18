@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>平林 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 平林 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。<break time=\"500ms\"/>日本の字といいますのは、同じ漢字でも読み方がいくつもございましてね。<break time=\"300ms\"/>人の名前などは、殊にそれがひどい。今日と書いて、きょう、とも、こんにち、とも読めますし、名字にいたっては、もう十人十色でございます。<break time=\"500ms\"/>今日はそんな、名前の読み方をめぐって、とんだ騒動になるというお噺を、一席申し上げます。<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p2', title:"②お使いを頼まれる", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">ある大きな商家に、定吉という、少々そそっかしいところのある小僧がおりました。<break time=\"400ms\"/>ある日、旦那が一通の手紙を持ってきて、こう言いつけます。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">定吉や、この手紙を、平林さんのお宅まで届けておくれ。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、かしこまりました。あの、旦那様、この平林さんてのは、どちらの平林さんで？<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">なに、道々、誰かに聞けば分かるだろう。表に名前も書いてあるんだから、それを見せて聞けばよい。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">定吉、手紙の表書きを覗き込みますが、なにぶん学のない子でございますから、平林の字は読めるには読めても、さて、これがなんと読むのやら、さっぱり見当がつきません。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、まあ、なんとかなりましょう。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">と、いい加減なことを言って、手紙を懐にしまうと、とことこ町へ出かけてまいりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p3', title:"③一人目にたずねる", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">町を歩いておりますと、通りの米屋の前で、店の者が掃き掃除をしております。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">ちょいとおたずねしますが、この字、なんとお読みするんで？<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">ん？ ああ、これかい。これは平林さんだよ。よくある名字じゃないか。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、平林さんで。ありがとうございます。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">定吉、すっかり得心して、また歩き出しました。<break time=\"300ms\"/>ところが、少し行ったところで、ふと不安になってまいります。<break time=\"300ms\"/>さっきの人、ちょいと自信なさそうな顔をしていたような。もう一人、念のため聞いてみるか。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④二人目・三人目にたずねる", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">そこで、ちょうど通りかかった、恰幅のいい旦那ふうの男をつかまえます。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">あの、この字は、なんと読むんで？<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">ふむ、これは平林さんだ。音読みにすればそうなる。間違いない。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、平林さんで。あれ？ さっきは平林だと聞きましたが。<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">そりゃおおかた、人違いだろう。わしの言うことのほうが正しいさ。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">定吉、ますます分からなくなってまいります。そこへまた、通りがかりの、なにやら学者風の年寄りが通りかかりました。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">もし、この字は、なんとお読みで？<break time=\"400ms\"/></prosody><prosody rate=\"88%\" pitch=\"-2st\">これはのう、平林と読むのが正しい。平はたいら、林ははやし、これで平林じゃ。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ〜、平林さんで。<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">もう、頭の中がすっかりこんがらがってしまいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤妙な覚え方", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">困り果てた定吉、今度は寺子屋帰りらしい、物知りそうなご隠居をつかまえました。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+1st\">ご隠居さん、お願いします。この字は、いったいなんと読むんで？ もう、いろんな人にいろんなことを言われて、わけが分からなくなってしまいました。<break time=\"500ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">ほほう、それは難儀なことじゃな。よし、それならば、忘れんように、こう覚えるとよい。<break time=\"300ms\"/>平は一に八と書いて、林は十に木と八じゃ。まとめて、いっぱちじゅうのもり。これなら忘れんじゃろう。<break time=\"600ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">いっぱちじゅうの、もり……？<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">そうじゃ、いっぱちじゅうのもり。平林とも、平林とも、平林とも読める。まあ、行った先で、聞こえがいいように言うてみるのじゃな。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">へ、へえ……<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">定吉、お礼を言って別れましたが、頭の中には四つの読み方がぐるぐると渦を巻いております。<break time=\"300ms\"/>そうこうするうちに、ようよう目当ての、平林さんのお宅の前まで、たどり着きました。<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">定吉、お宅の門の前に立ちましたが、さて、なんと呼びかけたものか、もはやどれが正しいのか、まるで分かりません。<break time=\"300ms\"/>仕方がないので、覚えている限りの読み方を、片っ端から並べて、大きな声で呼ばわることにいたしました。<break time=\"600ms\"/></prosody><prosody rate=\"128%\" pitch=\"+2st\">えー、ごめんください！ 平林さーん！ 平林さーん！ 平林さーん！ いっぱちじゅうのもりさーん！ ええい、もう、どれでもよいから、出てきておくれー！<break time=\"700ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">中から、あるじの平林さんが、目を丸くして出てまいりました。<break time=\"400ms\"/></prosody><prosody rate=\"96%\" pitch=\"-1st\">こ、これはいったい、何ごとかね。わしを呼ぶのに、そんなにたくさん名前があったかな。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、あちこちで聞きましたら、みなさん違うことをおっしゃるもので、もう、どれが本当だか分からなくなってしまいまして。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">平林さん、呆れ返りながらも、思わず笑い出してしまいました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">いや、これはめでたい。わし一人で、四人分の名前をいただいたようなものじゃ。<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">というわけで、名前ひとつにも、いろいろな読み方があるというお噺、これにてお開きとさせていただきます。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In Japanese, the same character can often be read in several different ways. This gets especially bad with people's names. The character for 'day' can be read one way in one word and another way in another, and when it comes to family names, there's simply no end to the variety. Today's tale is about exactly that — a name whose reading caused no end of confusion, until it turned into quite the commotion." },
+    { id:'p2', title:"②お使いを頼まれる", ssml:false, text:"In a certain large merchant house there worked an errand boy named Sadakichi, a rather scatterbrained sort. One day the master brought him a letter and gave him this instruction: Master: \"Sadakichi, take this letter over to Mister Hirabayashi's house, would you.\" Sadakichi: \"Yes sir, understood... um, master, which Mister Hirabayashi would that be?\" Master: \"Oh, just ask someone along the way, you'll figure it out. The name's written right there on the front, so just show it to people and ask.\" Sadakichi peered at the address on the envelope, but being a boy with no schooling to speak of, although he could recognize the characters for 'Hirabayashi,' he hadn't the faintest idea how they were actually supposed to be read. Sadakichi: \"Well, I suppose I'll manage somehow.\" With that vague reassurance to himself, he tucked the letter into his robe and set off trotting into town." },
+    { id:'p3', title:"③一人目にたずねる", ssml:false, text:"As he walked through town, he passed a rice shop where a clerk was sweeping the front step. Sadakichi: \"Excuse me, could you tell me how to read this character?\" Rice shop clerk: \"Hmm? Oh, this one. That's Mister Hirabayashi. It's a common enough family name.\" Sadakichi: \"Ah, Hirabayashi. Thank you very much.\" Quite satisfied, Sadakichi walked on. But after a little while, a doubt crept in. (That fellow did look a bit unsure of himself... maybe I ought to ask one more person, just to be safe.)" },
+    { id:'p4', title:"④二人目・三人目にたずねる", ssml:false, text:"Just then, he caught the sleeve of a stout, well-dressed gentleman passing by. Sadakichi: \"Excuse me, how do you read this character?\" Well-dressed gentleman: \"Hmm, that's Mister Hirarin. Read the Chinese way, that's what it becomes. No doubt about it.\" Sadakichi: \"Ah, Hirarin... wait, someone just told me it was Hirabayashi.\" Gentleman: \"That fellow was probably thinking of someone else. What I say is the correct one.\" Sadakichi grew even more confused. Just then, an elderly man with the air of a scholar happened to pass by as well. Sadakichi: \"Excuse me, sir, how would you read this character?\" Elderly man: \"Ah, this ought properly to be read Tairabayashi. 'Hira' becomes 'Taira,' and 'bayashi' stays 'bayashi' — together, Tairabayashi.\" Sadakichi: \"Ohh, Tairabayashi...\" By now his head was completely tangled up in knots." },
+    { id:'p5', title:"⑤妙な覚え方", ssml:false, text:"Utterly at a loss, Sadakichi next caught hold of an elderly gentleman who looked like a learned scholar on his way home from teaching. Sadakichi: \"Sir, please help me. How is this character actually read? So many different people have told me so many different things, I've completely lost track.\" Elderly scholar: \"Ho ho, what a predicament. Well then, here's a way to remember it so you won't forget. 'Hira' is written as 'one' plus 'eight,' and 'bayashi' is 'ten' plus 'tree' plus 'eight.' All together: 'ippachi-jū-no-mori.' That way you won't forget it.\" Sadakichi: \"Ippachi... jū... no mori...?\" Elderly scholar: \"That's right, ippachi-jū-no-mori. It can be read Hirabayashi, or Hirarin, or Tairabayashi. Well, whichever sounds best when you get there, just try saying that.\" Sadakichi: \"Y-yes sir...\" Sadakichi thanked him and went on his way, but now his head was spinning with four different readings swirling around at once — Hirabayashi, Hirarin, Tairabayashi, and ippachi-jū-no-mori. Before long, at last, he arrived in front of the very house he'd been looking for." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Sadakichi came to a stop in front of the gate of the house, but now he had no idea at all which name was the right one to call out. With no other choice, he decided to simply line up every reading he could remember and shout them all out at the top of his voice. Sadakichi: \"Helloooo! Mister Hirabayashi! Mister Hirarin! Mister Tairabayashi! Mister Ippachi-jū-no-mori! ...Oh, forget it, whichever one you are, just come on out already!\" From inside, the master of the house, the real Mister Hirabayashi, came out with his eyes wide. Hirabayashi: \"Wh-what in the world is going on? Did I have that many names to be called by?\" Sadakichi: \"Well, everywhere I asked, people told me something different, so I completely lost track of which one was actually true...\" Mister Hirabayashi, dumbfounded, couldn't help but burst out laughing. Hirabayashi: \"Well now, isn't that something. It's as if I, all by myself, have been given four people's worth of names.\" And so, with that tale of how even one single name can have all sorts of readings, I'll bring this story to its close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. En japonais, un même caractère peut souvent se lire de plusieurs façons différentes. C'est particulièrement vrai pour les noms de famille. Le caractère du 'jour' se lit d'une façon dans un mot et d'une autre façon dans un autre, et quant aux noms de famille, il n'y a tout simplement pas de limite à la variété. L'histoire d'aujourd'hui parle justement de cela : un nom dont la lecture a semé une belle confusion, jusqu'à devenir un vrai remue-ménage." },
+    { id:'p2', title:"②お使いを頼まれる", ssml:false, text:"Dans une grande maison de commerce travaillait un garçon de courses nommé Sadakichi, plutôt tête en l'air. Un jour, le maître lui apporta une lettre et lui donna cette instruction : Maître : « Sadakichi, porte cette lettre chez monsieur Hirabayashi, veux-tu. » Sadakichi : « Oui, maître, entendu... euh, maître, duquel monsieur Hirabayashi s'agit-il ? » Maître : « Oh, demande à quelqu'un en chemin, tu trouveras bien. Le nom est écrit juste là devant, il te suffit de le montrer et de demander. » Sadakichi regarda l'adresse sur l'enveloppe, mais n'ayant guère fréquenté l'école, même s'il reconnaissait les caractères de « Hirabayashi », il n'avait pas la moindre idée de la façon dont ils se prononçaient réellement. Sadakichi : « Bon, je me débrouillerai bien d'une façon ou d'une autre. » Sur cette vague assurance, il glissa la lettre dans son kimono et partit en trottinant vers la ville." },
+    { id:'p3', title:"③一人目にたずねる", ssml:false, text:"En traversant la ville, il passa devant une boutique de riz où un employé balayait le pas de la porte. Sadakichi : « Excusez-moi, pourriez-vous me dire comment on lit ce caractère ? » Employé de la boutique de riz : « Hmm ? Ah, celui-là. C'est monsieur Hirabayashi. Un nom de famille bien commun. » Sadakichi : « Ah, Hirabayashi. Merci beaucoup. » Tout satisfait, Sadakichi reprit sa route. Mais après quelques pas, un doute s'installa. (Ce type avait l'air un peu peu sûr de lui... je devrais peut-être demander à quelqu'un d'autre, par précaution.)" },
+    { id:'p4', title:"④二人目・三人目にたずねる", ssml:false, text:"Juste à ce moment, il attrapa la manche d'un homme corpulent et bien vêtu qui passait par là. Sadakichi : « Excusez-moi, comment lit-on ce caractère ? » L'homme bien vêtu : « Hmm, c'est monsieur Hirarin. Lu à la chinoise, ça donne ça. Aucun doute là-dessus. » Sadakichi : « Ah, Hirarin... attendez, on vient de me dire que c'était Hirabayashi. » L'homme : « Cet homme pensait sans doute à quelqu'un d'autre. Ce que je dis, moi, est le bon. » Sadakichi se sentit encore plus perdu. C'est alors qu'un vieil homme à l'air de savant passa également par là. Sadakichi : « Excusez-moi, monsieur, comment liriez-vous ce caractère ? » Le vieil homme : « Ah, cela devrait proprement se lire Tairabayashi. 'Hira' devient 'Taira', et 'bayashi' reste 'bayashi' — ensemble, Tairabayashi. » Sadakichi : « Oh, Tairabayashi... » À présent, sa tête était complètement embrouillée." },
+    { id:'p5', title:"⑤妙な覚え方", ssml:false, text:"Complètement désemparé, Sadakichi attrapa ensuite un vieux monsieur qui avait l'air d'un érudit rentrant de l'école. Sadakichi : « Monsieur, aidez-moi, je vous en prie. Comment se lit vraiment ce caractère ? Tant de gens différents m'ont dit tant de choses différentes que j'ai complètement perdu le fil. » Le vieux savant : « Ho ho, quel embarras. Bon, alors voici un moyen de t'en souvenir. 'Hira' s'écrit 'un' plus 'huit', et 'bayashi' c'est 'dix' plus 'arbre' plus 'huit'. Le tout ensemble : 'ippachi-jū-no-mori'. Comme ça, tu ne l'oublieras pas. » Sadakichi : « Ippachi... jū... no mori... ? » Le vieux savant : « C'est cela, ippachi-jū-no-mori. On peut le lire Hirabayashi, ou Hirarin, ou Tairabayashi. Enfin, celui qui sonnera le mieux une fois arrivé, essaie donc celui-là. » Sadakichi : « O-oui, monsieur... » Sadakichi le remercia et reprit sa route, mais sa tête tourbillonnait maintenant avec quatre lectures différentes qui se mélangeaient — Hirabayashi, Hirarin, Tairabayashi, et ippachi-jū-no-mori. Peu après, il finit enfin par arriver devant la maison même qu'il cherchait." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Sadakichi s'arrêta devant le portail de la maison, mais il n'avait plus la moindre idée du nom correct à crier. N'ayant pas d'autre choix, il décida simplement d'aligner toutes les lectures dont il se souvenait et de les crier toutes à pleins poumons. Sadakichi : « Ohé ! Monsieur Hirabayashi ! Monsieur Hirarin ! Monsieur Tairabayashi ! Monsieur Ippachi-jū-no-mori ! ...Bah, tant pis, peu importe lequel vous êtes, sortez donc ! » De l'intérieur, le maître de maison, le vrai monsieur Hirabayashi, sortit les yeux écarquillés. Hirabayashi : « Qu... qu'est-ce que c'est que ce vacarme ? Avais-je donc autant de noms pour qu'on m'appelle ? » Sadakichi : « Eh bien, partout où j'ai demandé, on m'a dit quelque chose de différent, alors j'ai complètement perdu le fil de ce qui était vrai... » Monsieur Hirabayashi, abasourdi, ne put s'empêcher d'éclater de rire. Hirabayashi : « Eh bien, voilà qui est cocasse. C'est comme si, à moi tout seul, on m'avait offert les noms de quatre personnes. » Et voilà, avec cette histoire de la façon dont un seul et même nom peut avoir toutes sortes de lectures, je vais clore ce récit." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. En japonés, un mismo carácter a menudo puede leerse de varias maneras distintas. Esto se agrava especialmente con los apellidos. El carácter de 'día' se lee de una forma en una palabra y de otra en otra, y en cuanto a los apellidos, sencillamente no hay límite a la variedad. La historia de hoy trata justamente de eso: un nombre cuya lectura sembró una tremenda confusión, hasta convertirse en todo un alboroto." },
+    { id:'p2', title:"②お使いを頼まれる", ssml:false, text:"En una gran casa de comercio trabajaba un recadero llamado Sadakichi, bastante despistado. Un día, el amo le trajo una carta y le dio esta instrucción: Amo: «Sadakichi, lleva esta carta a casa del señor Hirabayashi, ¿quieres?» Sadakichi: «Sí, señor, entendido... eh, amo, ¿de cuál señor Hirabayashi se trata?» Amo: «Ah, pregúntale a alguien por el camino, ya te las arreglarás. El nombre está escrito justo ahí delante, solo tienes que mostrarlo y preguntar.» Sadakichi miró de reojo la dirección en el sobre, pero como era un muchacho sin mucha escuela, aunque reconocía los caracteres de «Hirabayashi», no tenía la menor idea de cómo se pronunciaban en realidad. Sadakichi: «Bueno, ya me las arreglaré de algún modo.» Con esa vaga certeza, se guardó la carta entre la ropa y salió trotando hacia el pueblo." },
+    { id:'p3', title:"③一人目にたずねる", ssml:false, text:"Mientras caminaba por el pueblo, pasó frente a una tienda de arroz donde un empleado barría la entrada. Sadakichi: «Disculpe, ¿podría decirme cómo se lee este carácter?» Empleado de la tienda de arroz: «¿Eh? Ah, ese. Es el señor Hirabayashi. Un apellido bastante común.» Sadakichi: «Ah, Hirabayashi. Muchas gracias.» Bastante satisfecho, Sadakichi siguió su camino. Pero al poco rato, le entró una duda. (Ese hombre parecía un poco inseguro... quizás debería preguntarle a otra persona, por si acaso.)" },
+    { id:'p4', title:"④二人目・三人目にたずねる", ssml:false, text:"Justo entonces, agarró la manga de un hombre corpulento y bien vestido que pasaba por ahí. Sadakichi: «Disculpe, ¿cómo se lee este carácter?» El hombre bien vestido: «Hmm, es el señor Hirarin. Leído a la manera china, así queda. No hay duda.» Sadakichi: «Ah, Hirarin... espere, alguien acaba de decirme que era Hirabayashi.» El hombre: «Ese debía estar pensando en otra persona. Lo que yo digo es lo correcto.» Sadakichi se sintió aún más confundido. Fue entonces cuando un anciano con aire de erudito pasó también por ahí. Sadakichi: «Disculpe, señor, ¿cómo leería usted este carácter?» El anciano: «Ah, esto debería leerse propiamente Tairabayashi. 'Hira' se convierte en 'Taira', y 'bayashi' queda igual... juntos, Tairabayashi.» Sadakichi: «Ohh, Tairabayashi...» Para entonces, tenía la cabeza hecha un completo lío." },
+    { id:'p5', title:"⑤妙な覚え方", ssml:false, text:"Completamente desesperado, Sadakichi agarró entonces a un anciano que parecía un erudito que volvía de dar clases. Sadakichi: «Señor, ayúdeme, por favor. ¿Cómo se lee realmente este carácter? Tanta gente distinta me ha dicho tantas cosas distintas que ya perdí el hilo por completo.» El anciano erudito: «Ho ho, qué aprieto. Bien, entonces te diré cómo recordarlo. 'Hira' se escribe 'uno' más 'ocho', y 'bayashi' es 'diez' más 'árbol' más 'ocho'. Todo junto: 'ippachi-jū-no-mori'. Así no se te olvidará.» Sadakichi: «Ippachi... jū... no mori...?» El anciano erudito: «Así es, ippachi-jū-no-mori. Se puede leer Hirabayashi, o Hirarin, o Tairabayashi. Bueno, el que mejor suene cuando llegues, prueba con ese.» Sadakichi: «S-sí, señor...» Sadakichi le agradeció y siguió su camino, pero ahora tenía la cabeza dándole vueltas con cuatro lecturas distintas mezclándose a la vez: Hirabayashi, Hirarin, Tairabayashi, e ippachi-jū-no-mori. Poco después, por fin llegó frente a la mismísima casa que buscaba." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Sadakichi se detuvo frente a la puerta de la casa, pero ya no tenía la menor idea de cuál nombre era el correcto para llamar. Sin otra opción, decidió simplemente alinear todas las lecturas que recordaba y gritarlas todas a pleno pulmón. Sadakichi: «¡Buenaaas! ¡Señor Hirabayashi! ¡Señor Hirarin! ¡Señor Tairabayashi! ¡Señor Ippachi-jū-no-mori! ...Ay, ya, no importa cuál sea usted, salga de una vez!» Desde adentro, el dueño de la casa, el verdadero señor Hirabayashi, salió con los ojos como platos. Hirabayashi: «¿Q-qué diablos está pasando aquí? ¿Tantos nombres tenía yo para que me llamaran?» Sadakichi: «Bueno, en todos lados donde pregunté, la gente me decía algo distinto, así que perdí por completo la cuenta de cuál era el verdadero...» El señor Hirabayashi, estupefacto, no pudo evitar soltar la carcajada. Hirabayashi: «Vaya, qué gracia. Es como si a mí solo me hubieran regalado los nombres de cuatro personas.» Y así, con esta historia de cómo hasta un solo nombre puede tener toda clase de lecturas, doy por concluido este relato." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

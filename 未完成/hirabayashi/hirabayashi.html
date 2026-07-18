@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平林 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.8 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">平林</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Hirabayashi / Hirabayashi</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②お使いを頼まれる</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③一人目にたずねる</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④二人目・三人目にたずねる</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤妙な覚え方</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class="v1">一席<rt>いっせき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">日本<rt>にほん</rt></ruby>の<ruby class="v1">字<rt>じ</rt></ruby>といいますのは、<ruby class="v1">同<rt>おな</rt></ruby>じ<ruby class="v1">漢字<rt>かんじ</rt></ruby>でも<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">方<rt>かた</rt></ruby>がいくつもございましてね。<ruby class="v1">人<rt>ひと</rt></ruby>の<ruby class="v1">名前<rt>なまえ</rt></ruby>などは、<ruby class="v2">殊<rt>こと</rt></ruby>にそれがひどい。<ruby class="v1">今日<rt>きょう</rt></ruby>と<ruby class="v1">書<rt>か</rt></ruby>いて「きょう」とも「こんにち」とも<ruby class="v1">読<rt>よ</rt></ruby>めますし、<ruby class="v1">名字<rt>みょうじ</rt></ruby>にいたっては、もう<ruby class="v2">十人十色<rt>じゅうにんといろ</rt></ruby>でございます。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v1">名前<rt>なまえ</rt></ruby>の<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">方<rt>かた</rt></ruby>をめぐって、とんだ<ruby class="v1">騒動<rt>そうどう</rt></ruby>になるというお<ruby class="v1">噺<rt>はなし</rt></ruby>を、<ruby class="v1">一席<rt>いっせき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【お使いを頼まれる】</span>
+                    ある<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">商家<rt>しょうか</rt></ruby>に、<ruby class="v2">定吉<rt>さだきち</rt></ruby>という、<ruby class="v1">少々<rt>しょうしょう</rt></ruby>そそっかしいところのある<ruby class="v1">小僧<rt>こぞう</rt></ruby>がおりました。ある<ruby class="v1">日<rt>ひ</rt></ruby>、<ruby class="v1">旦那<rt>だんな</rt></ruby>が<ruby class="v1">一通<rt>いっつう</rt></ruby>の<ruby class="v1">手紙<rt>てがみ</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>ってきて、こう<ruby class="v2">言<rt>い</rt></ruby>いつけます。<br><strong>旦那：</strong>「<ruby class="v2">定吉<rt>さだきち</rt></ruby>や、この<ruby class="v1">手紙<rt>てがみ</rt></ruby>を、<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんのお<ruby class="v1">宅<rt>たく</rt></ruby>まで<ruby class="v1">届<rt>とど</rt></ruby>けておくれ」<br><strong>定吉：</strong>「へえ、かしこまりました……あの、<ruby class="v1">旦那<rt>だんな</rt></ruby>様、この<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんてのは、どちらの<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんで？」<br><strong>旦那：</strong>「なに、<ruby class="v1">道々<rt>みちみち</rt></ruby>、<ruby class="v1">誰<rt>だれ</rt></ruby>かに<ruby class="v1">聞<rt>き</rt></ruby>けば<ruby class="v1">分<rt>わ</rt></ruby>かるだろう。<ruby class="v1">表<rt>おもて</rt></ruby>に<ruby class="v1">名前<rt>なまえ</rt></ruby>も<ruby class="v1">書<rt>か</rt></ruby>いてあるんだから、それを<ruby class="v1">見<rt>み</rt></ruby>せて<ruby class="v1">聞<rt>き</rt></ruby>けばよい」<br><ruby class="v2">定吉<rt>さだきち</rt></ruby>、<ruby class="v1">手紙<rt>てがみ</rt></ruby>の<ruby class="v2">表書<rt>おもてが</rt></ruby>きを<ruby class="v1">覗<rt>のぞ</rt></ruby>き<ruby class="v1">込<rt>こ</rt></ruby>みますが、なにぶん<ruby class="v1">学<rt>がく</rt></ruby>のない<ruby class="v1">子<rt>こ</rt></ruby>でございますから、「<ruby class="v1">平林<rt>ひらばやし</rt></ruby>」の<ruby class="v1">字<rt>じ</rt></ruby>は<ruby class="v1">読<rt>よ</rt></ruby>めるには<ruby class="v1">読<rt>よ</rt></ruby>めても、さて、これがなんと<ruby class="v1">読<rt>よ</rt></ruby>むのやら、さっぱり<ruby class="v1">見当<rt>けんとう</rt></ruby>がつきません。<br><strong>定吉：</strong>「へえ、まあ、なんとかなりましょう」<br>と、いい<ruby class="v1">加減<rt>かげん</rt></ruby>なことを<ruby class="v1">言<rt>い</rt></ruby>って、<ruby class="v1">手紙<rt>てがみ</rt></ruby>を<ruby class="v1">懐<rt>ふところ</rt></ruby>にしまうと、とことこ<ruby class="v1">町<rt>まち</rt></ruby>へ<ruby class="v1">出<rt>で</rt></ruby>かけてまいりました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【一人目にたずねる】</span>
+                    <ruby class="v1">町<rt>まち</rt></ruby>を<ruby class="v1">歩<rt>ある</rt></ruby>いておりますと、<ruby class="v1">通<rt>とお</rt></ruby>りの<ruby class="v1">米屋<rt>こめや</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で、<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>が<ruby class="v2">掃<rt>は</rt></ruby>き<ruby class="v1">掃除<rt>そうじ</rt></ruby>をしております。<br><strong>定吉：</strong>「ちょいとおたずねしますが、この<ruby class="v1">字<rt>じ</rt></ruby>、なんとお<ruby class="v1">読<rt>よ</rt></ruby>みするんで？」<br><strong>米屋の男：</strong>「ん？ ああ、これかい。これは<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんだよ。よくある<ruby class="v1">名字<rt>みょうじ</rt></ruby>じゃないか」<br><strong>定吉：</strong>「へえ、<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんで。ありがとうございます」<br><ruby class="v2">定吉<rt>さだきち</rt></ruby>、すっかり<ruby class="v1">得心<rt>とくしん</rt></ruby>して、また<ruby class="v1">歩<rt>ある</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>しました。ところが、<ruby class="v1">少<rt>すこ</rt></ruby>し<ruby class="v1">行<rt>い</rt></ruby>ったところで、ふと<ruby class="v1">不安<rt>ふあん</rt></ruby>になってまいります。（さっきの<ruby class="v1">人<rt>ひと</rt></ruby>、ちょいと<ruby class="v1">自信<rt>じしん</rt></ruby>なさそうな<ruby class="v1">顔<rt>かお</rt></ruby>をしていたような……もう<ruby class="v1">一人<rt>ひとり</rt></ruby>、<ruby class="v1">念<rt>ねん</rt></ruby>のため<ruby class="v1">聞<rt>き</rt></ruby>いてみるか）
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【二人目・三人目にたずねる】</span>
+                    そこで、ちょうど<ruby class="v1">通<rt>とお</rt></ruby>りかかった、<ruby class="v2">恰幅<rt>かっぷく</rt></ruby>のいい<ruby class="v1">旦那<rt>だんな</rt></ruby>ふうの<ruby class="v1">男<rt>おとこ</rt></ruby>をつかまえます。<br><strong>定吉：</strong>「あの、この<ruby class="v1">字<rt>じ</rt></ruby>は、なんと<ruby class="v1">読<rt>よ</rt></ruby>むんで？」<br><strong>旦那風の男：</strong>「ふむ、これは<ruby class="v1">平林<rt>ひらりん</rt></ruby>さんだ。<ruby class="v2">音読<rt>おんよ</rt></ruby>みにすればそうなる。<ruby class="v1">間違<rt>まちが</rt></ruby>いない」<br><strong>定吉：</strong>「へえ、<ruby class="v1">平林<rt>ひらりん</rt></ruby>さんで……あれ？ さっきは<ruby class="v1">平林<rt>ひらばやし</rt></ruby>だと<ruby class="v1">聞<rt>き</rt></ruby>きましたが」<br><strong>男：</strong>「そりゃおおかた、<ruby class="v1">人違<rt>ひとちが</rt></ruby>いだろう。わしの<ruby class="v1">言<rt>い</rt></ruby>うことのほうが<ruby class="v1">正<rt>ただ</rt></ruby>しいさ」<br><ruby class="v2">定吉<rt>さだきち</rt></ruby>、ますます<ruby class="v1">分<rt>わ</rt></ruby>からなくなってまいります。そこへまた、<ruby class="v1">通<rt>とお</rt></ruby>りがかりの、なにやら<ruby class="v2">学者風<rt>がくしゃふう</rt></ruby>の<ruby class="v1">年寄<rt>としよ</rt></ruby>りが<ruby class="v1">通<rt>とお</rt></ruby>りかかりました。<br><strong>定吉：</strong>「もし、この<ruby class="v1">字<rt>じ</rt></ruby>は、なんとお<ruby class="v1">読<rt>よ</rt></ruby>みで？」<br><strong>年寄り：</strong>「これはのう、<ruby class="v1">平林<rt>たいらばやし</rt></ruby>と<ruby class="v1">読<rt>よ</rt></ruby>むのが<ruby class="v1">正<rt>ただ</rt></ruby>しい。<ruby class="v1">平<rt>たいら</rt></ruby>はたいら、<ruby class="v1">林<rt>はやし</rt></ruby>ははやし、これで<ruby class="v1">平林<rt>たいらばやし</rt></ruby>じゃ」<br><strong>定吉：</strong>「へえ〜、<ruby class="v1">平林<rt>たいらばやし</rt></ruby>さんで……」<br>もう、<ruby class="v1">頭<rt>あたま</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>がすっかりこんがらがってしまいました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【物知りご隠居の妙な覚え方】</span>
+                    <ruby class="v1">困<rt>こま</rt></ruby>り<ruby class="v1">果<rt>は</rt></ruby>てた<ruby class="v2">定吉<rt>さだきち</rt></ruby>、<ruby class="v1">今度<rt>こんど</rt></ruby>は<ruby class="v2">寺子屋<rt>てらこや</rt></ruby><ruby class="v1">帰<rt>がえ</rt></ruby>りらしい、<ruby class="v1">物知<rt>ものし</rt></ruby>りそうなご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>をつかまえました。<br><strong>定吉：</strong>「ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>さん、お<ruby class="v1">願<rt>ねが</rt></ruby>いします。この<ruby class="v1">字<rt>じ</rt></ruby>は、いったいなんと<ruby class="v1">読<rt>よ</rt></ruby>むんで？ もう、いろんな<ruby class="v1">人<rt>ひと</rt></ruby>にいろんなことを<ruby class="v1">言<rt>い</rt></ruby>われて、わけが<ruby class="v1">分<rt>わ</rt></ruby>からなくなってしまいました」<br><strong>ご隠居：</strong>「ほほう、それは<ruby class="v2">難儀<rt>なんぎ</rt></ruby>なことじゃな。よし、それならば、<ruby class="v1">忘<rt>わす</rt></ruby>れんように、こう<ruby class="v1">覚<rt>おぼ</rt></ruby>えるとよい。<ruby class="v1">平<rt>たいら</rt></ruby>は<ruby class="v1">一<rt>いち</rt></ruby>に<ruby class="v1">八<rt>はち</rt></ruby>と<ruby class="v1">書<rt>か</rt></ruby>いて、<ruby class="v1">林<rt>はやし</rt></ruby>は<ruby class="v1">十<rt>じゅう</rt></ruby>に<ruby class="v1">木<rt>き</rt></ruby>と<ruby class="v1">八<rt>はち</rt></ruby>じゃ。まとめて、いっぱちじゅうのもり。これなら<ruby class="v1">忘<rt>わす</rt></ruby>れんじゃろう」<br><strong>定吉：</strong>「いっぱちじゅうの、もり……？」<br><strong>ご隠居：</strong>「そうじゃ、いっぱちじゅうのもり。<ruby class="v1">平林<rt>ひらばやし</rt></ruby>とも、<ruby class="v1">平林<rt>ひらりん</rt></ruby>とも、<ruby class="v1">平林<rt>たいらばやし</rt></ruby>とも<ruby class="v1">読<rt>よ</rt></ruby>める。まあ、<ruby class="v1">行<rt>い</rt></ruby>った<ruby class="v1">先<rt>さき</rt></ruby>で、<ruby class="v1">聞<rt>き</rt></ruby>こえがいいように<ruby class="v1">言<rt>い</rt></ruby>うてみるのじゃな」<br><strong>定吉：</strong>「へ、へえ……」<br><ruby class="v2">定吉<rt>さだきち</rt></ruby>、お<ruby class="v1">礼<rt>れい</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>って<ruby class="v1">別<rt>わか</rt></ruby>れましたが、<ruby class="v1">頭<rt>あたま</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>には「<ruby class="v1">平林<rt>ひらばやし</rt></ruby>」「<ruby class="v1">平林<rt>ひらりん</rt></ruby>」「<ruby class="v1">平林<rt>たいらばやし</rt></ruby>」「いっぱちじゅうのもり」と、<ruby class="v1">四<rt>よ</rt></ruby>つの<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">方<rt>かた</rt></ruby>がぐるぐると<ruby class="v1">渦<rt>うず</rt></ruby>を<ruby class="v1">巻<rt>ま</rt></ruby>いております。そうこうするうちに、ようよう<ruby class="v1">目当<rt>めあ</rt></ruby>ての、<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんのお<ruby class="v1">宅<rt>たく</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>まで、たどり<ruby class="v1">着<rt>つ</rt></ruby>きました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v2">定吉<rt>さだきち</rt></ruby>、お<ruby class="v1">宅<rt>たく</rt></ruby>の<ruby class="v1">門<rt>もん</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>ちましたが、さて、なんと<ruby class="v1">呼<rt>よ</rt></ruby>びかけたものか、もはやどれが<ruby class="v1">正<rt>ただ</rt></ruby>しいのか、まるで<ruby class="v1">分<rt>わ</rt></ruby>かりません。<ruby class="v1">仕方<rt>しかた</rt></ruby>がないので、<ruby class="v1">覚<rt>おぼ</rt></ruby>えている<ruby class="v1">限<rt>かぎ</rt></ruby>りの<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">方<rt>かた</rt></ruby>を、<ruby class="v1">片<rt>かた</rt></ruby>っ<ruby class="v1">端<rt>ぱし</rt></ruby>から<ruby class="v1">並<rt>なら</rt></ruby>べて、<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">声<rt>こえ</rt></ruby>で<ruby class="v2">呼<rt>よ</rt></ruby>ばわることにいたしました。<br><strong>定吉：</strong>「えー、ごめんください！ <ruby class="v1">平林<rt>ひらばやし</rt></ruby>さーん！ <ruby class="v1">平林<rt>ひらりん</rt></ruby>さーん！ <ruby class="v1">平林<rt>たいらばやし</rt></ruby>さーん！ いっぱちじゅうのもりさーん！ ……ええい、もう、どれでもよいから、<ruby class="v1">出<rt>で</rt></ruby>てきておくれー！」<br><ruby class="v1">中<rt>なか</rt></ruby>から、あるじの<ruby class="v1">平林<rt>ひらばやし</rt></ruby>さんが、<ruby class="v1">目<rt>め</rt></ruby>を<ruby class="v1">丸<rt>まる</rt></ruby>くして<ruby class="v1">出<rt>で</rt></ruby>てまいりました。<br><strong>平林：</strong>「こ、これはいったい、<ruby class="v1">何<rt>なに</rt></ruby>ごとかね。わしを<ruby class="v1">呼<rt>よ</rt></ruby>ぶのに、そんなにたくさん<ruby class="v1">名前<rt>なまえ</rt></ruby>があったかな」<br><strong>定吉：</strong>「へえ、あちこちで<ruby class="v1">聞<rt>き</rt></ruby>きましたら、みなさん<ruby class="v1">違<rt>ちが</rt></ruby>うことをおっしゃるもので、もう、どれが<ruby class="v1">本当<rt>ほんとう</rt></ruby>だか<ruby class="v1">分<rt>わ</rt></ruby>からなくなってしまいまして……」<br><ruby class="v1">平林<rt>ひらばやし</rt></ruby>さん、<ruby class="v2">呆<rt>あき</rt></ruby>れ<ruby class="v1">返<rt>かえ</rt></ruby>りながらも、<ruby class="v1">思<rt>おも</rt></ruby>わず<ruby class="v1">笑<rt>わら</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>してしまいました。<br><strong>平林：</strong>「いや、これはめでたい。わし<ruby class="v1">一人<rt>ひとり</rt></ruby>で、<ruby class="v1">四人分<rt>よにんぶん</rt></ruby>の<ruby class="v1">名前<rt>なまえ</rt></ruby>をいただいたようなものじゃ」<br>というわけで、<ruby class="v1">名前<rt>なまえ</rt></ruby>ひとつにも、いろいろな<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">方<rt>かた</rt></ruby>があるというお<ruby class="v1">噺<rt>はなし</rt></ruby>、これにてお<ruby class="v1">開<rt>ひら</rt></ruby>きとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. In Japanese, the same character can often be read in several different ways. This gets especially bad with people's names. The character for 'day' can be read one way in one word and another way in another, and when it comes to family names, there's simply no end to the variety. Today's tale is about exactly that — a name whose reading caused no end of confusion, until it turned into quite the commotion.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[AN ERRAND TO RUN]</span>In a certain large merchant house there worked an errand boy named Sadakichi, a rather scatterbrained sort. One day the master brought him a letter and gave him this instruction:<br><strong>Master:</strong> "Sadakichi, take this letter over to Mister Hirabayashi's house, would you."<br><strong>Sadakichi:</strong> "Yes sir, understood... um, master, which Mister Hirabayashi would that be?"<br><strong>Master:</strong> "Oh, just ask someone along the way, you'll figure it out. The name's written right there on the front, so just show it to people and ask."<br>Sadakichi peered at the address on the envelope, but being a boy with no schooling to speak of, although he could recognize the characters for 'Hirabayashi,' he hadn't the faintest idea how they were actually supposed to be read.<br><strong>Sadakichi:</strong> "Well, I suppose I'll manage somehow."<br>With that vague reassurance to himself, he tucked the letter into his robe and set off trotting into town.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FIRST PERSON HE ASKS]</span>As he walked through town, he passed a rice shop where a clerk was sweeping the front step.<br><strong>Sadakichi:</strong> "Excuse me, could you tell me how to read this character?"<br><strong>Rice shop clerk:</strong> "Hmm? Oh, this one. That's Mister Hirabayashi. It's a common enough family name."<br><strong>Sadakichi:</strong> "Ah, Hirabayashi. Thank you very much."<br>Quite satisfied, Sadakichi walked on. But after a little while, a doubt crept in. (That fellow did look a bit unsure of himself... maybe I ought to ask one more person, just to be safe.)</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECOND AND THIRD OPINIONS]</span>Just then, he caught the sleeve of a stout, well-dressed gentleman passing by.<br><strong>Sadakichi:</strong> "Excuse me, how do you read this character?"<br><strong>Well-dressed gentleman:</strong> "Hmm, that's Mister Hirarin. Read the Chinese way, that's what it becomes. No doubt about it."<br><strong>Sadakichi:</strong> "Ah, Hirarin... wait, someone just told me it was Hirabayashi."<br><strong>Gentleman:</strong> "That fellow was probably thinking of someone else. What I say is the correct one."<br>Sadakichi grew even more confused. Just then, an elderly man with the air of a scholar happened to pass by as well.<br><strong>Sadakichi:</strong> "Excuse me, sir, how would you read this character?"<br><strong>Elderly man:</strong> "Ah, this ought properly to be read Tairabayashi. 'Hira' becomes 'Taira,' and 'bayashi' stays 'bayashi' — together, Tairabayashi."<br><strong>Sadakichi:</strong> "Ohh, Tairabayashi..."<br>By now his head was completely tangled up in knots.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE OLD SCHOLAR'S ODD MNEMONIC]</span>Utterly at a loss, Sadakichi next caught hold of an elderly gentleman who looked like a learned scholar on his way home from teaching.<br><strong>Sadakichi:</strong> "Sir, please help me. How is this character actually read? So many different people have told me so many different things, I've completely lost track."<br><strong>Elderly scholar:</strong> "Ho ho, what a predicament. Well then, here's a way to remember it so you won't forget. 'Hira' is written as 'one' plus 'eight,' and 'bayashi' is 'ten' plus 'tree' plus 'eight.' All together: 'ippachi-jū-no-mori.' That way you won't forget it."<br><strong>Sadakichi:</strong> "Ippachi... jū... no mori...?"<br><strong>Elderly scholar:</strong> "That's right, ippachi-jū-no-mori. It can be read Hirabayashi, or Hirarin, or Tairabayashi. Well, whichever sounds best when you get there, just try saying that."<br><strong>Sadakichi:</strong> "Y-yes sir..."<br>Sadakichi thanked him and went on his way, but now his head was spinning with four different readings swirling around at once — Hirabayashi, Hirarin, Tairabayashi, and ippachi-jū-no-mori. Before long, at last, he arrived in front of the very house he'd been looking for.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Sadakichi came to a stop in front of the gate of the house, but now he had no idea at all which name was the right one to call out. With no other choice, he decided to simply line up every reading he could remember and shout them all out at the top of his voice.<br><strong>Sadakichi:</strong> "Helloooo! Mister Hirabayashi! Mister Hirarin! Mister Tairabayashi! Mister Ippachi-jū-no-mori! ...Oh, forget it, whichever one you are, just come on out already!"<br>From inside, the master of the house, the real Mister Hirabayashi, came out with his eyes wide.<br><strong>Hirabayashi:</strong> "Wh-what in the world is going on? Did I have that many names to be called by?"<br><strong>Sadakichi:</strong> "Well, everywhere I asked, people told me something different, so I completely lost track of which one was actually true..."<br>Mister Hirabayashi, dumbfounded, couldn't help but burst out laughing.<br><strong>Hirabayashi:</strong> "Well now, isn't that something. It's as if I, all by myself, have been given four people's worth of names."<br>And so, with that tale of how even one single name can have all sorts of readings, I'll bring this story to its close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. En japonais, un même caractère peut souvent se lire de plusieurs façons différentes. C'est particulièrement vrai pour les noms de famille. Le caractère du 'jour' se lit d'une façon dans un mot et d'une autre façon dans un autre, et quant aux noms de famille, il n'y a tout simplement pas de limite à la variété. L'histoire d'aujourd'hui parle justement de cela : un nom dont la lecture a semé une belle confusion, jusqu'à devenir un vrai remue-ménage.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[AN ERRAND TO RUN]</span>Dans une grande maison de commerce travaillait un garçon de courses nommé Sadakichi, plutôt tête en l'air. Un jour, le maître lui apporta une lettre et lui donna cette instruction :<br><strong>Maître :</strong> « Sadakichi, porte cette lettre chez monsieur Hirabayashi, veux-tu. »<br><strong>Sadakichi :</strong> « Oui, maître, entendu... euh, maître, duquel monsieur Hirabayashi s'agit-il ? »<br><strong>Maître :</strong> « Oh, demande à quelqu'un en chemin, tu trouveras bien. Le nom est écrit juste là devant, il te suffit de le montrer et de demander. »<br>Sadakichi regarda l'adresse sur l'enveloppe, mais n'ayant guère fréquenté l'école, même s'il reconnaissait les caractères de « Hirabayashi », il n'avait pas la moindre idée de la façon dont ils se prononçaient réellement.<br><strong>Sadakichi :</strong> « Bon, je me débrouillerai bien d'une façon ou d'une autre. »<br>Sur cette vague assurance, il glissa la lettre dans son kimono et partit en trottinant vers la ville.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FIRST PERSON HE ASKS]</span>En traversant la ville, il passa devant une boutique de riz où un employé balayait le pas de la porte.<br><strong>Sadakichi :</strong> « Excusez-moi, pourriez-vous me dire comment on lit ce caractère ? »<br><strong>Employé de la boutique de riz :</strong> « Hmm ? Ah, celui-là. C'est monsieur Hirabayashi. Un nom de famille bien commun. »<br><strong>Sadakichi :</strong> « Ah, Hirabayashi. Merci beaucoup. »<br>Tout satisfait, Sadakichi reprit sa route. Mais après quelques pas, un doute s'installa. (Ce type avait l'air un peu peu sûr de lui... je devrais peut-être demander à quelqu'un d'autre, par précaution.)</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECOND AND THIRD OPINIONS]</span>Juste à ce moment, il attrapa la manche d'un homme corpulent et bien vêtu qui passait par là.<br><strong>Sadakichi :</strong> « Excusez-moi, comment lit-on ce caractère ? »<br><strong>L'homme bien vêtu :</strong> « Hmm, c'est monsieur Hirarin. Lu à la chinoise, ça donne ça. Aucun doute là-dessus. »<br><strong>Sadakichi :</strong> « Ah, Hirarin... attendez, on vient de me dire que c'était Hirabayashi. »<br><strong>L'homme :</strong> « Cet homme pensait sans doute à quelqu'un d'autre. Ce que je dis, moi, est le bon. »<br>Sadakichi se sentit encore plus perdu. C'est alors qu'un vieil homme à l'air de savant passa également par là.<br><strong>Sadakichi :</strong> « Excusez-moi, monsieur, comment liriez-vous ce caractère ? »<br><strong>Le vieil homme :</strong> « Ah, cela devrait proprement se lire Tairabayashi. 'Hira' devient 'Taira', et 'bayashi' reste 'bayashi' — ensemble, Tairabayashi. »<br><strong>Sadakichi :</strong> « Oh, Tairabayashi... »<br>À présent, sa tête était complètement embrouillée.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE OLD SCHOLAR'S ODD MNEMONIC]</span>Complètement désemparé, Sadakichi attrapa ensuite un vieux monsieur qui avait l'air d'un érudit rentrant de l'école.<br><strong>Sadakichi :</strong> « Monsieur, aidez-moi, je vous en prie. Comment se lit vraiment ce caractère ? Tant de gens différents m'ont dit tant de choses différentes que j'ai complètement perdu le fil. »<br><strong>Le vieux savant :</strong> « Ho ho, quel embarras. Bon, alors voici un moyen de t'en souvenir. 'Hira' s'écrit 'un' plus 'huit', et 'bayashi' c'est 'dix' plus 'arbre' plus 'huit'. Le tout ensemble : 'ippachi-jū-no-mori'. Comme ça, tu ne l'oublieras pas. »<br><strong>Sadakichi :</strong> « Ippachi... jū... no mori... ? »<br><strong>Le vieux savant :</strong> « C'est cela, ippachi-jū-no-mori. On peut le lire Hirabayashi, ou Hirarin, ou Tairabayashi. Enfin, celui qui sonnera le mieux une fois arrivé, essaie donc celui-là. »<br><strong>Sadakichi :</strong> « O-oui, monsieur... »<br>Sadakichi le remercia et reprit sa route, mais sa tête tourbillonnait maintenant avec quatre lectures différentes qui se mélangeaient — Hirabayashi, Hirarin, Tairabayashi, et ippachi-jū-no-mori. Peu après, il finit enfin par arriver devant la maison même qu'il cherchait.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Sadakichi s'arrêta devant le portail de la maison, mais il n'avait plus la moindre idée du nom correct à crier. N'ayant pas d'autre choix, il décida simplement d'aligner toutes les lectures dont il se souvenait et de les crier toutes à pleins poumons.<br><strong>Sadakichi :</strong> « Ohé ! Monsieur Hirabayashi ! Monsieur Hirarin ! Monsieur Tairabayashi ! Monsieur Ippachi-jū-no-mori ! ...Bah, tant pis, peu importe lequel vous êtes, sortez donc ! »<br>De l'intérieur, le maître de maison, le vrai monsieur Hirabayashi, sortit les yeux écarquillés.<br><strong>Hirabayashi :</strong> « Qu... qu'est-ce que c'est que ce vacarme ? Avais-je donc autant de noms pour qu'on m'appelle ? »<br><strong>Sadakichi :</strong> « Eh bien, partout où j'ai demandé, on m'a dit quelque chose de différent, alors j'ai complètement perdu le fil de ce qui était vrai... »<br>Monsieur Hirabayashi, abasourdi, ne put s'empêcher d'éclater de rire.<br><strong>Hirabayashi :</strong> « Eh bien, voilà qui est cocasse. C'est comme si, à moi tout seul, on m'avait offert les noms de quatre personnes. »<br>Et voilà, avec cette histoire de la façon dont un seul et même nom peut avoir toutes sortes de lectures, je vais clore ce récit.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. En japonés, un mismo carácter a menudo puede leerse de varias maneras distintas. Esto se agrava especialmente con los apellidos. El carácter de 'día' se lee de una forma en una palabra y de otra en otra, y en cuanto a los apellidos, sencillamente no hay límite a la variedad. La historia de hoy trata justamente de eso: un nombre cuya lectura sembró una tremenda confusión, hasta convertirse en todo un alboroto.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[AN ERRAND TO RUN]</span>En una gran casa de comercio trabajaba un recadero llamado Sadakichi, bastante despistado. Un día, el amo le trajo una carta y le dio esta instrucción:<br><strong>Amo:</strong> «Sadakichi, lleva esta carta a casa del señor Hirabayashi, ¿quieres?»<br><strong>Sadakichi:</strong> «Sí, señor, entendido... eh, amo, ¿de cuál señor Hirabayashi se trata?»<br><strong>Amo:</strong> «Ah, pregúntale a alguien por el camino, ya te las arreglarás. El nombre está escrito justo ahí delante, solo tienes que mostrarlo y preguntar.»<br>Sadakichi miró de reojo la dirección en el sobre, pero como era un muchacho sin mucha escuela, aunque reconocía los caracteres de «Hirabayashi», no tenía la menor idea de cómo se pronunciaban en realidad.<br><strong>Sadakichi:</strong> «Bueno, ya me las arreglaré de algún modo.»<br>Con esa vaga certeza, se guardó la carta entre la ropa y salió trotando hacia el pueblo.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FIRST PERSON HE ASKS]</span>Mientras caminaba por el pueblo, pasó frente a una tienda de arroz donde un empleado barría la entrada.<br><strong>Sadakichi:</strong> «Disculpe, ¿podría decirme cómo se lee este carácter?»<br><strong>Empleado de la tienda de arroz:</strong> «¿Eh? Ah, ese. Es el señor Hirabayashi. Un apellido bastante común.»<br><strong>Sadakichi:</strong> «Ah, Hirabayashi. Muchas gracias.»<br>Bastante satisfecho, Sadakichi siguió su camino. Pero al poco rato, le entró una duda. (Ese hombre parecía un poco inseguro... quizás debería preguntarle a otra persona, por si acaso.)</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECOND AND THIRD OPINIONS]</span>Justo entonces, agarró la manga de un hombre corpulento y bien vestido que pasaba por ahí.<br><strong>Sadakichi:</strong> «Disculpe, ¿cómo se lee este carácter?»<br><strong>El hombre bien vestido:</strong> «Hmm, es el señor Hirarin. Leído a la manera china, así queda. No hay duda.»<br><strong>Sadakichi:</strong> «Ah, Hirarin... espere, alguien acaba de decirme que era Hirabayashi.»<br><strong>El hombre:</strong> «Ese debía estar pensando en otra persona. Lo que yo digo es lo correcto.»<br>Sadakichi se sintió aún más confundido. Fue entonces cuando un anciano con aire de erudito pasó también por ahí.<br><strong>Sadakichi:</strong> «Disculpe, señor, ¿cómo leería usted este carácter?»<br><strong>El anciano:</strong> «Ah, esto debería leerse propiamente Tairabayashi. 'Hira' se convierte en 'Taira', y 'bayashi' queda igual... juntos, Tairabayashi.»<br><strong>Sadakichi:</strong> «Ohh, Tairabayashi...»<br>Para entonces, tenía la cabeza hecha un completo lío.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE OLD SCHOLAR'S ODD MNEMONIC]</span>Completamente desesperado, Sadakichi agarró entonces a un anciano que parecía un erudito que volvía de dar clases.<br><strong>Sadakichi:</strong> «Señor, ayúdeme, por favor. ¿Cómo se lee realmente este carácter? Tanta gente distinta me ha dicho tantas cosas distintas que ya perdí el hilo por completo.»<br><strong>El anciano erudito:</strong> «Ho ho, qué aprieto. Bien, entonces te diré cómo recordarlo. 'Hira' se escribe 'uno' más 'ocho', y 'bayashi' es 'diez' más 'árbol' más 'ocho'. Todo junto: 'ippachi-jū-no-mori'. Así no se te olvidará.»<br><strong>Sadakichi:</strong> «Ippachi... jū... no mori...?»<br><strong>El anciano erudito:</strong> «Así es, ippachi-jū-no-mori. Se puede leer Hirabayashi, o Hirarin, o Tairabayashi. Bueno, el que mejor suene cuando llegues, prueba con ese.»<br><strong>Sadakichi:</strong> «S-sí, señor...»<br>Sadakichi le agradeció y siguió su camino, pero ahora tenía la cabeza dándole vueltas con cuatro lecturas distintas mezclándose a la vez: Hirabayashi, Hirarin, Tairabayashi, e ippachi-jū-no-mori. Poco después, por fin llegó frente a la mismísima casa que buscaba.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Sadakichi se detuvo frente a la puerta de la casa, pero ya no tenía la menor idea de cuál nombre era el correcto para llamar. Sin otra opción, decidió simplemente alinear todas las lecturas que recordaba y gritarlas todas a pleno pulmón.<br><strong>Sadakichi:</strong> «¡Buenaaas! ¡Señor Hirabayashi! ¡Señor Hirarin! ¡Señor Tairabayashi! ¡Señor Ippachi-jū-no-mori! ...Ay, ya, no importa cuál sea usted, salga de una vez!»<br>Desde adentro, el dueño de la casa, el verdadero señor Hirabayashi, salió con los ojos como platos.<br><strong>Hirabayashi:</strong> «¿Q-qué diablos está pasando aquí? ¿Tantos nombres tenía yo para que me llamaran?»<br><strong>Sadakichi:</strong> «Bueno, en todos lados donde pregunté, la gente me decía algo distinto, así que perdí por completo la cuenta de cuál era el verdadero...»<br>El señor Hirabayashi, estupefacto, no pudo evitar soltar la carcajada.<br><strong>Hirabayashi:</strong> «Vaya, qué gracia. Es como si a mí solo me hubieran regalado los nombres de cuatro personas.»<br>Y así, con esta historia de cómo hasta un solo nombre puede tener toda clase de lecturas, doy por concluido este relato.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②お使いを頼まれる","③一人目にたずねる","④二人目・三人目にたずねる","⑤妙な覚え方","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② An errand to run","③ The first person he asks","④ The second and third opinions","⑤ The old scholar's odd mnemonic","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

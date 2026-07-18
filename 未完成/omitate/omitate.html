@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お見立て - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.25 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">お見立て</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Omitate / The Selection</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②杢兵衛登場</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③仮病</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④見舞いの申し出</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤とうとう死んだことに</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥墓参り</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class='v1'>一席<rt>いっせき</rt></ruby><ruby class='v1'>申<rt>もう</rt></ruby>し<ruby class='v1'>上<rt>あ</rt></ruby>げます。「お<ruby class='v2'>見立<rt>みた</rt></ruby>て」というのは、<ruby class='v1'>元来<rt>がんらい</rt></ruby>はお<ruby class='v1'>客<rt>きゃく</rt></ruby>が<ruby class='v1'>幾人<rt>いくにん</rt></ruby>もの<ruby class='v2'>花魁<rt>おいらん</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>から、<ruby class='v1'>贔屓<rt>ひいき</rt></ruby>の<ruby class='v1'>一人<rt>ひとり</rt></ruby>を<ruby class='v1'>選<rt>えら</rt></ruby>ぶ、という<ruby class='v1'>意味<rt>いみ</rt></ruby>の<ruby class='v1'>言葉<rt>ことば</rt></ruby>でございましてね。ところがこの<ruby class='v1'>噺<rt>はなし</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>では、とんでもない<ruby class='v1'>方向<rt>ほうこう</rt></ruby>に「<ruby class='v2'>見立<rt>みた</rt></ruby>て」なくちゃならなくなる<ruby class='v2'>羽目<rt>はめ</rt></ruby>に<ruby class='v2'>陥<rt>おちい</rt></ruby>る<ruby class='v1'>者<rt>もの</rt></ruby>が<ruby class='v1'>出<rt>で</rt></ruby>てまいります。むかしの<ruby class='v2'>吉原<rt>よしわら</rt></ruby>の<ruby class='v2'>廓<rt>くるわ</rt></ruby>というのは、お<ruby class='v1'>金<rt>かね</rt></ruby>を<ruby class='v1'>積<rt>つ</rt></ruby>めば<ruby class='v1'>必<rt>かなら</rt></ruby>ず<ruby class='v1'>会<rt>あ</rt></ruby>えるというものでもございませんで、<ruby class='v2'>花魁<rt>おいらん</rt></ruby>の<ruby class='v1'>方<rt>ほう</rt></ruby>に「あの<ruby class='v1'>客<rt>きゃく</rt></ruby>だけは<ruby class='v1'>勘弁<rt>かんべん</rt></ruby>してほしい」という<ruby class='v1'>我儘<rt>わがまま</rt></ruby>が<ruby class='v1'>通<rt>とお</rt></ruby>ったりしたそうで。さて、<ruby class='v1'>今日<rt>きょう</rt></ruby>はそんな<ruby class='v2'>吉原<rt>よしわら</rt></ruby>を<ruby class='v1'>舞台<rt>ぶたい</rt></ruby>にした<ruby class='v1'>一席<rt>いっせき</rt></ruby>、お<ruby class='v1'>付<rt>つ</rt></ruby>き<ruby class='v1'>合<rt>あ</rt></ruby>いのほどを。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【杢兵衛登場】</span>
+                    <ruby class='v1'>田舎<rt>いなか</rt></ruby>から<ruby class='v1'>出<rt>で</rt></ruby>てまいりました<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>という<ruby class='v1'>大尽<rt>だいじん</rt></ruby>、<ruby class='v1'>田畑<rt>たはた</rt></ruby>を<ruby class='v1'>売<rt>う</rt></ruby>った<ruby class='v1'>金<rt>かね</rt></ruby>を<ruby class='v1'>懐<rt>ふところ</rt></ruby>にして<ruby class='v2'>吉原<rt>よしわら</rt></ruby>に<ruby class='v1'>上<rt>あ</rt></ruby>がり、<ruby class='v2'>廓<rt>くるわ</rt></ruby><ruby class='v1'>一番<rt>いちばん</rt></ruby>の<ruby class='v2'>花魁<rt>おいらん</rt></ruby>・<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>にすっかり<ruby class='v1'>惚<rt>ほ</rt></ruby>れ<ruby class='v1'>込<rt>こ</rt></ruby>んでしまいました。ところがこの<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>さん、<ruby class='v1'>金離<rt>かねばな</rt></ruby>れはいいものの、<ruby class='v1'>垢抜<rt>あかぬ</rt></ruby>けない<ruby class='v1'>上<rt>うえ</rt></ruby>に<ruby class='v1'>世辞<rt>せじ</rt></ruby>の<ruby class='v1'>一<rt>ひと</rt></ruby>つも<ruby class='v1'>言<rt>い</rt></ruby>えない<ruby class='v2'>無骨者<rt>ぶこつもの</rt></ruby>。<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>からしてみれば、<ruby class='v1'>正直<rt>しょうじき</rt></ruby>「<ruby class='v1'>顔<rt>かお</rt></ruby>も<ruby class='v1'>見<rt>み</rt></ruby>たくない」というのが<ruby class='v1'>本音<rt>ほんね</rt></ruby>でございます。それでも<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>、<ruby class='v1'>三日<rt>みっか</rt></ruby>にあげず<ruby class='v1'>通<rt>かよ</rt></ruby>ってまいりまして、<ruby class='v1'>案内役<rt>あんないやく</rt></ruby>の<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>という<ruby class='v1'>若<rt>わか</rt></ruby>い<ruby class='v1'>衆<rt>しゅう</rt></ruby>に「<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>に<ruby class='v1'>会<rt>あ</rt></ruby>わせてくれ」とせがむのでございます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【仮病】</span>
+                    <ruby class='v1'>今日<rt>きょう</rt></ruby>もまた<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>が<ruby class='v1'>暖簾<rt>のれん</rt></ruby>をくぐってまいりました。<br><strong>杢兵衛：</strong>「<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>どん、<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>はいるかい」<br><strong>金兵衛：</strong>「へえ、それが<ruby class='v1'>実<rt>じつ</rt></ruby>は、<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>は<ruby class='v1'>昨日<rt>きのう</rt></ruby>から<ruby class='v1'>風邪<rt>かぜ</rt></ruby>をひきましてね、<ruby class='v1'>床<rt>とこ</rt></ruby>に<ruby class='v1'>伏<rt>ふ</rt></ruby>せっておりますんで」<br>とっさに<ruby class='v1'>出<rt>で</rt></ruby>た<ruby class='v1'>嘘<rt>うそ</rt></ruby>でございます。<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>は<ruby class='v1'>驚<rt>おどろ</rt></ruby>いて、<br><strong>杢兵衛：</strong>「そいつはいけねえ、そんなに<ruby class='v1'>悪<rt>わる</rt></ruby>いのかい」<br>と<ruby class='v1'>心配顔<rt>しんぱいがお</rt></ruby>。<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>、<ruby class='v1'>内心<rt>ないしん</rt></ruby>「しめた、これで<ruby class='v1'>帰<rt>かえ</rt></ruby>ってくれる」と<ruby class='v1'>思<rt>おも</rt></ruby>ったのも<ruby class='v1'>束<rt>つか</rt></ruby>の<ruby class='v1'>間<rt>ま</rt></ruby>、<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>はそのまま<ruby class='v1'>帰<rt>かえ</rt></ruby>るどころか、ますます<ruby class='v1'>身<rt>み</rt></ruby>を<ruby class='v1'>乗<rt>の</rt></ruby>り<ruby class='v1'>出<rt>だ</rt></ruby>してまいります。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【見舞いの申し出】</span>
+                    <strong>杢兵衛：</strong>「<ruby class='v1'>風邪<rt>かぜ</rt></ruby>と<ruby class='v1'>聞<rt>き</rt></ruby>いちゃ<ruby class='v1'>黙<rt>だま</rt></ruby>っちゃいられねえ。よし、おら、これから<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>の<ruby class='v1'>見舞<rt>みま</rt></ruby>いに<ruby class='v1'>行<rt>い</rt></ruby>ってやるべ」<br><ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>が<ruby class='v1'>真顔<rt>まがお</rt></ruby>でそう<ruby class='v1'>言<rt>い</rt></ruby>い<ruby class='v1'>出<rt>だ</rt></ruby>したから、<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>は<ruby class='v1'>真<rt>ま</rt></ruby>っ<ruby class='v1'>青<rt>さお</rt></ruby>になりました。<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>は<ruby class='v1'>元気<rt>げんき</rt></ruby>そのもの、<ruby class='v1'>別<rt>べつ</rt></ruby>の<ruby class='v1'>座敷<rt>ざしき</rt></ruby>で<ruby class='v1'>他<rt>ほか</rt></ruby>のお<ruby class='v1'>客<rt>きゃく</rt></ruby>と<ruby class='v1'>楽<rt>たの</rt></ruby>しくやっているのですから、<ruby class='v1'>見舞<rt>みま</rt></ruby>いになど<ruby class='v1'>行<rt>い</rt></ruby>かれては<ruby class='v1'>一巻<rt>いっかん</rt></ruby>の<ruby class='v1'>終<rt>お</rt></ruby>わりでございます。<br><strong>金兵衛：</strong>「いえいえ、そりゃあいけません、うつるといけませんから」<br>と<ruby class='v1'>必死<rt>ひっし</rt></ruby>で<ruby class='v1'>止<rt>と</rt></ruby>めましたが、<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>は<br><strong>杢兵衛：</strong>「なあに、<ruby class='v1'>風邪<rt>かぜ</rt></ruby>ぐらい<ruby class='v1'>構<rt>かま</rt></ruby>うもんか」<br>と<ruby class='v1'>一向<rt>いっこう</rt></ruby>に<ruby class='v1'>聞<rt>き</rt></ruby>く<ruby class='v1'>耳<rt>みみ</rt></ruby>を<ruby class='v1'>持<rt>も</rt></ruby>ちません。<ruby class='v1'>仕方<rt>しかた</rt></ruby>なく<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>、<br><strong>金兵衛：</strong>「<ruby class='v1'>実<rt>じつ</rt></ruby>は、<ruby class='v1'>風邪<rt>かぜ</rt></ruby>どころではなく、<ruby class='v1'>大層<rt>たいそう</rt></ruby>な<ruby class='v1'>重<rt>おも</rt></ruby>い<ruby class='v1'>病<rt>やまい</rt></ruby>でして」<br>とさらに<ruby class='v1'>嘘<rt>うそ</rt></ruby>を<ruby class='v1'>重<rt>かさ</rt></ruby>ねてしまいます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【とうとう死んだことに】</span>
+                    <ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>の<ruby class='v1'>心配<rt>しんぱい</rt></ruby>はいよいよ<ruby class='v1'>募<rt>つの</rt></ruby>るばかり。<ruby class='v1'>毎日<rt>まいにち</rt></ruby>のように<ruby class='v1'>押<rt>お</rt></ruby>しかけては<br><strong>杢兵衛：</strong>「<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>の<ruby class='v1'>具合<rt>ぐあい</rt></ruby>はどうだ」<br>と<ruby class='v1'>尋<rt>たず</rt></ruby>ねてまいります。<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>も<ruby class='v1'>後<rt>あと</rt></ruby>には<ruby class='v1'>引<rt>ひ</rt></ruby>けず、<br><strong>金兵衛：</strong>「<ruby class='v1'>実<rt>じつ</rt></ruby>は<ruby class='v1'>昨日<rt>きのう</rt></ruby>から<ruby class='v2'>危篤<rt>きとく</rt></ruby>で」「<ruby class='v1'>今朝方<rt>けさがた</rt></ruby>、とうとう<ruby class='v1'>息<rt>いき</rt></ruby>を<ruby class='v1'>引<rt>ひ</rt></ruby>き<ruby class='v1'>取<rt>と</rt></ruby>りました」<br>と、とんでもない<ruby class='v1'>嘘<rt>うそ</rt></ruby>をついてしまいました。まさか<ruby class='v1'>死<rt>し</rt></ruby>んだと<ruby class='v1'>言<rt>い</rt></ruby>えば<ruby class='v1'>諦<rt>あきら</rt></ruby>めるだろうと<ruby class='v1'>踏<rt>ふ</rt></ruby>んだのですが、これがとんだ<ruby class='v1'>見込<rt>みこ</rt></ruby>み<ruby class='v1'>違<rt>ちが</rt></ruby>い。<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>は<ruby class='v1'>大粒<rt>おおつぶ</rt></ruby>の<ruby class='v1'>涙<rt>なみだ</rt></ruby>をこぼしながら、<br><strong>杢兵衛：</strong>「そうかい、そうかい、<ruby class='v1'>死<rt>し</rt></ruby>んじまったかい。それなら<ruby class='v1'>尚<rt>なお</rt></ruby>のこと、せめて<ruby class='v1'>墓<rt>はか</rt></ruby>に<ruby class='v1'>参<rt>まい</rt></ruby>ってやりてえ」<br>と<ruby class='v1'>言<rt>い</rt></ruby>い<ruby class='v1'>出<rt>だ</rt></ruby>す<ruby class='v1'>始末<rt>しまつ</rt></ruby>でございます。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【墓参り】</span>
+                    <ruby class='v1'>断<rt>ことわ</rt></ruby>るに<ruby class='v1'>断<rt>ことわ</rt></ruby>れず、<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>は<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>を<ruby class='v1'>連<rt>つ</rt></ruby>れて<ruby class='v1'>近<rt>ちか</rt></ruby>くの<ruby class='v1'>寺<rt>てら</rt></ruby>の<ruby class='v1'>墓地<rt>ぼち</rt></ruby>へ<ruby class='v1'>参<rt>まい</rt></ruby>ることになりました。もちろん<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>の<ruby class='v1'>墓<rt>はか</rt></ruby>などあろうはずもございません。<ruby class='v1'>困<rt>こま</rt></ruby>り<ruby class='v1'>果<rt>は</rt></ruby>てた<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>、<ruby class='v1'>目<rt>め</rt></ruby>についた<ruby class='v1'>古<rt>ふる</rt></ruby>い<ruby class='v1'>墓石<rt>はかいし</rt></ruby>を<ruby class='v1'>指<rt>ゆび</rt></ruby>さして、<br><strong>金兵衛：</strong>「へえ、これがその、<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>の<ruby class='v1'>墓<rt>はか</rt></ruby>でございます」<br>と<ruby class='v1'>苦<rt>くる</rt></ruby>し<ruby class='v1'>紛<rt>まぎ</rt></ruby>れの<ruby class='v1'>出<rt>で</rt></ruby>まかせ。<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>は<ruby class='v1'>手<rt>て</rt></ruby>を<ruby class='v1'>合<rt>あ</rt></ruby>わせ、<ruby class='v1'>大声<rt>おおごえ</rt></ruby>で<ruby class='v1'>泣<rt>な</rt></ruby>きながら<br><strong>杢兵衛：</strong>「<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>、すまなかったなあ、もっと<ruby class='v1'>早<rt>はや</rt></ruby>く<ruby class='v1'>来<rt>き</rt></ruby>てやればよかった」<br>と、<ruby class='v1'>見<rt>み</rt></ruby>ず<ruby class='v1'>知<rt>し</rt></ruby>らずの<ruby class='v1'>誰<rt>だれ</rt></ruby>かの<ruby class='v1'>墓<rt>はか</rt></ruby>に<ruby class='v1'>向<rt>む</rt></ruby>かって、<ruby class='v1'>延々<rt>えんえん</rt></ruby>と<ruby class='v1'>語<rt>かた</rt></ruby>りかけるのでございます。<ruby class='v1'>困<rt>こま</rt></ruby>った<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>、<ruby class='v1'>次<rt>つぎ</rt></ruby>から<ruby class='v1'>次<rt>つぎ</rt></ruby>へと<ruby class='v1'>別<rt>べつ</rt></ruby>の<ruby class='v1'>墓<rt>はか</rt></ruby>を<ruby class='v1'>指<rt>ゆび</rt></ruby>さしては、<br><strong>金兵衛：</strong>「いえ、こっちの<ruby class='v1'>墓<rt>はか</rt></ruby>でございました」「いや、<ruby class='v1'>実<rt>じつ</rt></ruby>はあちらで」<br>と、<ruby class='v2'>見立<rt>みた</rt></ruby>てる<ruby class='v1'>墓<rt>はか</rt></ruby>をとっかえひっかえする<ruby class='v2'>羽目<rt>はめ</rt></ruby>になりました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    とうとう<ruby class='v2'>杢兵衛<rt>もくべえ</rt></ruby>、<ruby class='v1'>涙<rt>なみだ</rt></ruby>を<ruby class='v1'>拭<rt>ふ</rt></ruby>きながら<ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>に<ruby class='v1'>尋<rt>たず</rt></ruby>ねます。<br><strong>杢兵衛：</strong>「それにしても、<ruby class='v2'>喜瀬川<rt>きせがわ</rt></ruby>の<ruby class='v1'>墓<rt>はか</rt></ruby>はずいぶんとあちこちにあるんだなあ」<br><ruby class='v2'>金兵衛<rt>きんべえ</rt></ruby>、<ruby class='v1'>苦<rt>にが</rt></ruby>い<ruby class='v1'>顔<rt>かお</rt></ruby>で<ruby class='v1'>一言<rt>ひとこと</rt></ruby>。<br><strong>金兵衛：</strong>「へえ、なにしろ、<ruby class='v1'>生<rt>い</rt></ruby>きているうちから、あちこちのお<ruby class='v1'>客様<rt>きゃくさま</rt></ruby>に<ruby class='v2'>見立<rt>みた</rt></ruby>てられておりましたもので」
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Omitate — The Selection — originally referred to a customer looking over the various courtesans and choosing his favorite. But in this tale, someone ends up having to do the choosing in a far more absurd way than he ever expected. In the old pleasure quarter of Yoshiwara, money alone couldn't buy you a meeting — a courtesan was quite entitled to declare that a certain customer simply wasn't welcome, and get away with it. So here is a tale set in that world.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE COUNTRY CUSTOMER]</span>There came up from the countryside a wealthy patron named Mokubei, who had sold off his farmland and arrived in Yoshiwara with his pockets stuffed with cash, falling head over heels for Kisegawa, the quarter's reigning top courtesan. The trouble was, for all his free spending, Mokubei was hopelessly unrefined, couldn't pay a compliment to save his life, and rough around every edge. Kisegawa, frankly, couldn't stand the sight of him. And yet Mokubei kept coming back every few days, pestering the young attendant Kinbei to let him see her.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE EXCUSE]</span>Today, once again, Mokubei came through the curtain.<br><strong>Mokubei:</strong> Say, Kinbei, is Kisegawa around?<br><strong>Kinbei:</strong> Well, sir, actually, Kisegawa has caught a cold since yesterday, she's laid up in bed.<br>It was a lie Kinbei made up on the spot. Mokubei looked alarmed.<br><strong>Mokubei:</strong> That's terrible, is it bad?<br>Kinbei thought to himself: perfect, now he'll leave. But no sooner had he thought it than Mokubei, far from leaving, leaned in even closer.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[INSISTING ON A VISIT]</span><strong>Mokubei:</strong> Can't just sit here once I've heard she's sick! Right, I'm going to go nurse Kisegawa myself.<br>Mokubei said it with a perfectly straight face, and Kinbei went pale. Kisegawa was perfectly fine, off enjoying herself with another customer in a different room. If Mokubei went to visit her, it would all be over.<br><strong>Kinbei:</strong> Oh no, please don't, you might catch it too!<br>He tried desperately to stop him, but Mokubei wouldn't hear a word of it.<br><strong>Mokubei:</strong> Bah, what's a little cold?<br>Cornered, Kinbei blurted out yet another lie.<br><strong>Kinbei:</strong> Actually, sir, it's far worse than a cold. It's a serious illness.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FATAL LIE]</span>Mokubei's worry only deepened. He came pestering nearly every day.<br><strong>Mokubei:</strong> How's Kisegawa doing?<br>Kinbei, unable to back down now, blurted out.<br><strong>Kinbei:</strong> Actually, she's been in critical condition since yesterday. And this morning, I'm afraid she passed away.<br>An outrageous lie. He had figured that news of her death would finally make Mokubei give up. A terrible miscalculation. Mokubei burst into big fat tears.<br><strong>Mokubei:</strong> So, so she's really gone. All the more reason I need to visit her grave, at least.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FAKE GRAVE]</span>Unable to refuse, Kinbei found himself leading Mokubei to the graveyard of a nearby temple. Of course, there was no grave for Kisegawa, since she wasn't dead. Desperate, Kinbei pointed at some random old tombstone that caught his eye.<br><strong>Kinbei:</strong> Er, here it is, this is Kisegawa's grave.<br>A shameless improvisation. Mokubei pressed his palms together and wailed loudly.<br><strong>Mokubei:</strong> Kisegawa, I'm so sorry, I should have come sooner.<br>He poured his heart out at length to a total stranger's grave. Flustered, Kinbei kept pointing at one tombstone after another.<br><strong>Kinbei:</strong> Oh, no, actually it was this one over here. No wait, actually, it's that one.<br>Swapping out which grave he was passing off as hers, over and over.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Finally, wiping his tears, Mokubei turned to Kinbei with a question.<br><strong>Mokubei:</strong> Say, Kisegawa sure seems to have an awful lot of graves scattered all over the place.<br>Kinbei, with a bitter look on his face, had just one thing to say.<br><strong>Kinbei:</strong> Well, sir, that's because, even while she was alive, she was already being selected all over the place by customer after customer.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Omitate — La Sélection — désignait à l'origine le client qui, parmi toutes les courtisanes, choisissait sa préférée. Mais dans ce récit, c'est quelqu'un d'autre qui va devoir choisir, d'une façon bien plus absurde qu'il ne l'aurait imaginé. Dans l'ancien quartier de plaisir de Yoshiwara, l'argent seul ne suffisait pas à obtenir un rendez-vous : une courtisane pouvait fort bien décréter qu'un certain client n'était pas le bienvenu, et cela passait comme une lettre à la poste. Voici donc une histoire qui se déroule dans ce monde-là.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE COUNTRY CUSTOMER]</span>Du fond de la campagne était arrivé un riche client du nom de Mokubei, qui avait vendu ses terres et débarquait à Yoshiwara les poches pleines, follement épris de Kisegawa, la courtisane vedette du quartier. Le problème, c'est que malgré ses largesses, Mokubei restait d'une rusticité affligeante, incapable du moindre compliment, gauche en tout. Kisegawa, franchement, ne pouvait pas le supporter. Mais Mokubei revenait tous les deux ou trois jours, harcelant le jeune commis Kinbei pour qu'il le laisse la voir.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE EXCUSE]</span>Aujourd'hui encore, Mokubei franchit le rideau de l'entrée.<br><strong>Mokubei :</strong> Dis-moi, Kinbei, Kisegawa est là ?<br><strong>Kinbei :</strong> Eh bien, monsieur, en fait, Kisegawa a pris froid depuis hier, elle est alitée.<br>C'était un mensonge inventé sur l'instant. Mokubei parut alarmé.<br><strong>Mokubei :</strong> C'est terrible, c'est grave ?<br>Kinbei se dit : parfait, il va partir. Mais à peine l'eut-il pensé que Mokubei, loin de partir, se pencha encore plus près.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[INSISTING ON A VISIT]</span><strong>Mokubei :</strong> Je ne peux pas rester les bras croisés en apprenant qu'elle est malade ! Bon, je vais aller la soigner moi-même.<br>Il le dit avec un sérieux absolu, et Kinbei blêmit. Kisegawa se portait comme un charme, en train de s'amuser avec un autre client dans une autre pièce. Si Mokubei allait la visiter, tout serait fichu.<br><strong>Kinbei :</strong> Non, non, surtout pas, vous pourriez l'attraper aussi !<br>Il essaya désespérément de l'arrêter, mais Mokubei n'écoutait rien.<br><strong>Mokubei :</strong> Bah, un petit rhume, quelle importance ?<br>Acculé, Kinbei lâcha un mensonge de plus.<br><strong>Kinbei :</strong> En fait, monsieur, c'est bien pire qu'un rhume. C'est une maladie grave.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FATAL LIE]</span>L'inquiétude de Mokubei ne fit que croître. Il venait harceler Kinbei presque chaque jour.<br><strong>Mokubei :</strong> Comment va Kisegawa ?<br>Kinbei, ne pouvant plus reculer, lâcha.<br><strong>Kinbei :</strong> En fait, elle est dans un état critique depuis hier. Et ce matin, hélas, elle nous a quittés.<br>Un mensonge énorme. Il pensait qu'annoncer sa mort ferait enfin renoncer Mokubei. Quelle erreur de calcul. Mokubei fondit en grosses larmes.<br><strong>Mokubei :</strong> Alors, alors elle est vraiment partie. Raison de plus pour que j'aille au moins me recueillir sur sa tombe.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FAKE GRAVE]</span>Ne pouvant refuser, Kinbei se retrouva à conduire Mokubei au cimetière d'un temple voisin. Bien sûr, il n'y avait aucune tombe pour Kisegawa, puisqu'elle n'était pas morte. Désespéré, Kinbei désigna une vieille pierre tombale au hasard.<br><strong>Kinbei :</strong> Euh, voilà, c'est ici, la tombe de Kisegawa.<br>Une improvisation sans vergogne. Mokubei joignit les mains et se mit à sangloter bruyamment.<br><strong>Mokubei :</strong> Kisegawa, pardonne-moi, j'aurais dû venir plus tôt.<br>Il déversa longuement son cœur sur la tombe d'un parfait inconnu. Affolé, Kinbei désignait tombe après tombe.<br><strong>Kinbei :</strong> Ah non, en fait c'était celle-ci. Non attendez, en fait, c'est celle-là.<br>Changeant sans cesse la tombe qu'il faisait passer pour la sienne.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Enfin, essuyant ses larmes, Mokubei se tourna vers Kinbei avec une question.<br><strong>Mokubei :</strong> Dis-moi, Kisegawa semble avoir un nombre incroyable de tombes, éparpillées un peu partout.<br>Kinbei, la mine amère, n'eut qu'une chose à répondre.<br><strong>Kinbei :</strong> Eh bien, monsieur, c'est que, de son vivant déjà, elle se faisait choisir un peu partout par client après client.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Omitate — La Selección — se refería originalmente al cliente que, entre todas las cortesanas, elegía a su favorita. Pero en este relato, alguien terminará teniendo que elegir de una manera mucho más absurda de lo que jamás hubiera imaginado. En el antiguo barrio de placer de Yoshiwara, el dinero solo no bastaba para conseguir una cita: una cortesana bien podía decretar que cierto cliente no era bienvenido, y salirse con la suya. Así que aquí va un cuento ambientado en ese mundo.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE COUNTRY CUSTOMER]</span>Desde el campo había llegado un rico cliente llamado Mokubei, que había vendido sus tierras y se presentaba en Yoshiwara con los bolsillos llenos, perdidamente enamorado de Kisegawa, la cortesana estrella del barrio. El problema era que, por muy generoso que fuera con el dinero, Mokubei resultaba de lo más tosco, incapaz de decir un cumplido, torpe en todo. Kisegawa, francamente, no lo soportaba. Aun así, Mokubei volvía cada pocos días, insistiéndole al joven encargado Kinbei para que lo dejara verla.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE EXCUSE]</span>Hoy de nuevo Mokubei cruzó la cortina de la entrada.<br><strong>Mokubei:</strong> Oye, Kinbei, ¿está Kisegawa?<br><strong>Kinbei:</strong> Pues, verá, resulta que Kisegawa se resfrió desde ayer y está guardando cama.<br>Era una mentira inventada al vuelo. Mokubei se alarmó.<br><strong>Mokubei:</strong> Eso es terrible, ¿está muy mal?<br>Kinbei pensó: perfecto, así se irá. Pero apenas lo pensó, Mokubei, lejos de irse, se inclinó aún más hacia adelante.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[INSISTING ON A VISIT]</span><strong>Mokubei:</strong> ¡No puedo quedarme de brazos cruzados sabiendo que está enferma! Bien, iré a cuidarla yo mismo.<br>Lo dijo con total seriedad, y Kinbei palideció. Kisegawa estaba perfectamente bien, divirtiéndose con otro cliente en otra sala; si Mokubei iba a visitarla, todo se vendría abajo.<br><strong>Kinbei:</strong> ¡No, no, de ninguna manera, podría contagiarse!<br>Intentó detenerlo desesperadamente, pero Mokubei no quería escuchar nada.<br><strong>Mokubei:</strong> Bah, ¿qué importa un resfriado?<br>Acorralado, Kinbei soltó otra mentira más.<br><strong>Kinbei:</strong> En realidad, señor, es mucho peor que un resfriado. Es una enfermedad grave.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FATAL LIE]</span>La preocupación de Mokubei no hacía sino crecer. Venía a importunar casi todos los días.<br><strong>Mokubei:</strong> ¿Cómo sigue Kisegawa?<br>Kinbei, sin poder ya dar marcha atrás, soltó.<br><strong>Kinbei:</strong> En realidad, está en estado crítico desde ayer. Y esta mañana, lamentablemente, falleció.<br>Una mentira descomunal. Había pensado que la noticia de su muerte por fin haría desistir a Mokubei; qué terrible error de cálculo. Mokubei rompió en grandes lágrimas.<br><strong>Mokubei:</strong> Entonces, entonces de verdad se ha ido. Con más razón debo visitar al menos su tumba.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE FAKE GRAVE]</span>Incapaz de negarse, Kinbei terminó llevando a Mokubei al cementerio de un templo cercano. Por supuesto, no había tumba alguna de Kisegawa, ya que no había muerto. Desesperado, Kinbei señaló una vieja lápida al azar.<br><strong>Kinbei:</strong> Ehh, aquí está, esta es la tumba de Kisegawa.<br>Una improvisación descarada. Mokubei juntó las manos y rompió a llorar a gritos.<br><strong>Mokubei:</strong> Kisegawa, lo siento tanto, debí haber venido antes.<br>Y se desahogó largamente ante la tumba de un completo desconocido. Nervioso, Kinbei fue señalando una lápida tras otra.<br><strong>Kinbei:</strong> Ah, no, en realidad era esta de aquí. No espere, en realidad es aquella.<br>Cambiando una y otra vez cuál tumba hacía pasar por la suya.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Por fin, secándose las lágrimas, Mokubei se volvió hacia Kinbei con una pregunta.<br><strong>Mokubei:</strong> Oye, Kisegawa parece tener una cantidad enorme de tumbas repartidas por todas partes.<br>Kinbei, con expresión amarga, solo tuvo una cosa que decir.<br><strong>Kinbei:</strong> Pues, señor, es que, ya en vida, la elegían por todas partes, cliente tras cliente.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②杢兵衛登場","③仮病","④見舞いの申し出","⑤とうとう死んだことに","⑥墓参り","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The country customer","③ The excuse","④ Insisting on a visit","⑤ The fatal lie","⑥ The fake grave","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

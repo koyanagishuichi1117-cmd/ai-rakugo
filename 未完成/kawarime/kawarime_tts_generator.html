@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>替り目 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 替り目 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">え〜、一席申し上げますが。お酒というのは、飲む人によって、良薬にも百薬の長にもなれば、時にとんだ厄介者にもなるという、まあ不思議な飲み物でございます。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">特に、酔っ払うと妙にくどくなる、それでいて惚気が始まるという、始末に困る御仁がいらっしゃいましてね。今日はそんな、酔って帰ってきた亭主と、それにつき合わされる、気の毒な女房の一席を申し上げます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②酔って帰る亭主", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">夜も更けた頃、表でどんどんと戸を叩く音。<break time=\"350ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">おーい、開けてくれ、開けてくれよ〜。<break time=\"400ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">酔っ払った亭主が、千鳥足で帰って参りました。女房が眠い目をこすりながら戸を開けると、亭主はふらふらと座敷に上がり込み、いきなり小言を言い始めます。<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"-1st\">なんだいこの部屋は、行灯の油ぐらいちゃんと入れておけ。それに布団もまだ敷いてないのか、気の利かない女だなお前は。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">女房は慣れた様子で、黙って布団を敷き始めます。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③惚気る亭主", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">ところが亭主、小言を言ったかと思うと、急に涙ぐんだような声になって、<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">…いや、待てよ。よく考えてみりゃあ、お前ぐらい良く出来た女房はいないよ。こんな甲斐性のない亭主に、文句一つ言わずについてきてくれて…ありがとうよ、本当にありがとうよ。<break time=\"600ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、しんみり惚気だす始末。女房は驚いて、<break time=\"350ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">まあ、藪から棒に何を仰るんです、気持ちが悪いですよ。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と笑いますが、亭主はなおも<break time=\"300ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">いや、本当のことだ。お前あっての俺なんだから。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、しつこく繰り返します。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④蕎麦を所望", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">惚気るだけ惚気ると、亭主はまた思い出したように、<break time=\"400ms\"/></prosody><prosody rate=\"96%\" pitch=\"-1st\">ああ、それはそうと、腹が減ったな。何か、おでんか蕎麦でも誂えてくれないか。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">こんな夜更けに、この寒い中をですか。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">頼むよ、お前しか頼めないんだから。<break time=\"450ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">と拝み倒すので、仕方なく着物を羽織り、表の蕎麦屋を探しに、夜道へ出て行きます。<break time=\"650ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤出前持ちがやってくる", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">女房が出て行って暫くすると、表で毎度〜、お蕎麦は如何でしょうと、出前持ちの威勢のいい声。実は、出がけに女房が頼んでおいた出前が届いたのでございます。<break time=\"450ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">おう、待ってたよ、ま、上がってちょいと一杯どうだい。<break time=\"450ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">と、若い出前持ちを引き止めて、話し相手にしてしまいます。出前持ちは面食らいながらも、せっかくのお客ですから、と腰を下ろします。<break time=\"650ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥惚気話を聞かせる", ssml:true, text:"<speak><prosody rate=\"110%\" pitch=\"+1st\">酔いも手伝って気が大きくなった亭主、出前持ちを相手に、また女房の惚気話を始めます。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">なあお前さん、聞いておくれよ。うちの女房ってのはな、これがまた出来た女でな。今しがたも、こんな寒い夜中に、俺のためだけに表へ出てくれたんだ。文句も言わずに、なあ。ありがたいと思わないかい。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">出前持ちは苦笑いをしながら、生返事をするばかり。亭主はそんなことにも気付かず、なおも上機嫌でしゃべり続けます。<break time=\"450ms\"/></prosody><prosody rate=\"96%\" pitch=\"0st\">実は、話しているすぐ表には、蕎麦を求めて出掛けたはずの女房が、ちょうど戻ってきて、開けかけた戸の陰で、亭主の惚気話をすっかり聞いてしまっていたのでございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">出前持ちが、ふと気を利かせて尋ねます。<break time=\"350ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">旦那、そんなにご新造さんのお話が続くようでしたら、この蕎麦の汁、そろそろ替わりをお持ちしましょうか。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">すると亭主、赤い顔のまま、ぐいと胸を張ってこう答えます。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"-1st\">おう、汁の替わりならいくらでも頼むが…女房の替わりだきゃ、無えんだよ。<break time=\"700ms\"/></prosody><prosody rate=\"95%\" pitch=\"0st\">ちょうどその時、戸口の陰から、じっと聞いていた女房が、思わず頬を赤らめる—というところで、一席のお開きとさせていただきます。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Well now, let me tell you a story. Sake, depending on who's drinking it, can be the finest of medicines — or, at times, an absolute menace. It's a strange sort of drink that way. In particular, there are certain gentlemen who, once drunk, get oddly long-winded, and then start gushing with sappy affection on top of it — a real handful to deal with. Today's tale is about just such a husband, stumbling home drunk, and the poor, put-upon wife who has to put up with him." },
+    { id:'p2', title:"②酔って帰る亭主", ssml:false, text:"Late at night, there comes a loud pounding on the front door. \"Hey! Open up, open up already!\" The drunken husband has come home, weaving on unsteady feet. His wife rubs her sleepy eyes and opens the door, and the husband stumbles into the front room, immediately launching into a string of complaints. \"What's the matter with this room? Keep the lamp oil filled up properly, would you? And the bedding's not even laid out yet? What a thoughtless woman you are.\" His wife, used to all this by now, silently begins laying out the bedding without a word." },
+    { id:'p3', title:"③惚気る亭主", ssml:false, text:"But no sooner has the husband finished grumbling than his voice suddenly turns thick with what sounds like tears. \"...No, wait a minute. Thinking about it properly, there's no wife in the world as fine as you. Sticking with a good-for-nothing husband like me all this time, never once complaining... thank you, really, thank you so much.\" And with that, he starts gushing with sentimental affection. His wife, startled, laughs it off. \"Goodness, what's come over you all of a sudden? You're giving me the creeps.\" But the husband keeps at it. \"No, I mean it. I'm nothing without you.\" He repeats this, over and over, with persistent sincerity." },
+    { id:'p4', title:"④蕎麦を所望", ssml:false, text:"Having gushed all the sentimentality out of his system, the husband suddenly seems to remember something else. \"Oh, and by the way, I'm getting hungry. Couldn't you go fetch me some oden or soba noodles or something?\" His wife balks. \"At this hour of the night, out in this cold?\" But the husband keeps pleading. \"Please, there's no one else I can ask but you.\" Worn down by his begging, she reluctantly throws on a coat and heads out into the night to find a soba stand." },
+    { id:'p5', title:"⑤出前持ちがやってくる", ssml:false, text:"A short while after his wife leaves, there comes a cheerful voice from outside. \"Evening, folks! Soba delivery for you!\" It happens that the delivery she'd ordered on her way out has just arrived. The husband, in high spirits, waves the young delivery boy inside. \"Ah, right on time! Come on in, sit down, have a little drink with me.\" And with that, he pulls the young man in and makes him his conversation partner. The delivery boy, a bit taken aback, sits down anyway, thinking he shouldn't refuse a customer." },
+    { id:'p6', title:"⑥惚気話を聞かせる", ssml:false, text:"Emboldened by the drink, the husband, with the delivery boy as his captive audience, launches into yet another round of gushing about his wife. \"Hey, listen to this. My wife, she's really something, you know. Just now, on a cold night like this, she went out into the streets just for my sake. Never a word of complaint, mind you. Doesn't that just make you grateful?\" The delivery boy just gives an awkward laugh and mumbles noncommittal replies. The husband, oblivious to all this, keeps right on chattering away in high spirits. What he doesn't realize is that right outside, just beyond the door, his wife — who had gone out for soba — has just returned, and standing there in the shadow of the half-open door, has heard every single word of his gushing praise." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"The delivery boy, thinking to be helpful, asks, \"Sir, if the stories about your wife are going to keep going this long, shall I bring you a refill of the broth soon?\" The husband, still red in the face, puffs out his chest proudly and answers: \"Ah, a refill of the broth, sure, ask for as many as you like... but a replacement for my wife — now that, there simply isn't any such thing.\" And just at that moment, from the shadow of the doorway, his wife, who had been listening in silence the whole time, can't help but blush — and on that note, we bring this story to a close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Eh bien, laissez-moi vous conter une histoire. Le saké, selon celui qui le boit, peut être le meilleur des remèdes — ou, parfois, un véritable fléau. C'est une drôle de boisson, en somme. Il existe en particulier certains messieurs qui, une fois ivres, deviennent étrangement bavards, puis se mettent à débiter des flatteries mielleuses par-dessus le marché — un vrai cas à gérer. L'histoire d'aujourd'hui parle justement d'un tel mari, rentrant ivre à la maison, et de sa pauvre épouse contrainte de le supporter." },
+    { id:'p2', title:"②酔って帰る亭主", ssml:false, text:"Tard dans la nuit, on entend cogner bruyamment à la porte d'entrée. « Eh ! Ouvre, ouvre donc ! » Le mari ivre est rentré, titubant sur ses jambes flageolantes. Sa femme se frotte les yeux endormis et ouvre la porte, et le mari titube jusqu'à la pièce principale, se lançant aussitôt dans une série de reproches. « Qu'est-ce qui ne va pas dans cette pièce ? Garde l'huile de la lampe bien remplie, tu veux ? Et la literie n'est même pas encore préparée ? Quelle femme peu attentionnée tu fais. » Sa femme, habituée depuis longtemps, se met en silence à préparer la literie sans un mot." },
+    { id:'p3', title:"③惚気る亭主", ssml:false, text:"Mais à peine le mari a-t-il fini de ronchonner que sa voix se fait soudain tremblante, comme au bord des larmes. « ...Non, attends une minute. En y réfléchissant bien, il n'existe pas de meilleure épouse que toi au monde. Rester avec un bon à rien comme moi tout ce temps, sans jamais te plaindre... merci, vraiment, merci beaucoup. » Et le voilà qui se met à débiter des flatteries sentimentales. Sa femme, surprise, en rit. « Mon Dieu, qu'est-ce qui te prend tout à coup ? Tu me donnes la chair de poule. » Mais le mari persiste. « Non, je le pense vraiment. Je ne suis rien sans toi. » Il répète cela, encore et encore, avec une sincérité tenace." },
+    { id:'p4', title:"④蕎麦を所望", ssml:false, text:"Ayant épuisé tout son stock de flatteries sentimentales, le mari semble soudain se souvenir d'autre chose. « Ah, au fait, j'ai faim. Tu ne pourrais pas m'aller chercher un peu d'oden ou de nouilles soba ? » Sa femme rechigne. « À cette heure de la nuit, dans ce froid ? » Mais le mari continue de supplier. « S'il te plaît, il n'y a personne d'autre à qui je puisse demander ça que toi. » Lassée par ses supplications, elle enfile à contrecœur un manteau et sort dans la nuit à la recherche d'un vendeur de soba." },
+    { id:'p5', title:"⑤出前持ちがやってくる", ssml:false, text:"Peu après le départ de sa femme, une voix joyeuse retentit dehors. « Bonsoir ! Livraison de soba pour vous ! » Il se trouve que la commande passée par sa femme en sortant vient justement d'arriver. Le mari, de fort bonne humeur, fait signe au jeune livreur d'entrer. « Ah, pile à l'heure ! Entre donc, assieds-toi, viens boire un petit coup avec moi. » Et sur ce, il attire le jeune homme et en fait son interlocuteur. Le livreur, un peu décontenancé, s'assoit tout de même, se disant qu'on ne refuse pas un client." },
+    { id:'p6', title:"⑥惚気話を聞かせる", ssml:false, text:"Enhardi par la boisson, le mari, avec le livreur comme public captif, se lance dans une nouvelle vague de flatteries sur sa femme. « Écoute-moi ça. Ma femme, c'est vraiment quelqu'un de bien, tu sais. À l'instant même, par une nuit froide comme celle-ci, elle est sortie dans les rues rien que pour moi. Sans jamais se plaindre, tu vois. Ça ne te rend pas reconnaissant, ça ? » Le livreur se contente de rire gauchement et de marmonner des réponses évasives. Le mari, inconscient de tout cela, continue à bavarder de bonne humeur. Ce qu'il ne réalise pas, c'est que juste dehors, derrière la porte, sa femme — partie chercher du soba — vient tout juste de revenir, et se tenant là, dans l'ombre de la porte entrouverte, a entendu chaque mot de ses louanges." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Le livreur, pensant se rendre utile, demande : « Monsieur, si les histoires sur votre femme doivent encore durer un moment, dois-je vous apporter bientôt un supplément de bouillon ? » Le mari, toujours rouge de visage, bombe fièrement le torse et répond : « Ah, un supplément de bouillon, bien sûr, demandes-en autant que tu veux... mais un remplacement pour ma femme — ça, ça n'existe tout simplement pas. » Et juste à cet instant, depuis l'ombre de l'entrée, sa femme, qui avait écouté en silence tout du long, ne peut s'empêcher de rougir — et sur cette note, nous refermons cette histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Bueno, déjenme contarles una historia. El sake, según quién lo beba, puede ser la mejor de las medicinas — o, a veces, una auténtica plaga. Es una bebida curiosa, en fin. Existen en particular ciertos caballeros que, una vez ebrios, se vuelven extrañamente locuaces, y encima empiezan a soltar cursilerías empalagosas — todo un caso difícil de manejar. La historia de hoy trata justamente de un marido así, volviendo ebrio a casa, y de su pobre esposa obligada a aguantarlo." },
+    { id:'p2', title:"②酔って帰る亭主", ssml:false, text:"Bien entrada la noche, se oyen golpes fuertes en la puerta principal. «¡Eh! ¡Abre, abre ya!» El marido borracho ha llegado a casa, tambaleándose sobre piernas inestables. Su esposa se frota los ojos soñolientos y abre la puerta, y el marido se tambalea hacia la sala principal, lanzándose de inmediato a una serie de quejas. «¿Qué le pasa a esta habitación? Mantén el aceite de la lámpara bien lleno, ¿quieres? ¿Y la ropa de cama todavía no está tendida? Qué mujer más desconsiderada eres.» Su esposa, ya acostumbrada, comienza en silencio a tender la ropa de cama sin decir palabra." },
+    { id:'p3', title:"③惚気る亭主", ssml:false, text:"Pero apenas el marido termina de refunfuñar, su voz de repente se vuelve trémula, como al borde del llanto. «...No, espera un momento. Pensándolo bien, no hay esposa en el mundo tan buena como tú. Aguantar a un inútil como yo todo este tiempo, sin quejarte jamás... gracias, de verdad, muchas gracias.» Y ahí lo tienen, soltando cursilerías sentimentales. Su esposa, sorprendida, se ríe. «Dios mío, ¿qué te ha dado de repente? Me estás poniendo la piel de gallina.» Pero el marido insiste. «No, lo digo en serio. No soy nada sin ti.» Lo repite, una y otra vez, con tenaz sinceridad." },
+    { id:'p4', title:"④蕎麦を所望", ssml:false, text:"Habiendo agotado todo su repertorio de cursilerías, el marido de repente parece recordar otra cosa. «Ah, por cierto, tengo hambre. ¿No podrías ir a buscarme un poco de oden o fideos soba?» Su esposa se resiste. «¿A estas horas de la noche, con este frío?» Pero el marido sigue insistiendo. «Por favor, no hay nadie más a quien pueda pedírselo que a ti.» Vencida por sus súplicas, ella se pone a regañadientes un abrigo y sale a la noche en busca de un puesto de soba." },
+    { id:'p5', title:"⑤出前持ちがやってくる", ssml:false, text:"Poco después de que su esposa saliera, se oye una voz alegre desde afuera. «¡Buenas noches! ¡Entrega de soba!» Resulta que el pedido que ella había hecho al salir acaba de llegar. El marido, de muy buen humor, le hace señas al joven repartidor para que entre. «¡Ah, justo a tiempo! Pasa, siéntate, ven a tomar un traguito conmigo.» Y con eso, atrae al joven y lo convierte en su interlocutor. El repartidor, algo desconcertado, se sienta de todos modos, pensando que no debe rechazar a un cliente." },
+    { id:'p6', title:"⑥惚気話を聞かせる", ssml:false, text:"Envalentonado por la bebida, el marido, con el repartidor como público cautivo, se lanza a otra ronda de elogios hacia su esposa. «Oye, escucha esto. Mi esposa, de verdad que vale mucho, ¿sabes? Justo ahora, en una noche fría como esta, salió a la calle solo por mí. Sin quejarse ni una vez, fíjate. ¿No te parece que eso da para estar agradecido?» El repartidor solo suelta una risa incómoda y murmura respuestas vagas. El marido, ajeno a todo esto, sigue parloteando de buen humor. Lo que no se da cuenta es que justo afuera, tras la puerta, su esposa —que había salido por soba— acaba de regresar, y de pie ahí, en la sombra de la puerta entreabierta, ha escuchado cada palabra de sus elogios." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"El repartidor, pensando en ser útil, pregunta: «Señor, si las historias sobre su esposa van a seguir así de largas, ¿le traigo pronto un poco más de caldo?» El marido, todavía con el rostro enrojecido, saca pecho con orgullo y responde: «Ah, más caldo, claro, pide todo el que quieras... pero un reemplazo para mi esposa — eso, eso sencillamente no existe.» Y justo en ese momento, desde la sombra de la entrada, su esposa, que había escuchado en silencio todo el tiempo, no puede evitar sonrojarse — y con esta nota, damos por concluida esta historia." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

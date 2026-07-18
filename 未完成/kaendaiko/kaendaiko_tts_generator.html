@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>火焔太鼓 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 火焔太鼓 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>え〜、一席申し上げます。<break time='400ms'/>骨董屋という商売、目利きが命でございましてね、掘り出し物を見抜く目のあるなしで、儲かるも儲からないも決まってしまうという、なかなか厳しい世界でございます。<break time='500ms'/>もっとも、中には運だけでとんでもない大当たりを引く人もいるようで。<break time='450ms'/>今日はそんな、運だけはめっぽう強い道具屋のご主人の噺を一つ申し上げます。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②汚い太鼓", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>道具屋を営む甚兵衛さんという方がございました。この甚兵衛さん、正直なところ商売はさっぱりで、いつも二束三文のガラクタばかり仕入れては、女房のお滝に、また汚らしいものをと、雷を落とされております。<break time='500ms'/>或る日のこと、表を流していた古道具の担ぎ屋から、埃だらけの古い太鼓を、これがまた二束三文の値段で買い込んでまいりました。お滝、これを見るなり大変な剣幕。<break time='400ms'/></prosody><prosody rate='125%' pitch='+1st'>あんた、まあた無駄なもの買ってきて。うちにはろくに米も買えないってのに、そんな薄汚い太鼓なんぞ、誰が買うと思ってるんだい。<break time='500ms'/></prosody><prosody rate='98%' pitch='-2st'>なあに、掃除すりゃあ少しは見られるようになるだろう。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と、その太鼓を店先で拭き始めます。<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③殿様の行列", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>甚兵衛が埃を払い、布でごしごしと磨いておりますと、表を大名行列がちょうど通りかかりました。すると行列の中の一人のお侍、ふと足を止めて、店先の太鼓をじっと見つめております。<break time='400ms'/></prosody><prosody rate='100%' pitch='-1st'>これは、その太鼓、ちと拝見いたしたい。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と申します。よくよく見れば、これがどうして、火焔の彫り物も見事な、大変な名器の太鼓であったのでございます。お侍は、<break time='350ms'/></prosody><prosody rate='98%' pitch='-1st'>これは我が殿がお探しになっていた品に相違ない、明日、屋敷まで持参いたせ。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と言い残し、行列とともに去ってまいりました。<break time='600ms'/></prosody></speak>" },
+  { id:'p4', title:"④お屋敷に呼ばれて", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>さあ、それを聞いた甚兵衛、嬉しいどころか震え上がってしまいました。<break time='350ms'/></prosody><prosody rate='120%' pitch='+1st'>なにか粗相をしたに違いない、お手打ちにでもされるんじゃなかろうか。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と、真っ青な顔でお滝に泣きつきます。お滝も、<break time='300ms'/></prosody><prosody rate='105%' pitch='-1st'>あんた、下手なことしたんじゃないだろうね。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と気を揉みながらも、行かないわけにもまいりません。翌日、甚兵衛はガタガタ震えながら、その太鼓を抱えてお屋敷へと参上いたしました。通された広間には立派なお殿様が控えており、甚兵衛は畳に額をこすりつけて、<break time='350ms'/></prosody><prosody rate='125%' pitch='+1st'>て、手前、何も存じませんで。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>とひたすら平謝りするばかりでございます。<break time='600ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤値段交渉", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>ところがお殿様、怒るどころか上機嫌。<break time='350ms'/></prosody><prosody rate='98%' pitch='-1st'>その方、良い品を持っておる。これなるは火焔太鼓と申し、天下に二つとない名器じゃ。いかほどで譲ってくれる。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>とおっしゃいます。甚兵衛、腰を抜かさんばかりに驚きまして、しどろもどろになりながらも、思い切って値をつけてみました。<break time='450ms'/>すると、これが甚兵衛の思いもよらぬ大金で、あっさりと話がまとまってしまったのでございます。<break time='500ms'/>夢か現かと頬をつねりながら、甚兵衛は大枚を懐に、ほくほく顔で家路につきました。<break time='700ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥女房豹変", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>家に帰った甚兵衛が事の次第を話しますと、お滝の様子ががらりと変わりました。ついさっきまで甲斐性なしと罵っていたのが嘘のように、<break time='400ms'/></prosody><prosody rate='115%' pitch='+1st'>まあ、あんた、そんな目利きがあったなんて、あたしゃちっとも知らなかったよ。さすがはうちの人だ、商売の腕は本物だったんだねえ。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>と、手のひらを返したような褒めよう。甚兵衛も悪い気はせず、すっかり気を良くしております。<break time='700ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>すっかり気を良くした甚兵衛、店の隅に積んであるガラクタの山を、まじまじと眺め始めました。<break time='400ms'/></prosody><prosody rate='100%' pitch='0st'>なあお滝、こうなると、あの汚い擂鉢だの、欠けた火鉢だのも、もしかしたらとんでもねえ値打ち物かもしれねえなあ。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>すると奥から、埃をかぶった古い茶碗を持ち上げながら、お滝が一言。<break time='350ms'/></prosody><prosody rate='115%' pitch='+1st'>それじゃああんた、この際だ、隣の空き地に転がってる、あのボロ布団みたいなのも、一つ屋敷に持ってってみたらどうだい。<break time='500ms'/></prosody><prosody rate='105%' pitch='0st'>甚兵衛、思わず頭をかいて、<break time='300ms'/></prosody><prosody rate='100%' pitch='-1st'>いや、さすがにそいつは、太鼓ほどには鳴らねえだろう。<break time='900ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In the antique trade, a sharp eye is everything. Whether you can spot a hidden gem or not decides whether you turn a profit or go broke, a rather unforgiving business. And yet, every so often, someone stumbles into an enormous windfall through sheer luck alone. Today's tale is about just such a man, an antique dealer with absolutely no eye for quality, but blessed with luck to spare." },
+    { id:'p2', title:"②汚い太鼓", ssml:false, text:"There was a man named Jinbei who ran an antique shop. Truth be told, business was terrible, he was forever stocking up on worthless junk worth next to nothing, and constantly getting an earful from his wife, Otaki, about bringing home more filthy garbage. One day, from a peddler hauling secondhand goods past his door, he bought a dust-covered old drum for practically nothing. The moment Otaki laid eyes on it, she flew into a rage. Otaki: You've gone and bought more useless junk again! We can barely afford rice, and you think anyone's going to buy a filthy old drum like that? Jinbei, looking rather deflated, replied. Jinbei: Well, once I clean it up it might look presentable enough. And he set about wiping down the drum in front of the shop." },
+    { id:'p3', title:"③殿様の行列", ssml:false, text:"While Jinbei was brushing off the dust and scrubbing away with a cloth, a lord's procession happened to pass by out front. One of the samurai in the procession suddenly stopped, staring intently at the drum in front of the shop. Samurai: This is... I should like to take a closer look at that drum. He came closer, eyes wide. And sure enough, on closer inspection, it turned out to be a magnificent piece of craftsmanship, a truly rare drum with an exquisite flame carving. Samurai: This must be the very piece my lord has been searching for. Bring it to the estate tomorrow. With that, he left and rejoined the procession." },
+    { id:'p4', title:"④お屋敷に呼ばれて", ssml:false, text:"Now, hearing this, Jinbei felt anything but pleased, he trembled with fear instead. Jinbei: I must have done something wrong, surely they're going to have my head for this! He went running to Otaki, pale as a ghost, in tears. Otaki: You didn't do something stupid, did you? She fretted too, but there was no way out of it. The next day, Jinbei, shaking like a leaf, carried the drum to the estate. Shown into a grand hall where a dignified lord sat waiting, Jinbei pressed his forehead to the tatami mat. Jinbei: I, I swear I didn't know anything! He did nothing but grovel and apologize over and over." },
+    { id:'p5', title:"⑤値段交渉", ssml:false, text:"But the lord, far from angry, was in wonderful spirits. Lord: You have quite the fine piece there. This is what's called a flame drum, there's not another one like it in the whole realm. Name your price. Jinbei nearly fell over in shock. Stammering and fumbling over his words, he screwed up his courage and named a figure. And to his utter disbelief, the deal was struck just like that, for a sum of money far beyond anything Jinbei had ever imagined. Pinching his own cheek to check if he was dreaming, Jinbei tucked the small fortune into his robes and headed home, grinning from ear to ear." },
+    { id:'p6', title:"⑥女房豹変", ssml:false, text:"When Jinbei got home and told Otaki what had happened, her whole demeanor flipped instantly. As if she'd never called him a good-for-nothing mere hours earlier, she gushed. Otaki: Well I never, I had no idea you had such an eye for quality! That's my husband for you, a real talent for business after all! An about-face so complete it was almost comical. Jinbei, naturally, didn't mind one bit, and basked happily in the praise." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Feeling rather pleased with himself, Jinbei began gazing intently at the pile of junk stacked in the corner of his shop. Jinbei: Say, Otaki, now that I think about it, maybe that filthy old mortar, or that chipped brazier over there, might turn out to be some incredible treasure too. From the back room, Otaki, lifting up a dusty old teacup, had this to say. Otaki: Well then, while we're at it, why don't you take that ratty old futon lying in the empty lot next door over to the estate too? Jinbei scratched his head, at a loss for words. Jinbei: No, no, I'm afraid that one won't sound quite as good as the drum did." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Dans le commerce des antiquités, avoir l'œil est primordial. Selon qu'on sait repérer une perle rare ou non, on fait fortune ou on fait faillite, un métier plutôt impitoyable. Et pourtant, de temps en temps, quelqu'un tombe sur un coup de chance extraordinaire, par pure veine. Voici aujourd'hui l'histoire d'un tel homme, un antiquaire sans le moindre talent pour juger la qualité, mais béni d'une chance à revendre." },
+    { id:'p2', title:"②汚い太鼓", ssml:false, text:"Il y avait un homme nommé Jinbei qui tenait une boutique d'antiquités. À vrai dire, les affaires allaient très mal, il n'arrêtait pas d'acheter de la camelote sans valeur, et se faisait constamment sermonner par sa femme, Otaki, pour avoir encore rapporté de la saleté. Un jour, un colporteur qui passait devant sa porte avec des objets d'occasion lui vendit, pour trois fois rien, un vieux tambour couvert de poussière. Dès qu'Otaki le vit, elle entra dans une colère noire. Otaki : Tu as encore acheté un truc inutile ! On arrive à peine à payer le riz, et tu crois que quelqu'un va acheter un tambour aussi crasseux ? Jinbei, assez abattu, répondit. Jinbei : Bah, une fois nettoyé, il aura peut-être meilleure allure. Et il se mit à essuyer le tambour devant la boutique." },
+    { id:'p3', title:"③殿様の行列", ssml:false, text:"Pendant que Jinbei époussetait et frottait avec un chiffon, un cortège seigneurial passa justement devant la boutique. L'un des samouraïs du cortège s'arrêta soudain, fixant intensément le tambour devant la boutique. Le samouraï : Voilà, j'aimerais examiner ce tambour de plus près. Il s'approcha, les yeux écarquillés. Et effectivement, en y regardant de plus près, il s'avéra que c'était une pièce d'une facture magnifique, un tambour véritablement rare, orné d'une sculpture de flammes exquise. Le samouraï : Ce doit être précisément la pièce que mon seigneur recherche. Apportez-le au domaine demain. Sur ce, il repartit rejoindre le cortège." },
+    { id:'p4', title:"④お屋敷に呼ばれて", ssml:false, text:"En entendant cela, Jinbei ne fut nullement content, il trembla de peur au contraire. Jinbei : J'ai dû faire quelque chose de mal, ils vont sûrement me faire trancher la tête pour ça ! Il courut voir Otaki, blanc comme un linge, en larmes. Otaki : Tu n'as pas fait une bêtise, dis-moi ? Elle s'inquiéta elle aussi, mais il n'y avait pas moyen d'y échapper. Le lendemain, Jinbei, tremblant comme une feuille, porta le tambour jusqu'au domaine. Introduit dans une grande salle où un seigneur d'allure imposante l'attendait, Jinbei pressa son front contre le tatami. Jinbei : Je, je vous jure que je ne savais rien ! Il ne fit que se prosterner et s'excuser sans relâche." },
+    { id:'p5', title:"⑤値段交渉", ssml:false, text:"Mais le seigneur, loin d'être en colère, était d'excellente humeur. Le seigneur : Voilà une bien belle pièce que tu as là. C'est ce qu'on appelle un tambour de flamme, il n'en existe pas d'autre pareil dans tout le royaume. Fixe ton prix. Jinbei faillit tomber à la renverse de stupeur. Bafouillant et cherchant ses mots, il rassembla son courage et annonça un chiffre. Et à sa totale incrédulité, l'affaire fut conclue sur-le-champ, pour une somme bien au-delà de tout ce que Jinbei aurait pu imaginer. Se pinçant la joue pour vérifier qu'il ne rêvait pas, Jinbei glissa la petite fortune dans ses vêtements et rentra chez lui, un sourire jusqu'aux oreilles." },
+    { id:'p6', title:"⑥女房豹変", ssml:false, text:"Quand Jinbei rentra chez lui et raconta à Otaki ce qui s'était passé, toute son attitude changea instantanément. Comme si elle ne l'avait jamais traité de bon à rien quelques heures plus tôt, elle s'exclama avec effusion. Otaki : Eh bien ça alors, je n'avais aucune idée que tu avais un tel œil pour la qualité ! Voilà mon mari, un vrai talent pour les affaires, en fin de compte ! Un revirement si complet que c'en était presque comique. Jinbei, bien sûr, ne s'en formalisa pas le moins du monde, et savoura avec plaisir les compliments." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Assez content de lui, Jinbei se mit à contempler intensément le tas de bric-à-brac entassé dans un coin de sa boutique. Jinbei : Dis donc, Otaki, maintenant que j'y pense, peut-être que ce vieux mortier crasseux, ou ce brasero ébréché là-bas, pourraient bien être aussi des trésors incroyables. Depuis l'arrière-boutique, Otaki, soulevant une vieille tasse poussiéreuse, répondit. Otaki : Eh bien alors, tant qu'on y est, pourquoi ne pas emporter aussi au domaine ce vieux futon miteux qui traîne sur le terrain vague d'à côté ? Jinbei se gratta la tête, à court de mots. Jinbei : Non, non, j'ai bien peur que celui-là ne résonne pas tout à fait aussi bien que le tambour." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. En el negocio de las antigüedades, tener buen ojo lo es todo. Saber reconocer una joya oculta o no determina si uno prospera o se arruina, un oficio bastante implacable. Y sin embargo, de vez en cuando alguien tropieza con una fortuna extraordinaria por pura suerte. Hoy les traigo la historia de un hombre así, un anticuario sin ningún talento para juzgar la calidad, pero bendecido con una suerte inagotable." },
+    { id:'p2', title:"②汚い太鼓", ssml:false, text:"Había un hombre llamado Jinbei que tenía una tienda de antigüedades. La verdad es que el negocio iba fatal, no paraba de comprar chatarra sin ningún valor, y su esposa, Otaki, siempre lo regañaba por traer más basura sucia. Un día, a un vendedor ambulante de artículos usados que pasaba por la puerta, le compró, por casi nada, un viejo tambor cubierto de polvo. En cuanto Otaki lo vio, montó en cólera. Otaki: ¡Otra vez comprando cosas inútiles! Apenas podemos comprar arroz, ¿y crees que alguien va a comprar un tambor tan mugriento? Jinbei, bastante desanimado, respondió. Jinbei: Bueno, una vez que lo limpie, tal vez se vea presentable. Y se puso a limpiar el tambor frente a la tienda." },
+    { id:'p3', title:"③殿様の行列", ssml:false, text:"Mientras Jinbei sacudía el polvo y frotaba con un paño, una comitiva señorial pasó justo por delante de la tienda. Uno de los samuráis del cortejo se detuvo de pronto, mirando fijamente el tambor frente a la tienda. El samurái: Esto es, me gustaría examinar ese tambor más de cerca. Se acercó con los ojos muy abiertos. Y en efecto, al mirarlo bien, resultó ser una pieza de una manufactura magnífica, un tambor verdaderamente raro, con una exquisita talla de llamas. El samurái: Esta debe ser precisamente la pieza que mi señor ha estado buscando. Llévalo a la mansión mañana. Y con eso, se marchó de vuelta con la comitiva." },
+    { id:'p4', title:"④お屋敷に呼ばれて", ssml:false, text:"Al escuchar esto, Jinbei no se alegró en absoluto, en cambio, tembló de miedo. Jinbei: Debo de haber hecho algo mal, ¡seguro que van a cortarme la cabeza por esto! Corrió hacia Otaki, pálido como un fantasma, entre lágrimas. Otaki: ¿No habrás hecho alguna tontería, verdad? Ella también se preocupó, pero no había forma de evitarlo. Al día siguiente, Jinbei, temblando como una hoja, llevó el tambor hasta la mansión. Conducido a un gran salón donde esperaba un señor de porte imponente, Jinbei pegó la frente al tatami. Jinbei: Yo, le juro que no sabía nada! No hizo más que postrarse y disculparse una y otra vez." },
+    { id:'p5', title:"⑤値段交渉", ssml:false, text:"Pero el señor, lejos de enojarse, estaba de excelente humor. El señor: Vaya pieza tan fina que tienes ahí. Esto se llama tambor de llamas, no existe otro igual en todo el reino. Fija tu precio. Jinbei casi se cae de la impresión. Tartamudeando y buscando las palabras, armó valor y dijo una cifra. Y para su total incredulidad, el trato se cerró así, sin más, por una suma muy superior a todo lo que Jinbei jamás hubiera imaginado. Pellizcándose la mejilla para comprobar que no soñaba, Jinbei se guardó la pequeña fortuna entre la ropa y volvió a casa con una sonrisa de oreja a oreja." },
+    { id:'p6', title:"⑥女房豹変", ssml:false, text:"Cuando Jinbei llegó a casa y le contó a Otaki lo sucedido, toda su actitud cambió al instante. Como si nunca lo hubiera llamado un inútil apenas unas horas antes, exclamó efusivamente. Otaki: Vaya, vaya, no tenía idea de que tuvieras tan buen ojo para la calidad! Ese es mi marido, después de todo, un verdadero talento para los negocios. Un cambio tan radical que resultaba casi cómico. Jinbei, por supuesto, no se molestó en absoluto, y disfrutó encantado de los elogios." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Bastante satisfecho de sí mismo, Jinbei se puso a contemplar fijamente el montón de trastos apilados en un rincón de su tienda. Jinbei: Oye, Otaki, ahora que lo pienso, quizás ese mortero mugriento, o ese brasero desportillado de allá, también podrían resultar ser tesoros increíbles. Desde la trastienda, Otaki, levantando una vieja taza polvorienta, dijo. Otaki: Pues entonces, ya que estamos, ¿por qué no llevas también a la mansión ese futón hecho jirones que anda tirado en el terreno baldío de al lado? Jinbei se rascó la cabeza, sin saber qué decir. Jinbei: No, no, me temo que ese no va a sonar tan bien como el tambor." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

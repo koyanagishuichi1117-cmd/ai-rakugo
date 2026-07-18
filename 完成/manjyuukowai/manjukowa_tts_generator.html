@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>まんじゅうこわい TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    /* ボタン */
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-red { background: #7f1d1d; color: white; }
+    .btn-red:hover { background: #991b1b; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    /* 全体進捗 */
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    /* 日本語パート一覧 */
+    .part-row { display: grid; grid-template-columns: 120px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { width: 100%; margin-top: 6px; display: none; }
+    /* 他言語 */
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; cursor: pointer; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ まんじゅうこわい TTS ジェネレーター</h1>
+<p class="subtitle">日本語はパートごとに個別生成・DL / 他言語は一括生成</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全8パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全8パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-red" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（24ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（32ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:'①まくら', ssml:true, text:'<speak><prosody rate="95%" pitch="-1st">え〜、一席申し上げますが。<break time="600ms"/>にんげんてぇのはね、<break time="200ms"/>だれでもこわいものってのがあるもんでございまして。<break time="500ms"/>まあ、そのこわいものってのが人それぞれちがうんでございますが。<break time="400ms"/>長屋ってところはね、<break time="400ms"/>ひまなもんですから、<break time="200ms"/>みんなで集まっちゃあ、くだらない話をするんでございますよ。<break time="700ms"/></prosody></speak>' },
+  { id:'p2', title:'②怖いもの自慢', ssml:true, text:'<speak><prosody rate="128%" pitch="0st">よぉし、今日はこわいものじまんでもしようじゃねーかってんで、長屋の連中が集まりましてね。<break time="300ms"/></prosody><prosody rate="125%" pitch="-1st">俺ぁな、青大将がこわくてしょうがねんだよあんななげーものがするするって出てきたら背筋がぞっとするぜ！<break time="300ms"/></prosody><prosody rate="115%" pitch="-1st">わしはな、雷がこわい。ゴロゴロってきたら、もう布団かぶって震えとるわ。<break time="300ms"/></prosody><prosody rate="118%" pitch="-1st">俺は蜘蛛だな。あの脚がはっぽんもあってよ壁をすーっと歩いてくるのがたまらなくこわい！<break time="400ms"/></prosody><prosody rate="118%" pitch="0st">みんなそれぞれこわいものを言い合ってましてね。<break time="300ms"/>ところが、八五郎だけがむっつり黙っておりまして。<break time="400ms"/></prosody></speak>' },
+  { id:'p3', title:'③八五郎・強がり', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">おい、はち、おめーはこわいもんはねーのかい？<break time="150ms"/></prosody><prosody rate="125%" pitch="+2st">こわいもん？<break time="300ms"/>俺にぁそんなもんねーよ！<break time="200ms"/>青大将だろうが、雷だろうが、蜘蛛だろうが、なんでもこいってんだ！<break time="400ms"/></prosody><prosody rate="118%" pitch="0st">そりゃ大したもんだ。<break time="200ms"/>ほんとになにもこわくねーのか？<break time="150ms"/></prosody><prosody rate="128%" pitch="+2st">当たり前じゃねーか！<break time="200ms"/>俺を誰だと思ってんだよ、この界隈で八五郎をこわがらせるもんなんてありゃしねーよ！<break time="500ms"/></prosody><prosody rate="115%" pitch="0st">そう言いながらもね、八五郎がちょいと顔を赤らめておりまして。<break time="400ms"/></prosody></speak>' },
+  { id:'p4', title:'④まんじゅうが怖い', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">ほら、はち、ほんとはこわいもんあるんじゃねーか？<break time="300ms"/>しょうじきに言えよ。<break time="300ms"/></prosody><prosody rate="115%" pitch="+1st"><break time="300ms"/>ん～……<break time="400ms"/>あるよ。<break time="500ms"/></prosody><prosody rate="120%" pitch="0st">なんだ？言ってみろよ。<break time="300ms"/></prosody><prosody rate="110%" pitch="+1st">……まんじゅうだ。<break time="600ms"/></prosody><prosody rate="120%" pitch="+2st">まんじゅう！？<break time="300ms"/>まんじゅうがこわいって！？<break time="200ms"/>はははは！<break time="200ms"/>まんじゅうごときがこわいってどういうこったい！<break time="400ms"/></prosody><prosody rate="108%" pitch="-1st">笑いたきゃ笑えよ……俺はまんじゅうがこわくてしょうがねーんだ。<break time="300ms"/>あの、ふわっとした皮にあまい餡がはいっててよ……<break time="500ms"/>かんがえただけで体がふるえてくる……<break time="500ms"/></prosody></speak>' },
+  { id:'p5', title:'⑤まんじゅう攻撃', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">ってんで、みんなで手分けして、まんじゅうを山ほど買ってきましてね。<break time="400ms"/>八五郎の部屋の前に積み上げて、障子を<break time="200ms"/>どんどん<break time="200ms"/>って叩きまして。<break time="400ms"/></prosody><prosody rate="105%" pitch="+2st">はち〜！まんじゅうだぞ〜！！<break time="300ms"/></prosody><prosody rate="108%" pitch="-1st">うわぁっ！！ま、まんじゅうだ！！<break time="300ms"/>た、頼む！そんなもん持ってくるな！！<break time="300ms"/>こわいこわいこわい！！<break time="500ms"/></prosody><prosody rate="118%" pitch="0st">ところがね、しばらくしますとね、部屋の中からみょうな音が聞こえてきましてね。<break time="500ms"/></prosody><prosody rate="100%" pitch="-1st">もぐもぐ……<break time="400ms"/>もぐもぐ……<break time="400ms"/>むしゃむしゃ……<break time="600ms"/></prosody><prosody rate="115%" pitch="0st"><break time="400ms"/>八五郎が、ニコニコしながらまんじゅうをぱくぱく食べておりまして。<break time="500ms"/></prosody></speak>' },
+  { id:'p6', title:'⑥真相発覚', ssml:true, text:'<speak><prosody rate="125%" pitch="+2st">おい、はち！！こわいんじゃなかったのかよ！！<break time="300ms"/></prosody><prosody rate="120%" pitch="+1st">ああ、美味いねー。<break time="200ms"/>この皮のふわふわ感がたまんないよ。<break time="200ms"/>あんもちょうどいいあまさだ。<break time="200ms"/>まったく、いい出来のまんじゅうだねー。<break time="400ms"/></prosody><prosody rate="125%" pitch="+2st">この野郎！！だましやがったな！！<break time="300ms"/>まんじゅうがこわいなんてのはうそだったのか！！<break time="300ms"/></prosody><prosody rate="122%" pitch="+1st">何言ってんだよ。<break time="200ms"/>俺がまんじゅうをこわがるわけないじゃねーか。<break time="200ms"/>みんながまんじゅうを持ってきてくれるって思ったから、そう言ったんだよ。<break time="200ms"/>ありがたくいただくぜ。<break time="500ms"/></prosody></speak>' },
+  { id:'p7', title:'⑦オチ', ssml:true, text:'<speak><prosody rate="120%" pitch="+2st">この野郎、うまいことやりやがって！<break time="300ms"/>じゃあ今度こそほんとにこわいものを言えよ！<break time="300ms"/></prosody><prosody rate="110%" pitch="-1st">ほんとにこわいもの……？<break time="600ms"/></prosody><prosody rate="108%" pitch="+1st">うん、あるよ。<break time="400ms"/>さっきから気になってしょうがねー……<break time="400ms"/></prosody><prosody rate="105%" pitch="-1st">こわい……こわい……<break time="500ms"/></prosody><prosody rate="112%" pitch="+1st">今度はほんとにこわそうだな……なにがこわいんだよ？<break time="300ms"/></prosody><prosody rate="105%" pitch="-2st">お茶が……こわい。<break time="800ms"/></prosody></speak>' },
+  { id:'p8', title:'⑧サゲ', ssml:true, text:'<speak><break time="800ms"/><prosody rate="118%" pitch="0st">まんじゅうを食べ過ぎて、お茶が欲しくなっただけでございます。<break time="600ms"/></prosody><prosody rate="110%" pitch="-1st">まんじゅうこわい、でございます。<break time="400ms"/>どうもありがとうございました。</prosody></speak>' }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:'①Prologue', ssml:false, text:'Let me tell you a story. Everyone has something they are afraid of — some fear snakes, some fear thunder, and some fear things you would never expect. In the old tenement houses of Edo, neighbors would gather and chat to pass the time, and on this particular day, the topic turned to fears.' },
+    { id:'p2', title:'②Fear Boasting', ssml:false, text:'So the neighbors all gathered and started competing over their fears. I cannot stand rat snakes — when one of those long things slithers out, my spine just freezes! Me, it is thunder. When I hear that rumbling, I dive straight under my futon and shake! And me, spiders. Eight legs crawling along the wall — absolutely terrifying! Everyone was sharing their fears, but Hachigoro just sat there in silence, saying nothing at all.' },
+    { id:'p3', title:'③Hachigoro Brags', ssml:false, text:'Hey, Hachi — do you not have anything you are afraid of? Afraid? Me?! I have got nothing! Rat snakes, thunder, spiders — bring them all on! That is impressive. Are you really not afraid of anything at all? Of course not! Who do you think I am? There is nothing in this whole neighborhood that could frighten me! But as he said this, Hachigoro went just a little bit red in the face.' },
+    { id:'p4', title:'④Manju Is Scary', ssml:false, text:'Come on, Hachi — there IS something, is there not? Be honest with us. There is. Well? Out with it then! Manju. MANJU?! You are scared of MANJU?! Ha ha ha ha! How on earth can you be scared of sweet bean cakes?! Laugh all you want... that soft fluffy dough with the sweet bean filling inside... just thinking about it makes my body tremble...' },
+    { id:'p5', title:'⑤The Manju Attack', ssml:false, text:'So everyone split up, bought as many manju as they could find, piled them up outside Hachigoro\'s door, and knocked loudly. Hachi! It\'s manju time! AAGH!! M-manju!! Please, do not bring those things near me!! I am terrified, terrified, terrified!! But then, a little while later, a peculiar sound began drifting out from the room. Munch, munch... Munch, munch... Chomp, chomp...' },
+    { id:'p6', title:'⑥Caught!', ssml:false, text:'Oi, Hachi!! What happened to being terrified?! Mmm, these are good. That fluffy skin is just perfect. And the filling is exactly the right sweetness. Truly excellent manju. You little rascal!! You tricked us!! So you were never actually scared of manju?! Of course I am not scared of manju. I said that because I figured you would all bring me some. I am very grateful, thank you.' },
+    { id:'p7', title:'⑦The Punchline', ssml:false, text:'You sneaky thing! All right then, tell us your REAL fear! Your real fear...? Yes, there actually is something. It has been bothering me for a while now... I can feel it... I am scared... scared... Now he really does sound frightened. What is it? What are you afraid of? Tea... I am scared... of tea.' },
+    { id:'p8', title:'⑧Curtain', ssml:false, text:'He had simply eaten too many manju and now desperately wanted some tea. And that, ladies and gentlemen, is Manju Kowai — Scared of Manju. Thank you very much!' }
+  ],
+  'fr': [
+    { id:'p1', title:'①Prologue', ssml:false, text:'Permettez-moi de vous conter une histoire. Tout le monde a quelque chose qui lui fait peur. Dans les vieilles maisons de rapport d Edo, les voisins se rassemblaient pour passer le temps, et ce jour-la, la conversation porta sur les peurs.' },
+    { id:'p2', title:'②Vantardise', ssml:false, text:'Les voisins se reunirent et se mirent a se vanter de leurs peurs. Moi, les couleuvres me paralysent ! Moi c est le tonnerre — je plonge sous mon futon et je tremble ! Et moi les araignees — huit pattes sur le mur, absolument terrifiant ! Tout le monde partageait ses peurs, mais Hachigoro restait assis en silence.' },
+    { id:'p3', title:'③Hachigoro se vante', ssml:false, text:'He, Hachi — tu n as pas peur de quelque chose ? Peur ? Moi ?! Je n ai peur de rien ! Couleuvres, tonnerre, araignees — amenez tout ! Tu n as vraiment peur de rien ? Bien sur que non ! Il n y a rien dans tout ce quartier qui puisse m effrayer ! Mais en disant cela, Hachigoro rougit legerement.' },
+    { id:'p4', title:'④Le manju fait peur', ssml:false, text:'Allez Hachi — il y a bien quelque chose, non ? Sois honnete. Oui. Et alors ? Dis-nous ! Le manju. Le MANJU ?! Tu as peur du MANJU ?! Ha ha ha ha ! Comment peut-on avoir peur de petits gateaux ? Riez tant que vous voulez... cette pate moelleuse avec la garniture sucree a l interieur... rien que d y penser, mon corps se met a trembler...' },
+    { id:'p5', title:'⑤L attaque', ssml:false, text:'Alors tout le monde acheta le plus de manju possible et les empila devant la porte de Hachigoro. Hachi ! C est l heure du manju ! AÏÏE !! S il vous plait, n approchez pas ces choses !! J ai tellement peur !! Mais peu apres, un bruit etrange commenca a filtrer de la chambre. Miam, miam... miam, miam... croquant, croquant...' },
+    { id:'p6', title:'⑥Pris sur le fait', ssml:false, text:'He, Hachi !! Et la terreur alors ?! Mmm, ils sont bons. Cette pate moelleuse est parfaite. Et la garniture a exactement la bonne douceur. Sale petit malin !! Tu nous as pieges !! Si j ai dit ca, c est parce que je savais que vous m en apporteriez. Je vous en suis tres reconnaissant.' },
+    { id:'p7', title:'⑦La chute', ssml:false, text:'Petit ruse ! Alors dis-nous ta VRAIE peur ! Ma vraie peur... ? Ca me tracasse depuis un moment... J ai peur... peur... De quoi as-tu peur ? Le the... j ai peur... du the.' },
+    { id:'p8', title:'⑧Rideau', ssml:false, text:'Il avait simplement mange trop de manju et voulait desespérément du the. Voila mesdames et messieurs — Manju Kowai. Merci infiniment !' }
+  ],
+  'es': [
+    { id:'p1', title:'①Prólogo', ssml:false, text:'Dejenme contarles una historia. Todo el mundo tiene algo que le da miedo. En las viejas casas de vecindad de Edo, los vecinos se reunian para pasar el tiempo, y ese dia la conversacion giro en torno a los miedos.' },
+    { id:'p2', title:'②Alarde', ssml:false, text:'Los vecinos se reunieron y empezaron a competir sobre sus miedos. Las culebras me paralizan — se me hiela la espalda! A mi me da miedo el trueno — me meto bajo el futon y tiemblo! Y a mi las aranas — ocho patas en la pared, absolutamente aterrador! Todos compartian sus miedos, pero Hachigoro se quedo en silencio.' },
+    { id:'p3', title:'③Hachigoro presume', ssml:false, text:'Oye Hachi — no tienes nada que te de miedo? Miedo? Yo?! No tengo ninguno! Culebras, truenos, aranas — que vengan todos! De verdad no tienes miedo de nada? Por supuesto que no! No hay nada en todo este vecindario que pueda asustarme! Pero al decir esto, a Hachigoro se le puso la cara un poco roja.' },
+    { id:'p4', title:'④El manju da miedo', ssml:false, text:'Vamos Hachi — hay algo verdad? Se honesto. Si. Y bien? Dinos! El manju. El MANJU?! Tienes miedo del MANJU?! Ja ja ja! Como se puede tener miedo de unos pastelitos? Reid todo lo que querais! Solo pensar en esa masa esponjosa con el relleno dulce hace que mi cuerpo tiemble...' },
+    { id:'p5', title:'⑤El ataque', ssml:false, text:'Asi que todos compraron todos los manju que pudieron y los apilaron frente a la puerta de Hachigoro. Hachi! Ha llegado la hora del manju!! AHHH!! Por favor, no acerqueis esas cosas!! Tengo mucho miedo!! Pero poco despues, un sonido peculiar empezo a salir de la habitacion. Nam, nam... nam, nam... crunch, crunch...' },
+    { id:'p6', title:'⑥Pillado!', ssml:false, text:'Oye Hachi!! Y el terror entonces?! Mmm, estan buenos. Esa masa esponjosa es perfecta. Y el relleno tiene exactamente el dulzor justo. Pillastre!! Nos has enganado!! Claro que no tengo miedo del manju. Lo dije porque sabia que me los traeriais. Os lo agradezco mucho.' },
+    { id:'p7', title:'⑦El remate', ssml:false, text:'Pillo! Pues dinos tu miedo de VERDAD! Mi miedo de verdad? Me ha estado preocupando un rato... Tengo miedo... miedo... De que tienes miedo? El te... tengo miedo... del te.' },
+    { id:'p8', title:'⑧Telon', ssml:false, text:'Simplemente habia comido demasiados manju y ahora desesperadamente queria te. Y eso senoras y senores es Manju Kowai! Muchas gracias!' }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 24;
+
+// ===== 日本語パートUI生成 =====
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled style="background:#ea4335;color:white;">▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+// ===== 他言語UI生成 =====
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+// ===== API呼び出し =====
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return null; }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) { console.error(data); return null; }
+  return data.audioContent;
+}
+
+// ===== 日本語：個別生成 =====
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+  if (!b64) { status.textContent = '❌ エラー'; status.className = 'part-status error'; return; }
+  allAudio[`ja-${p.id}`] = b64;
+  const audio = document.getElementById(`ja-audio-${p.id}`);
+  audio.src = 'data:audio/mp3;base64,' + b64;
+  audio.style.display = 'none';
+  status.textContent = '✅ 完成！';
+  status.className = 'part-status done';
+  document.getElementById(`ja-dl-${p.id}`).disabled = false;
+  document.getElementById(`ja-play-${p.id}`).disabled = false;
+  updateJaProgress();
+}
+
+// ===== 日本語：個別DL =====
+function playJaPart(id) {
+  const audio = document.getElementById(`ja-audio-${id}`);
+  if (audio) audio.play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+// ===== 日本語：全部生成 =====
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+// ===== 日本語：全部DL =====
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+// ===== 日本語進捗更新 =====
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / 8 * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / 8 パート完了`;
+  if (done === 8) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = '✅ 日本語 全8パート完成！';
+  }
+}
+
+// ===== 他言語：一括生成 =====
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+// ===== 全言語一括DL =====
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浮世床 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.29 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">浮世床</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Ukiyodoko / The Barbershop Tales</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②親方と客たち</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③妙な夢の話</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④待合の将棋喧嘩</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤生兵法の素読み</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥床屋の一日</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。むかしの<ruby class="v2">床屋<rt>とこや</rt></ruby>てぇものは、ただ<ruby class="v1">髪<rt>かみ</rt></ruby>を<ruby class="v1">刈<rt>か</rt></ruby>るだけの<ruby class="v1">場所<rt>ばしょ</rt></ruby>じゃございません。<ruby class="v1">町内<rt>ちょうない</rt></ruby>の<ruby class="v1">連中<rt>れんちゅう</rt></ruby>が<ruby class="v1">寄<rt>よ</rt></ruby>り<ruby class="v1">集<rt>あつ</rt></ruby>まって、<ruby class="v1">世間話<rt>せけんばなし</rt></ruby>に<ruby class="v1">花<rt>はな</rt></ruby>を<ruby class="v1">咲<rt>さ</rt></ruby>かせる、いわば<ruby class="v1">町中<rt>まちじゅう</rt></ruby>の<ruby class="v2">社交場<rt>しゃこうじょう</rt></ruby>でございましてね。<ruby class="v1">順番待<rt>じゅんばんま</rt></ruby>ちの<ruby class="v1">間<rt>あいだ</rt></ruby>、<ruby class="v1">暇<rt>ひま</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>て<ruby class="v1">余<rt>あま</rt></ruby>した<ruby class="v1">男<rt>おとこ</rt></ruby>たちが、あることないこと<ruby class="v1">喋<rt>しゃべ</rt></ruby>り<ruby class="v1">散<rt>ち</rt></ruby>らす。<ruby class="v1">威勢<rt>いせい</rt></ruby>のいい<ruby class="v1">職人<rt>しょくにん</rt></ruby>もいれば、<ruby class="v1">物知<rt>ものし</rt></ruby>り<ruby class="v1">顔<rt>がお</rt></ruby>で<ruby class="v1">知<rt>し</rt></ruby>ったかぶりをする<ruby class="v1">男<rt>おとこ</rt></ruby>もいる。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、とある<ruby class="v1">町<rt>まち</rt></ruby>の<ruby class="v1">床屋<rt>とこや</rt></ruby>の、なんてことのない<ruby class="v1">一日<rt>いちにち</rt></ruby>を<ruby class="v1">覗<rt>のぞ</rt></ruby>いてみようという<ruby class="v1">趣向<rt>しゅこう</rt></ruby>で。<ruby class="v1">題<rt>だい</rt></ruby>して「<ruby class="v2">浮世床<rt>うきよどこ</rt></ruby>」。さあさ、<ruby class="v1">暖簾<rt>のれん</rt></ruby>をくぐってご<ruby class="v1">覧<rt>らん</rt></ruby>じましょう。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【親方と客たち】</span>
+                    さて、この<ruby class="v1">床屋<rt>とこや</rt></ruby>の<ruby class="v1">親方<rt>おやかた</rt></ruby>、<ruby class="v1">名<rt>な</rt></ruby>を<ruby class="v1">留吉<rt>とめきち</rt></ruby>と<ruby class="v1">申<rt>もう</rt></ruby>しまして、<ruby class="v1">腕<rt>うで</rt></ruby>は<ruby class="v1">確<rt>たし</rt></ruby>かながら<ruby class="v1">口<rt>くち</rt></ruby>も<ruby class="v1">達者<rt>たっしゃ</rt></ruby>で、<ruby class="v1">客<rt>きゃく</rt></ruby>のお<ruby class="v1">喋<rt>しゃべ</rt></ruby>りに<ruby class="v1">相槌<rt>あいづち</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>ちながら<ruby class="v1">鋏<rt>はさみ</rt></ruby>を<ruby class="v1">動<rt>うご</rt></ruby>かす。<ruby class="v1">店先<rt>みせさき</rt></ruby>には<ruby class="v1">長椅子<rt>ながいす</rt></ruby>が<ruby class="v1">一台<rt>いちだい</rt></ruby>、そこに<ruby class="v1">順番待<rt>じゅんばんま</rt></ruby>ちの<ruby class="v1">連中<rt>れんちゅう</rt></ruby>がずらりと<ruby class="v1">腰<rt>こし</rt></ruby>を<ruby class="v1">下<rt>お</rt></ruby>ろしている。<ruby class="v1">大工<rt>だいく</rt></ruby>の<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>、<ruby class="v1">魚屋<rt>さかなや</rt></ruby>の<ruby class="v1">辰<rt>たつ</rt></ruby>っつぁん、それに<ruby class="v1">近所<rt>きんじょ</rt></ruby>の<ruby class="v1">隠居<rt>いんきょ</rt></ruby>まで、みんな<ruby class="v1">暇<rt>ひま</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>て<ruby class="v1">余<rt>あま</rt></ruby>して<ruby class="v1">集<rt>あつ</rt></ruby>まってくる。<br><strong>熊五郎：</strong>「よぉ<ruby class="v1">親方<rt>おやかた</rt></ruby>、まだかかりそうかい」<br><strong>留吉：</strong>「なぁに<ruby class="v1">熊<rt>くま</rt></ruby>さん、もうちょいの<ruby class="v1">辛抱<rt>しんぼう</rt></ruby>だ。<ruby class="v1">今日<rt>きょう</rt></ruby>も<ruby class="v1">相変<rt>あいか</rt></ruby>わらず<ruby class="v1">賑<rt>にぎ</rt></ruby>やかだね、この<ruby class="v1">店<rt>みせ</rt></ruby>は」<br><strong>辰：</strong>「なんてったって<ruby class="v1">暇<rt>ひま</rt></ruby>な<ruby class="v1">連中<rt>れんちゅう</rt></ruby>の<ruby class="v1">溜<rt>た</rt></ruby>まり<ruby class="v1">場<rt>ば</rt></ruby>だからな」<br>なんて、<ruby class="v1">誰<rt>だれ</rt></ruby>からともなく<ruby class="v1">軽口<rt>かるくち</rt></ruby>が<ruby class="v1">飛<rt>と</rt></ruby>び<ruby class="v1">交<rt>か</rt></ruby>う。<ruby class="v1">鏡<rt>かがみ</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>では<ruby class="v1">一人<rt>ひとり</rt></ruby>の<ruby class="v1">男<rt>おとこ</rt></ruby>が<ruby class="v1">月代<rt>さかやき</rt></ruby>を<ruby class="v1">当<rt>あ</rt></ruby>たってもらいながら、うとうと<ruby class="v1">舟<rt>ふね</rt></ruby>を<ruby class="v1">漕<rt>こ</rt></ruby>いでいる。この<ruby class="v1">気楽<rt>きらく</rt></ruby>な<ruby class="v1">空気<rt>くうき</rt></ruby>こそが、<ruby class="v2">浮世床<rt>うきよどこ</rt></ruby>の<ruby class="v1">身上<rt>しんじょう</rt></ruby>でございます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【妙な夢の話】</span>
+                    そこへ、<ruby class="v1">植木屋<rt>うえきや</rt></ruby>の<ruby class="v1">半公<rt>はんこう</rt></ruby>が<ruby class="v1">欠伸<rt>あくび</rt></ruby>まじりに<ruby class="v1">入<rt>はい</rt></ruby>ってくる。<br><strong>半公：</strong>「いやぁ<ruby class="v1">聞<rt>き</rt></ruby>いてくれよ、ゆうべ<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">夢<rt>ゆめ</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>ちまってさ」<br><strong>熊五郎：</strong>「おう、どんな<ruby class="v1">夢<rt>ゆめ</rt></ruby>だ」<br><strong>半公：</strong>「それが、なんでも<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">鯛<rt>たい</rt></ruby>に<ruby class="v1">乗<rt>の</rt></ruby>って<ruby class="v1">空<rt>そら</rt></ruby>を<ruby class="v1">飛<rt>と</rt></ruby>んでてよ、いや<ruby class="v1">待<rt>ま</rt></ruby>てよ、あれは<ruby class="v1">鯛<rt>たい</rt></ruby>じゃなくて<ruby class="v1">鯉<rt>こい</rt></ruby>だったかな」<br><strong>辰：</strong>「おいおい、もう<ruby class="v1">怪<rt>あや</rt></ruby>しいぞ」<br><strong>半公：</strong>「んでもって、その<ruby class="v1">魚<rt>さかな</rt></ruby>の<ruby class="v1">背中<rt>せなか</rt></ruby>に<ruby class="v1">乗<rt>の</rt></ruby>って<ruby class="v1">富士山<rt>ふじさん</rt></ruby>のてっぺんまで<ruby class="v1">行<rt>い</rt></ruby>ったらば、そこに<ruby class="v1">死<rt>し</rt></ruby>んだはずの<ruby class="v1">親父<rt>おやじ</rt></ruby>がいてよ、いや<ruby class="v1">親父<rt>おやじ</rt></ruby>じゃなくて<ruby class="v1">大家<rt>おおや</rt></ruby>さんだったかもしれねえ」<br><strong>留吉：</strong>「さっきから<ruby class="v1">話<rt>はなし</rt></ruby>がころころ<ruby class="v1">変<rt>か</rt></ruby>わるじゃないか」<br><strong>半公：</strong>「まあ<ruby class="v1">聞<rt>き</rt></ruby>けって。その<ruby class="v1">人<rt>ひと</rt></ruby>が<ruby class="v1">饅頭<rt>まんじゅう</rt></ruby>を<ruby class="v1">山<rt>やま</rt></ruby>ほどくれようとするから、ありがてえと<ruby class="v1">思<rt>おも</rt></ruby>って<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>したら、<ruby class="v1">目<rt>め</rt></ruby>が<ruby class="v1">覚<rt>さ</rt></ruby>めちまった。それで<ruby class="v1">腹<rt>はら</rt></ruby>が<ruby class="v1">立<rt>た</rt></ruby>って<ruby class="v1">立<rt>た</rt></ruby>って」<br><strong>熊五郎：</strong>「なにが<ruby class="v1">腹<rt>はら</rt></ruby>が<ruby class="v1">立<rt>た</rt></ruby>つだ、<ruby class="v1">鯛<rt>たい</rt></ruby>だか<ruby class="v1">鯉<rt>こい</rt></ruby>だか、<ruby class="v1">親父<rt>おやじ</rt></ruby>だか<ruby class="v1">大家<rt>おおや</rt></ruby>だか、てめえの<ruby class="v1">夢<rt>ゆめ</rt></ruby>にすら<ruby class="v1">自信<rt>じしん</rt></ruby>がねえのかい」<br>と、どっと<ruby class="v1">笑<rt>わら</rt></ruby>いが<ruby class="v1">起<rt>お</rt></ruby>こる。<br><strong>半公：</strong>「うるせえな、<ruby class="v1">夢<rt>ゆめ</rt></ruby>ってなあ<ruby class="v1">大体<rt>だいたい</rt></ruby>そういうもんだろ」<br><strong>留吉：</strong>「そりゃそうだが、お<ruby class="v2">前<rt>めえ</rt></ruby>のは<ruby class="v1">輪<rt>わ</rt></ruby>をかけて<ruby class="v1">要領<rt>ようりょう</rt></ruby>を<ruby class="v1">得<rt>え</rt></ruby>ないな」
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【待合の将棋喧嘩】</span>
+                    そうこうするうち、<ruby class="v1">長椅子<rt>ながいす</rt></ruby>の<ruby class="v1">隅<rt>すみ</rt></ruby>では<ruby class="v1">隠居<rt>いんきょ</rt></ruby>と<ruby class="v1">辰<rt>たつ</rt></ruby>っつぁんが<ruby class="v1">将棋盤<rt>しょうぎばん</rt></ruby>を<ruby class="v1">挟<rt>はさ</rt></ruby>んで<ruby class="v1">睨<rt>にら</rt></ruby>み<ruby class="v1">合<rt>あ</rt></ruby>っている。<br><strong>隠居：</strong>「さあ<ruby class="v1">辰<rt>たつ</rt></ruby>っつぁん、<ruby class="v1">王手<rt>おうて</rt></ruby>だよ」<br><strong>辰：</strong>「なにを、まだまだ」<br>と、<ruby class="v1">角<rt>かく</rt></ruby>を<ruby class="v1">動<rt>うご</rt></ruby>かそうとした<ruby class="v1">途端<rt>とたん</rt></ruby>、<br><strong>隠居：</strong>「おいおい、その<ruby class="v1">角<rt>かく</rt></ruby>は<ruby class="v1">動<rt>うご</rt></ruby>かせないよ、さっき<ruby class="v1">歩<rt>ふ</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>ったろう」<br><strong>辰：</strong>「いや、あれは<ruby class="v1">冗談<rt>じょうだん</rt></ruby>で<ruby class="v1">置<rt>お</rt></ruby>いただけだ、<ruby class="v1">本当<rt>ほんとう</rt></ruby>の<ruby class="v1">手<rt>て</rt></ruby>はこっちだよ」<br>なんて、<ruby class="v1">見<rt>み</rt></ruby>え<ruby class="v1">透<rt>す</rt></ruby>いた<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">訳<rt>わけ</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べる。それを<ruby class="v1">見<rt>み</rt></ruby>ていた<ruby class="v1">熊五郎<rt>くまごろう</rt></ruby>が<ruby class="v1">口<rt>くち</rt></ruby>を<ruby class="v1">挟<rt>はさ</rt></ruby>んで、<br><strong>熊五郎：</strong>「<ruby class="v1">辰<rt>たつ</rt></ruby>、みっともねえぞ。<ruby class="v1">将棋<rt>しょうぎ</rt></ruby>ってなあ<ruby class="v1">武士<rt>ぶし</rt></ruby>の<ruby class="v1">遊<rt>あそ</rt></ruby>びだ、ずるはいけねえ」<br><strong>辰：</strong>「うるせえ、お<ruby class="v2">前<rt>めえ</rt></ruby>は<ruby class="v1">黙<rt>だま</rt></ruby>ってろ、<ruby class="v1">魚屋<rt>さかなや</rt></ruby>のくせに」<br><strong>熊五郎：</strong>「なんだと、<ruby class="v1">大工<rt>だいく</rt></ruby>を<ruby class="v1">馬鹿<rt>ばか</rt></ruby>にするか」<br>——と、<ruby class="v1">将棋<rt>しょうぎ</rt></ruby>そっちのけで<ruby class="v1">二人<rt>ふたり</rt></ruby>が<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">争<rt>あらそ</rt></ruby>いを<ruby class="v1">始<rt>はじ</rt></ruby>めてしまう。<ruby class="v1">親方<rt>おやかた</rt></ruby>の<ruby class="v1">留吉<rt>とめきち</rt></ruby>が<ruby class="v1">呆<rt>あき</rt></ruby>れ<ruby class="v1">顔<rt>がお</rt></ruby>で、<br><strong>留吉：</strong>「もしもし、<ruby class="v1">将棋<rt>しょうぎ</rt></ruby>の<ruby class="v1">喧嘩<rt>けんか</rt></ruby>で<ruby class="v1">店<rt>みせ</rt></ruby>を<ruby class="v1">壊<rt>こわ</rt></ruby>さないでおくれよ」<br>と<ruby class="v1">割<rt>わ</rt></ruby>って<ruby class="v1">入<rt>はい</rt></ruby>る<ruby class="v1">羽目<rt>はめ</rt></ruby>になりました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【生兵法の素読み】</span>
+                    ようやく<ruby class="v1">喧嘩<rt>けんか</rt></ruby>も<ruby class="v1">収<rt>おさ</rt></ruby>まった<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">半公<rt>はんこう</rt></ruby>がふと<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v1">隅<rt>すみ</rt></ruby>に<ruby class="v1">置<rt>お</rt></ruby>いてあった<ruby class="v1">古<rt>ふる</rt></ruby>い<ruby class="v1">書物<rt>しょもつ</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>つけて、<br><strong>半公：</strong>「おっ、こいつは<ruby class="v1">難<rt>むずか</rt></ruby>しそうな<ruby class="v1">本<rt>ほん</rt></ruby>だな。よし、ひとつ<ruby class="v1">俺<rt>おれ</rt></ruby>が<ruby class="v1">読<rt>よ</rt></ruby>んで<ruby class="v1">聞<rt>き</rt></ruby>かせてやろう」<br>と、<ruby class="v1">得意<rt>とくい</rt></ruby>げに<ruby class="v1">開<rt>ひら</rt></ruby>いて<ruby class="v1">読<rt>よ</rt></ruby>み<ruby class="v1">上<rt>あ</rt></ruby>げ<ruby class="v1">始<rt>はじ</rt></ruby>める。<br><strong>半公：</strong>「えー、<ruby class="v2">昔日<rt>むかしび</rt></ruby>、<ruby class="v1">中国<rt>ちゅうごく</rt></ruby>にてえ<ruby class="v1">国<rt>くに</rt></ruby>に、<ruby class="v2">孔明<rt>こうめい</rt></ruby>てえ、いや<ruby class="v2">孔明<rt>こうみょう</rt></ruby>だったか、まあどっちでもいいや、そういう<ruby class="v1">偉<rt>えら</rt></ruby>い<ruby class="v1">人<rt>ひと</rt></ruby>がおりまして」<br><strong>隠居：</strong>「おいおい、それは<ruby class="v2">孔明<rt>こうめい</rt></ruby>と<ruby class="v1">読<rt>よ</rt></ruby>むんだよ」<br><strong>半公：</strong>「へえ、そうかい。えー、この<ruby class="v1">御方<rt>おかた</rt></ruby>が<ruby class="v2">戦<rt>いくさ</rt></ruby>のときに、<ruby class="v1">大変<rt>たいへん</rt></ruby>ふ、ふ、<ruby class="v2">奇々怪々<rt>ききかいかい</rt></ruby>な——いや<ruby class="v2">奇々怪々<rt>ききかいかい</rt></ruby>じゃなくて、なんだこりゃ、<ruby class="v2">奇策<rt>きさく</rt></ruby>を<ruby class="v1">用<rt>もち</rt></ruby>いて」<br><strong>熊五郎：</strong>「おい<ruby class="v1">半公<rt>はんこう</rt></ruby>、<ruby class="v1">さっき<rt>さっき</rt></ruby>から<ruby class="v1">怪<rt>あや</rt></ruby>しいところばっかりじゃねえか」<br><strong>半公：</strong>「うるせえ、<ruby class="v1">読<rt>よ</rt></ruby>めない<ruby class="v1">字<rt>じ</rt></ruby>は<ruby class="v1">飛<rt>と</rt></ruby>ばして<ruby class="v1">読<rt>よ</rt></ruby>むのが<ruby class="v1">粋<rt>いき</rt></ruby>ってもんだ」<br><strong>留吉：</strong>「それを<ruby class="v1">世間<rt>せけん</rt></ruby>では<ruby class="v1">誤魔化<rt>ごまか</rt></ruby>しと<ruby class="v1">言<rt>い</rt></ruby>うんだよ」<br>と、<ruby class="v1">店<rt>みせ</rt></ruby><ruby class="v1">中<rt>じゅう</rt></ruby>がまたどっと<ruby class="v1">笑<rt>わら</rt></ruby>いに<ruby class="v1">包<rt>つつ</rt></ruby>まれる。<ruby class="v1">半公<rt>はんこう</rt></ruby>だけは<ruby class="v1">涼<rt>すず</rt></ruby>しい<ruby class="v1">顔<rt>かお</rt></ruby>で<ruby class="v1">本<rt>ほん</rt></ruby>を<ruby class="v1">閉<rt>と</rt></ruby>じ、<br><strong>半公：</strong>「まあ<ruby class="v1">細<rt>こま</rt></ruby>かいことはいいじゃねえか、<ruby class="v1">大意<rt>たいい</rt></ruby>が<ruby class="v1">伝<rt>つた</rt></ruby>わりゃそれでいいんだよ」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【床屋の一日】</span>
+                    そうこうしているうちに、いつのまにか<ruby class="v1">日<rt>ひ</rt></ruby>も<ruby class="v1">暮<rt>く</rt></ruby>れかかり、<ruby class="v1">客<rt>きゃく</rt></ruby>もひとりふたりと<ruby class="v1">減<rt>へ</rt></ruby>っていく。<ruby class="v1">親方<rt>おやかた</rt></ruby>の<ruby class="v1">留吉<rt>とめきち</rt></ruby>が<ruby class="v1">大<rt>おお</rt></ruby>きく<ruby class="v1">伸<rt>の</rt></ruby>びをしながら、<br><strong>留吉：</strong>「いやはや、<ruby class="v1">今日<rt>きょう</rt></ruby>も<ruby class="v1">賑<rt>にぎ</rt></ruby>やかだったね。<ruby class="v1">半公<rt>はんこう</rt></ruby>の<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">夢<rt>ゆめ</rt></ruby>から<ruby class="v1">始<rt>はじ</rt></ruby>まって、<ruby class="v1">将棋<rt>しょうぎ</rt></ruby>の<ruby class="v1">喧嘩<rt>けんか</rt></ruby>に、しまいには<ruby class="v1">怪<rt>あや</rt></ruby>しい<ruby class="v1">素読<rt>すよ</rt></ruby>みまで」<br><strong>隠居：</strong>「まったくだ。だがまあ、これだから<ruby class="v1">床屋<rt>とこや</rt></ruby><ruby class="v1">通<rt>がよ</rt></ruby>いはやめられない」<br><strong>熊五郎：</strong>「<ruby class="v1">髪<rt>かみ</rt></ruby>を<ruby class="v1">刈<rt>か</rt></ruby>りに<ruby class="v1">来<rt>き</rt></ruby>てるんだか、<ruby class="v1">笑<rt>わら</rt></ruby>いに<ruby class="v1">来<rt>き</rt></ruby>てるんだか、わかりゃしねえ」<br><strong>半公：</strong>「どっちだっていいじゃねえか、<ruby class="v1">気持<rt>きも</rt></ruby>ちよく<ruby class="v1">帰<rt>かえ</rt></ruby>れりゃそれで<ruby class="v1">上等<rt>じょうとう</rt></ruby>さ」<br>なんて<ruby class="v1">言<rt>い</rt></ruby>いながら、めいめい<ruby class="v1">腰<rt>こし</rt></ruby>を<ruby class="v1">上<rt>あ</rt></ruby>げて<ruby class="v1">表<rt>おもて</rt></ruby>へ<ruby class="v1">出<rt>で</rt></ruby>ていく。<ruby class="v1">誰<rt>だれ</rt></ruby>が<ruby class="v1">得<rt>とく</rt></ruby>をしたわけでも、<ruby class="v1">損<rt>そん</rt></ruby>をしたわけでもない、ただ<ruby class="v1">世間話<rt>せけんばなし</rt></ruby>で<ruby class="v1">一日<rt>いちにち</rt></ruby>が<ruby class="v1">過<rt>す</rt></ruby>ぎていく。これがまた、なんとも<ruby class="v1">言<rt>い</rt></ruby>えず<ruby class="v1">心地<rt>ここち</rt></ruby>いいもので。<ruby class="v1">明日<rt>あした</rt></ruby>もきっと、この<ruby class="v1">床屋<rt>とこや</rt></ruby>の<ruby class="v1">長椅子<rt>ながいす</rt></ruby>には、また<ruby class="v1">同<rt>おな</rt></ruby>じ<ruby class="v1">顔触<rt>かおぶ</rt></ruby>れが<ruby class="v1">集<rt>あつ</rt></ruby>まって、<ruby class="v1">同<rt>おな</rt></ruby>じような<ruby class="v1">馬鹿話<rt>ばかばなし</rt></ruby>に<ruby class="v1">花<rt>はな</rt></ruby>を<ruby class="v1">咲<rt>さ</rt></ruby>かせることでございましょう。これにて<ruby class="v2">浮世床<rt>うきよどこ</rt></ruby>、お<ruby class="v1">開<rt>ひら</rt></ruby>きとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. In the old days, a barbershop wasn't just a place to get your hair cut. It was where the whole neighborhood gathered to gossip and chat - a kind of town social club. While waiting their turn, idle men would rattle on about anything and everything, true or not. Some were loud, boastful craftsmen; others liked to show off, putting on know-it-all airs about things they barely understood. Today, let's peek in on one perfectly ordinary day at a certain neighborhood barbershop. We'll call it 'The Barbershop Tales.' Come now, let's duck through the curtain and have a look.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BARBER AND HIS REGULARS]</span>Now, the master of this barbershop was a man named Tomekichi. Skilled with his hands and quick with his tongue, he snipped away with his scissors while trading banter with every customer. Out front sat a single long bench, lined with men waiting their turn - Kumagoro the carpenter, Tatsu the fishmonger, even the neighborhood retiree - all with time on their hands and nowhere better to be.<br><strong>Kumagoro:</strong> "Hey, boss, gonna be much longer?"<br><strong>Tomekichi:</strong> "Patience, Kuma, just a bit more. Lively as ever in here today, isn't it?"<br><strong>Tatsu:</strong> "Well, it is the hangout for men with nothing better to do."<br>And so the wisecracks flew back and forth from no one in particular. In front of the mirror, a man dozed off mid-shave, nodding along in his sleep. This easy, unhurried air was the very heart and soul of the Barbershop Tales.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MUDDLED DREAM STORY]</span>Just then, Hankou the gardener wandered in with a yawn.<br><strong>Hankou:</strong> "Hey, listen to this, I had the strangest dream last night."<br><strong>Kumagoro:</strong> "Oh yeah? What kind of dream?"<br><strong>Hankou:</strong> "So I was riding on a giant sea bream, flying through the sky - no wait, hang on, maybe that was a carp, not a bream."<br><strong>Tatsu:</strong> "Hold on now, that's already sounding shaky."<br><strong>Hankou:</strong> "Anyway, I rode that fish's back all the way to the top of Mount Fuji, and there was my father, who's supposed to be dead - no wait, maybe it wasn't my father, maybe it was my landlord."<br><strong>Tomekichi:</strong> "Your story keeps changing every few seconds."<br><strong>Hankou:</strong> "Just listen. So this person was about to give me a huge pile of steamed buns, and just as I gratefully reached out my hand, I woke up. I was so mad, so mad."<br><strong>Kumagoro:</strong> "Mad about what? You can't even keep straight whether it was a bream or a carp, your father or your landlord - you don't even trust your own dream!"<br>And the whole shop burst out laughing.<br><strong>Hankou:</strong> "Oh, quiet, that's just how dreams are, generally."<br><strong>Tomekichi:</strong> "Sure, that's true enough, but yours takes vagueness to a whole new level."</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHOGI SQUABBLE]</span>Meanwhile, in the corner of the bench, the old retiree and Tatsu were locked in a stare-down over a shogi board.<br><strong>Retiree:</strong> "There now, Tatsu, check."<br><strong>Tatsu:</strong> "What, no way, not yet."<br>Just as he reached to move his bishop -<br><strong>Retiree:</strong> "Now hold on, you can't move that bishop, you played a pawn there a moment ago."<br><strong>Tatsu:</strong> "No, no, that pawn was just a joke, my real move is over here."<br>He rattled off one transparent excuse after another. Kumagoro, watching, cut in.<br><strong>Kumagoro:</strong> "Tatsu, that's shameful. Shogi is a warrior's game, no cheating allowed."<br><strong>Tatsu:</strong> "Quiet, you, mind your own business, fishmonger."<br><strong>Kumagoro:</strong> "What did you say? You mocking a carpenter?"<br>And with that, the two forgot all about the game and started arguing outright. Tomekichi the barber, exasperated, had no choice but to step in.<br><strong>Tomekichi:</strong> "Now, now, please don't wreck my shop over a game of shogi."</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MANGLED READING]</span>By the time the argument finally died down, Hankou happened to spot an old book sitting in the corner of the shop.<br><strong>Hankou:</strong> "Ooh, this looks like a hard one. Alright, let me read it aloud for everyone."<br>And with a proud flourish, he opened it and began to read.<br><strong>Hankou:</strong> "Now then, long ago, in a country called China, there was a great man named Koumei - or was it Koumyou, eh, doesn't matter which."<br><strong>Retiree:</strong> "Now hold on, that's read 'Koumei.'"<br><strong>Hankou:</strong> "Oh, is it. Anyway, this fellow, in times of battle, used a most, uh, kikikaikai... no wait, not kikikaikai, what is this word, used a clever strategy."<br><strong>Kumagoro:</strong> "Hey Hankou, seems like every other word's been shaky since you started."<br><strong>Hankou:</strong> "Quiet, skipping over the characters you can't read - that's just good style."<br><strong>Tomekichi:</strong> "Out in the real world, that's called faking it."<br>And the whole shop erupted in laughter again. Hankou alone kept a cool, unbothered face as he closed the book.<br><strong>Hankou:</strong> "Ah, the details don't matter. As long as the gist gets across, that's good enough."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A DAY AT THE BARBERSHOP]</span>Before anyone noticed, the sun had begun to set, and the customers thinned out one by one. Tomekichi the barber stretched with a big yawn.<br><strong>Tomekichi:</strong> "Well now, quite a lively day again - starting with Hankou's strange dream, then a fight over shogi, and finally that dubious reading."<br><strong>Retiree:</strong> "Indeed. But that's exactly why I can never give up coming to the barbershop."<br><strong>Kumagoro:</strong> "Honestly, you can't tell if people come here for a haircut or just to have a laugh."<br><strong>Hankou:</strong> "Who cares which - as long as you leave in a good mood, that's good enough."<br>And with that, one by one, they rose from the bench and stepped out into the street. Nobody had gained anything, nobody had lost anything - just a day spent in idle chatter. And yet there was something strangely comforting about it. Tomorrow, no doubt, this same bench will fill again with these same familiar faces, spinning the same kind of nonsense. And with that, we'll bring the Barbershop Tales to a close for today.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Autrefois, un salon de coiffure n'etait pas seulement un endroit ou se faire couper les cheveux. C'etait la que tout le quartier se retrouvait pour bavarder - une sorte de club social du village. En attendant leur tour, des hommes desoeuvres racontaient tout et n'importe quoi, vrai ou faux. Certains etaient des artisans bruyants et vantards ; d'autres aimaient prendre des airs de savants sur des choses qu'ils comprenaient a peine. Aujourd'hui, jetons un coup d'oeil a une journee bien ordinaire dans un certain salon de coiffure de quartier. Appelons ca « Les Contes du Salon de Coiffure ». Allons, passons sous le rideau et regardons.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BARBER AND HIS REGULARS]</span>Le patron de ce salon de coiffure s'appelait Tomekichi. Habile de ses mains et prompt de sa langue, il maniait ses ciseaux tout en echangeant des plaisanteries avec chaque client. Devant, un seul long banc accueillait les hommes qui attendaient leur tour - Kumagoro le charpentier, Tatsu le poissonnier, meme le retraite du quartier - tous desoeuvres et sans rien de mieux a faire.<br><strong>Kumagoro :</strong> « Eh, patron, ca va encore prendre du temps ? »<br><strong>Tomekichi :</strong> « Patience, Kuma, encore un peu. Toujours aussi anime ici aujourd'hui, non ? »<br><strong>Tatsu :</strong> « Ben, c'est le repaire des hommes qui n'ont rien de mieux a faire. »<br>Et ainsi les plaisanteries fusaient de toutes parts, sans qu'on sache d'ou elles venaient vraiment. Devant le miroir, un homme s'endormait en plein rasage, hochant la tete dans son sommeil. Cette atmosphere decontractee etait justement l'ame des Contes du Salon de Coiffure.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MUDDLED DREAM STORY]</span>A ce moment, Hankou le jardinier entra en baillant.<br><strong>Hankou :</strong> « Eh, ecoutez ca, j'ai fait le reve le plus etrange hier soir. »<br><strong>Kumagoro :</strong> « Ah oui ? Quel genre de reve ? »<br><strong>Hankou :</strong> « Alors, je chevauchais une grosse dorade, en volant dans le ciel - non attends, peut-etre que c'etait une carpe, pas une dorade. »<br><strong>Tatsu :</strong> « Attends un peu, ca commence deja a etre bancal. »<br><strong>Hankou :</strong> « Bref, j'ai chevauche le dos de ce poisson jusqu'au sommet du mont Fuji, et la, il y avait mon pere, qui est cense etre mort - non attends, peut-etre que ce n'etait pas mon pere, peut-etre que c'etait mon proprietaire. »<br><strong>Tomekichi :</strong> « Ton histoire change a chaque phrase. »<br><strong>Hankou :</strong> « Ecoute donc. Cette personne allait me donner un enorme tas de petits pains cuits a la vapeur, et juste au moment ou je tendais la main avec gratitude, je me suis reveille. J'etais tellement en colere, tellement en colere. »<br><strong>Kumagoro :</strong> « En colere pourquoi ? Tu n'arrives meme pas a te souvenir si c'etait une dorade ou une carpe, ton pere ou ton proprietaire - tu ne fais meme pas confiance a ton propre reve ! »<br>Et toute la boutique eclata de rire.<br><strong>Hankou :</strong> « Oh, silence, c'est comme ca que sont les reves, en general. »<br><strong>Tomekichi :</strong> « Bien sur, c'est bien vrai, mais le tien pousse le flou a un tout autre niveau. »</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHOGI SQUABBLE]</span>Pendant ce temps, dans un coin du banc, le vieux retraite et Tatsu s'affrontaient du regard au-dessus d'un plateau de shogi.<br><strong>Le retraite :</strong> « Allez, Tatsu, echec. »<br><strong>Tatsu :</strong> « Quoi, non, pas encore. »<br>Juste au moment ou il tendait la main pour deplacer son fou -<br><strong>Le retraite :</strong> « Attends un peu, tu ne peux pas bouger ce fou, tu as joue un pion la, il y a un instant. »<br><strong>Tatsu :</strong> « Non, non, ce pion c'etait juste pour rire, mon vrai coup est ici. »<br>Il enchaina une excuse transparente apres l'autre. Kumagoro, qui observait, intervint.<br><strong>Kumagoro :</strong> « Tatsu, c'est honteux. Le shogi, c'est un jeu de guerrier, pas de triche. »<br><strong>Tatsu :</strong> « Silence, toi, occupe-toi de tes affaires, poissonnier. »<br><strong>Kumagoro :</strong> « Qu'est-ce que tu as dit ? Tu te moques d'un charpentier ? »<br>Et sur ce, les deux hommes oublierent completement la partie et se mirent a se disputer pour de bon. Tomekichi le coiffeur, exaspere, dut intervenir.<br><strong>Tomekichi :</strong> « Allons, allons, ne cassez pas ma boutique pour une partie de shogi. »</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MANGLED READING]</span>Au moment ou la dispute finit par s'apaiser, Hankou remarqua par hasard un vieux livre pose dans un coin de la boutique.<br><strong>Hankou :</strong> « Oh, ca a l'air d'un livre difficile. Bon, je vais vous le lire a voix haute. »<br>Et avec une fierte affichee, il l'ouvrit et commenca a lire.<br><strong>Hankou :</strong> « Alors, il y a longtemps, dans un pays qu'on appelle la Chine, il y avait un grand homme nomme Koumei - ou peut-etre Koumyou, bon, peu importe. »<br><strong>Le retraite :</strong> « Attends un peu, ca se lit "Koumei". »<br><strong>Hankou :</strong> « Ah bon, d'accord. Bref, ce type, en temps de guerre, utilisait une strategie tres, euh, kikikaikai... non attends, pas kikikaikai, c'est quoi ce mot, une strategie tres astucieuse. »<br><strong>Kumagoro :</strong> « Hankou, on dirait qu'un mot sur deux est bancal depuis que tu as commence. »<br><strong>Hankou :</strong> « Silence, sauter les caracteres qu'on ne sait pas lire, c'est du bon style, ca. »<br><strong>Tomekichi :</strong> « Dans le vrai monde, ca s'appelle bluffer. »<br>Et toute la boutique eclata de rire a nouveau. Hankou, seul, garda un visage impassible en refermant le livre.<br><strong>Hankou :</strong> « Ah, les details n'ont pas d'importance. Tant que l'idee generale passe, ca suffit. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A DAY AT THE BARBERSHOP]</span>Avant que quiconque ne s'en apercoive, le soleil avait commence a se coucher, et les clients s'eclaircissaient peu a peu. Tomekichi le coiffeur s'etira en baillant largement.<br><strong>Tomekichi :</strong> « Eh bien, encore une journee animee - ca a commence avec le reve etrange de Hankou, puis une dispute au shogi, et enfin cette lecture douteuse. »<br><strong>Le retraite :</strong> « En effet. Mais c'est bien pour ca que je ne peux jamais renoncer a venir au salon de coiffure. »<br><strong>Kumagoro :</strong> « Franchement, on ne sait jamais si les gens viennent ici pour se faire couper les cheveux ou juste pour rigoler. »<br><strong>Hankou :</strong> « Peu importe lequel - du moment qu'on repart de bonne humeur, ca suffit. »<br>Et sur ce, l'un apres l'autre, ils se leverent du banc et sortirent dans la rue. Personne n'avait rien gagne, personne n'avait rien perdu - juste une journee passee en bavardages oisifs. Et pourtant, il y avait quelque chose d'etrangement reconfortant la-dedans. Demain, sans doute, ce meme banc se remplira a nouveau des memes visages familiers, tissant les memes betises. Et sur ce, nous allons clore les Contes du Salon de Coiffure pour aujourd'hui.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permitanme contarles una historia. Antiguamente, una barberia no era solo un lugar para cortarse el pelo. Era donde todo el vecindario se reunia para charlar, una especie de club social del barrio. Mientras esperaban su turno, hombres ociosos parloteaban de todo y de nada, cierto o no. Algunos eran artesanos ruidosos y fanfarrones; otros les gustaba presumir, dandose aires de sabelotodo sobre cosas que apenas entendian. Hoy, echemos un vistazo a un dia perfectamente comun en cierta barberia de barrio. Lo llamaremos "Los Cuentos de la Barberia". Vamos, crucemos la cortina y miremos.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BARBER AND HIS REGULARS]</span>El maestro de esta barberia era un hombre llamado Tomekichi. Habil con las manos y rapido de lengua, cortaba con las tijeras mientras intercambiaba bromas con cada cliente. Al frente habia un unico banco largo, lleno de hombres esperando su turno: Kumagoro el carpintero, Tatsu el pescadero, incluso el jubilado del barrio, todos con tiempo de sobra y nada mejor que hacer.<br><strong>Kumagoro:</strong> "Oye, jefe, ¿va a tardar mucho todavia?"<br><strong>Tomekichi:</strong> "Paciencia, Kuma, un poco mas. Que animado esta esto hoy, como siempre, ¿eh?"<br><strong>Tatsu:</strong> "Bueno, es el punto de reunion de los que no tienen nada mejor que hacer."<br>Y asi las bromas volaban de un lado a otro sin que nadie supiera de quien venian. Frente al espejo, un hombre se quedaba dormido a medio afeitar, cabeceando en sueños. Ese ambiente relajado y sin prisas era precisamente el alma de los Cuentos de la Barberia.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MUDDLED DREAM STORY]</span>En ese momento, Hankou el jardinero entro bostezando.<br><strong>Hankou:</strong> "Oigan, escuchen esto, anoche tuve el sueno mas extrano."<br><strong>Kumagoro:</strong> "¿Ah si? ¿Que tipo de sueno?"<br><strong>Hankou:</strong> "Iba montado en una gran dorada, volando por el cielo, no espera, tal vez era una carpa, no una dorada."<br><strong>Tatsu:</strong> "Espera un momento, eso ya suena poco fiable."<br><strong>Hankou:</strong> "Bueno, monte el lomo de ese pez hasta la cima del monte Fuji, y alli estaba mi padre, que se supone que esta muerto, no espera, tal vez no era mi padre, tal vez era mi casero."<br><strong>Tomekichi:</strong> "Tu historia cambia a cada rato."<br><strong>Hankou:</strong> "Solo escuchen. Esa persona estaba a punto de darme un monton enorme de bollos al vapor, y justo cuando estire la mano agradecido, me desperte. Me dio tanta rabia, tanta rabia."<br><strong>Kumagoro:</strong> "¿Rabia por que? Ni siquiera sabes si era dorada o carpa, tu padre o tu casero, ¡ni confianza tienes en tu propio sueno!"<br>Y toda la tienda estallo en risas.<br><strong>Hankou:</strong> "Ay, callense, asi son los suenos, por lo general."<br><strong>Tomekichi:</strong> "Claro, eso es bastante cierto, pero el tuyo lleva la vaguedad a otro nivel."</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHOGI SQUABBLE]</span>Mientras tanto, en una esquina del banco, el anciano jubilado y Tatsu se miraban fijamente sobre un tablero de shogi.<br><strong>Jubilado:</strong> "Vamos, Tatsu, jaque."<br><strong>Tatsu:</strong> "¿Que? No, todavia no."<br>Justo cuando estiraba la mano para mover su alfil...<br><strong>Jubilado:</strong> "Espera un momento, no puedes mover ese alfil, pusiste un peon ahi hace un momento."<br><strong>Tatsu:</strong> "No, no, ese peon lo puse en broma, mi jugada de verdad es esta de aqui."<br>Y siguio soltando excusa tras excusa, todas transparentes. Kumagoro, que estaba mirando, intervino.<br><strong>Kumagoro:</strong> "Tatsu, que verguenza. El shogi es un juego de guerreros, nada de trampas."<br><strong>Tatsu:</strong> "Callate tu, ocupate de lo tuyo, pescadero."<br><strong>Kumagoro:</strong> "¿Que dijiste? ¿Te burlas de un carpintero?"<br>Y con eso, los dos se olvidaron por completo de la partida y empezaron a discutir de verdad. Tomekichi el barbero, exasperado, no tuvo mas remedio que intervenir.<br><strong>Tomekichi:</strong> "Vamos, vamos, no me destrocen la tienda por una partida de shogi."</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MANGLED READING]</span>Cuando la discusion por fin se calmo, Hankou se topo por casualidad con un libro viejo que habia en un rincon de la tienda.<br><strong>Hankou:</strong> "Vaya, este parece un libro dificil. Bueno, dejenme leerselo en voz alta."<br>Y con orgullo evidente, lo abrio y empezo a leer.<br><strong>Hankou:</strong> "A ver, hace mucho tiempo, en un pais llamado China, hubo un gran hombre llamado Koumei, o tal vez Koumyou, bueno, da igual."<br><strong>Jubilado:</strong> "Espera un momento, eso se lee 'Koumei'."<br><strong>Hankou:</strong> "Ah, ¿si? Bueno, este hombre, en tiempos de guerra, uso una estrategia muy, eh, kikikaikai... no espera, no es kikikaikai, ¿que palabra es esta?, uso una estrategia muy astuta."<br><strong>Kumagoro:</strong> "Oye Hankou, parece que cada dos palabras algo anda mal desde que empezaste."<br><strong>Hankou:</strong> "Callate, saltarse los caracteres que uno no sabe leer es puro estilo."<br><strong>Tomekichi:</strong> "En el mundo real, a eso se le llama disimular."<br>Y toda la tienda estallo de nuevo en risas. Solo Hankou mantuvo la cara tranquila mientras cerraba el libro.<br><strong>Hankou:</strong> "Ah, los detalles no importan. Mientras se entienda la idea general, con eso basta."</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A DAY AT THE BARBERSHOP]</span>Antes de que nadie se diera cuenta, el sol habia empezado a ponerse, y los clientes iban disminuyendo de a uno. Tomekichi el barbero se estiro con un gran bostezo.<br><strong>Tomekichi:</strong> "Vaya, otro dia animado, empezando con el extrano sueno de Hankou, luego una pelea de shogi, y por ultimo esa lectura dudosa."<br><strong>Jubilado:</strong> "Asi es. Pero por eso mismo nunca puedo dejar de venir a la barberia."<br><strong>Kumagoro:</strong> "La verdad, uno no sabe si la gente viene aqui a cortarse el pelo o solo a reirse."<br><strong>Hankou:</strong> "Que mas da cual sea, mientras uno se vaya de buen humor, con eso basta."<br>Y con eso, uno por uno, se levantaron del banco y salieron a la calle. Nadie habia ganado nada, nadie habia perdido nada, solo un dia pasado en charla ociosa. Y sin embargo, habia algo extranamente reconfortante en ello. Manana, sin duda, este mismo banco se llenara de nuevo con las mismas caras conocidas, tejiendo las mismas tonterias. Y con esto, damos por concluidos los Cuentos de la Barberia por hoy.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②親方と客たち","③妙な夢の話","④待合の将棋喧嘩","⑤生兵法の素読み","⑥床屋の一日"];
+        const partNamesEn = ["① Prologue","② The barber and his regulars","③ The muddled dream story","④ The shogi squabble","⑤ The mangled reading","⑥ A day at the barbershop"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

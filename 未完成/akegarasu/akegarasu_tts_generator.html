@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>明烏 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 明烏 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>え〜、一席申し上げます。<break time='400ms'/>明烏という噺は、堅物のお坊ちゃんが、生まれて初めて吉原へ足を踏み入れる一席でございます。<break time='500ms'/>世の中には、本ばかり読んで育って、世間知らずのまま大人になってしまう若旦那というのがいるもので。親から見れば頼もしくもあり、また少々心配の種でもある。<break time='500ms'/>今日はそんな若旦那が、とんだところで一皮も二皮もむける、という愉快な噺を一つ。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②若旦那と父の心配", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>日本橋の大店のご子息、時次郎さんという若旦那がございます。この時次郎さん、生まれてこの方、吉原はおろか芝居見物すら行ったことがないという、大変な堅物。<break time='450ms'/>朝から晩まで論語だ孟子だと本ばかり読んでおりまして、遊びらしい遊びを知りません。<break time='450ms'/>父親の大旦那、これを頼もしいと思う反面、あんまり真面目過ぎるのも考えものだ、いずれ身代を継ぐにしても、多少は世間の水を潜らせておかんと、かえって危なっかしいと案じておりました。<break time='500ms'/>そこで出入りの源兵衛と太助という二人の若い衆に、こっそり相談を持ちかけます。<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③二人の計略", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>若旦那を一つ、遊びの味を覚えさせておくれと頼まれた源兵衛と太助、これはひと肌脱がねばと知恵を絞ります。<break time='450ms'/>まともに吉原に行こうと誘っても、堅物の時次郎が承知するはずもございません。<break time='450ms'/></prosody><prosody rate='112%' pitch='+1st'>日本堤のお稲荷様に、お籠りのお参りに参りましょう。夜通し祈願すれば、商売繁盛間違いなし。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>と持ちかけました。信心深い時次郎、これにはまんまと乗ってしまい、<break time='300ms'/></prosody><prosody rate='102%' pitch='0st'>それはぜひ参りたい。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と、喜んで供に付いてまいります。<break time='600ms'/></prosody></speak>" },
+  { id:'p4', title:"④動揺する若旦那", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>ところが案内されたのは、お稲荷様どころか吉原のお馴染みの見世。煌々と灯りの点いた廓の中、化粧をした女たちがずらりと居並ぶのを見て、時次郎は仰天いたしました。<break time='450ms'/></prosody><prosody rate='118%' pitch='+1st'>これは一体どういうことだ、こんな不埒な場所に来るとは聞いていない。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と真っ青になって震え出す始末。<break time='350ms'/></prosody><prosody rate='105%' pitch='-1st'>さあさあ、若旦那、お参りはこの奥で。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>などと源兵衛たちにおだてられても、頑として動こうとせず、<break time='350ms'/></prosody><prosody rate='118%' pitch='+1st'>わたしは帰る、こんなところにいられるものか。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と半べそをかいて騒ぎ立てます。それでもどうにか座敷に押し込められ、浦里という花魁があてがわれることになりました。<break time='600ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤一夜明けての豹変", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>その晩は震えるばかりだった時次郎でしたが、翌朝になってみると、これがどうしたことでしょう。すっかり様子が変わっております。浦里の膝に頭を乗せ、すっかりくつろいだ顔つきで、<break time='400ms'/></prosody><prosody rate='98%' pitch='-1st'>いや、浦里、お前のような優しい人には会ったことがない。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>などと惚気る始末。昨夜あれほど嫌がっていた廓の空気にも、もうすっかり馴染んでしまった様子。迎えに来た源兵衛と太助が、<break time='350ms'/></prosody><prosody rate='105%' pitch='-1st'>若旦那、そろそろお店が開きますし、そろそろお暇いたしましょう。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と声をかけても、時次郎は聞く耳を持ちません。<break time='600ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥帰りたがらない若旦那", ssml:true, text:"<speak><prosody rate='100%' pitch='-1st'>なんだ、お前たちは。せっかく浦里といい心持ちでいるのに、水を差すようなことを言うな。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と、時次郎、すっかり色男気取りでございます。源兵衛と太助は困り果てて、<break time='350ms'/></prosody><prosody rate='105%' pitch='-1st'>若旦那、大旦那様が心配しておいでですから。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>となだめますが、時次郎は、<break time='300ms'/></prosody><prosody rate='98%' pitch='-1st'>なあに、少々くらい遅れたって構うものか。お前たちだけ先に帰ったらどうだ。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と、逆にのんびり構える始末。とうとう二人の方が、<break time='350ms'/></prosody><prosody rate='120%' pitch='+1st'>お願いですから、若旦那、早く帰りましょう。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>と、拝むように急かす羽目になりました。<break time='600ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate='112%' pitch='+1st'>すっかり呆れた源兵衛、思わずぼやきます。まったく、無理やり連れてきたこっちが、こんなに帰りを急かされるとは思いませんでしたよ。<break time='500ms'/></prosody><prosody rate='95%' pitch='-1st'>すると時次郎、涼しい顔で一言。なあに、心配するな。お前たちは、また今度連れてきてくれればいい。<break time='550ms'/></prosody><prosody rate='105%' pitch='0st'>源兵衛と太助、顔を見合わせて、こりゃあ、とんだ果報者を、とんだ一人前にしちまった、と、ため息をつくのでございました。<break time='900ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Akegarasu, The Dawn Crow, is the tale of an uptight, bookish young man setting foot in Yoshiwara for the very first time in his life. You know the type, raised on nothing but books, growing into adulthood without a clue about the world. Parents find such sons reassuring in one sense, and a bit worrying in another. Today's tale is a delightful one about just such a young man, who ends up shedding his shell, not once but twice over, in the most unexpected of places." },
+    { id:'p2', title:"②若旦那と父の心配", ssml:false, text:"There was a young master named Tokijiro, son of a great merchant house in Nihonbashi. From the day he was born, this Tokijiro had never once set foot in Yoshiwara, nor even been to see a play, an almost impossibly serious young man. Morning to night he did nothing but read the Analects and Mencius, and had no idea what fun even meant. His father, the master of the house, found this reassuring in one way, but worried: being this earnest isn't entirely a good thing, even if he's to inherit the family business, if he never gets a taste of the world he'll be dangerously naive. So he quietly took aside two employees of the household, Genbei and Tasuke, and asked for their help." },
+    { id:'p3', title:"③二人の計略", ssml:false, text:"Teach the young master a taste for having fun, that was the request, and Genbei and Tasuke racked their brains, knowing this called for some real effort. Simply inviting him with let's go to Yoshiwara was never going to work on someone as straight-laced as Tokijiro. So they cooked up a scheme instead. Genbei: Let's go keep an all-night vigil praying at the Inari shrine on Nihon-zutsumi. Pray through the night and your business is guaranteed to prosper. Devout as ever, Tokijiro fell for it completely. Tokijiro: By all means, I'd love to go. And he happily tagged along." },
+    { id:'p4', title:"④動揺する若旦那", ssml:false, text:"But where they actually led him was not to any shrine, it was a familiar teahouse in Yoshiwara. Seeing the pleasure quarter ablaze with lantern light, rows of painted women lined up before him, Tokijiro was stunned. Tokijiro: What is the meaning of this? Nobody told me we were coming to such a disreputable place! He turned pale and started shaking. Genbei: Now, now, young master, the prayers are held just this way, through here. No amount of coaxing from Genbei and the others could get him to budge. Tokijiro: I'm going home! How could anyone stay in a place like this? He kicked up a fuss, half in tears. Even so, they somehow got him settled into a room, where he was paired off with a courtesan named Urazato." },
+    { id:'p5', title:"⑤一夜明けての豹変", ssml:false, text:"That night, Tokijiro did nothing but tremble, but by the next morning, something had changed entirely. There he was, head resting on Urazato's lap, looking utterly at ease. Tokijiro: Ah, Urazato, I've never met anyone as kind as you. Gushing like a man head over heels. The very atmosphere of the pleasure quarter he'd so despised the night before, he now seemed completely at home in. When Genbei and Tasuke arrived to fetch him. Genbei: Young master, the shop will be opening soon, shall we be on our way? Tokijiro wouldn't hear a word of it." },
+    { id:'p6', title:"⑥帰りたがらない若旦那", ssml:false, text:"Tokijiro: What's gotten into you two? Don't go spoiling the mood, just when Urazato and I were having such a lovely time. He'd become a regular ladies' man overnight. Genbei and Tasuke, at their wits' end, tried to soothe him. Genbei: Young master, your father will be worried. But Tokijiro just waved them off. Tokijiro: Bah, what does it matter if we're a little late? Why don't you two go on home without me? Settling in as if he had all the time in the world. In the end, it was the two of them who found themselves pleading. Genbei: Please, young master, let's hurry home!" },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Utterly exasperated, Genbei couldn't help muttering. Genbei: Honestly, we're the ones who dragged him here, and now we're the ones begging him to hurry home. Tokijiro, cool as can be, had just one thing to say. Tokijiro: Oh, don't worry about it. You two can just bring me again next time. Genbei and Tasuke looked at each other and sighed: well, we certainly turned a lucky innocent into a real grown man, didn't we." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Akegarasu, Le Corbeau de l'Aube, c'est l'histoire d'un jeune homme guindé et studieux qui met les pieds à Yoshiwara pour la toute première fois de sa vie. Vous connaissez le genre, élevé uniquement dans les livres, devenu adulte sans la moindre idée du monde. Les parents trouvent ces fils-là rassurants d'un côté, et un peu inquiétants de l'autre. Voici aujourd'hui une histoire réjouissante sur un tel jeune homme, qui finit par se déniaiser, pas une fois mais deux, dans l'endroit le plus inattendu qui soit." },
+    { id:'p2', title:"②若旦那と父の心配", ssml:false, text:"Il y avait un jeune maître nommé Tokijiro, fils d'une grande maison de commerce de Nihonbashi. Depuis sa naissance, ce Tokijiro n'avait jamais mis les pieds à Yoshiwara, ni même assisté à une pièce de théâtre, un jeune homme d'un sérieux presque irréel. Du matin au soir, il ne faisait que lire les Entretiens de Confucius et Mencius, sans la moindre idée de ce qu'était s'amuser. Son père, le maître de maison, trouvait cela rassurant d'un côté, mais s'inquiétait : être aussi sérieux n'est pas forcément une bonne chose, même s'il doit hériter de l'affaire familiale, s'il ne goûte jamais au monde, il restera dangereusement naïf. Il prit donc discrètement à part deux employés de la maison, Genbei et Tasuke, pour leur demander de l'aide." },
+    { id:'p3', title:"③二人の計略", ssml:false, text:"Apprends au jeune maître le goût du plaisir, telle était la demande, et Genbei et Tasuke se creusèrent la tête, sachant que cela demanderait de vrais efforts. L'inviter simplement en disant allons à Yoshiwara n'aurait jamais fonctionné sur quelqu'un d'aussi rigide que Tokijiro. Ils montèrent donc un plan. Genbei : Allons faire une veillée de prière toute la nuit au sanctuaire Inari de Nihon-zutsumi. Prier toute la nuit garantit la prospérité des affaires. Toujours aussi pieux, Tokijiro mordit à l'hameçon sans se douter de rien. Tokijiro : J'aimerais beaucoup y aller. Et il les suivit de bon cœur." },
+    { id:'p4', title:"④動揺する若旦那", ssml:false, text:"Mais l'endroit où on le mena n'était en réalité aucun sanctuaire, c'était une maison de thé bien connue de Yoshiwara. En voyant le quartier illuminé de lanternes, des rangées de femmes fardées alignées devant lui, Tokijiro fut abasourdi. Tokijiro : Qu'est-ce que cela signifie ? Personne ne m'avait dit qu'on venait dans un endroit aussi scandaleux ! Il devint blanc comme un linge et se mit à trembler. Genbei : Allons, allons, jeune maître, les prières se font justement par ici, tout au fond. Aucune flatterie de Genbei et des autres ne put le faire bouger. Tokijiro : Je rentre chez moi ! Comment pourrait-on rester dans un endroit pareil ? Il fit une scène, à moitié en larmes. Malgré tout, on parvint à le pousser dans une chambre, où on lui attribua une courtisane nommée Urazato." },
+    { id:'p5', title:"⑤一夜明けての豹変", ssml:false, text:"Cette nuit-là, Tokijiro n'avait fait que trembler, mais le lendemain matin, tout avait changé du tout au tout. Le voilà, la tête posée sur les genoux d'Urazato, l'air parfaitement à l'aise. Tokijiro : Ah, Urazato, je n'ai jamais rencontré personne d'aussi douce que toi. Il roucoulait comme un homme éperdument amoureux. L'atmosphère même du quartier qu'il avait tant méprisée la veille lui semblait désormais tout à fait familière. Quand Genbei et Tasuke vinrent le chercher. Genbei : Jeune maître, la boutique va bientôt ouvrir, ne devrions-nous pas y aller ? Tokijiro ne voulut rien entendre." },
+    { id:'p6', title:"⑥帰りたがらない若旦那", ssml:false, text:"Tokijiro : Qu'est-ce qui vous prend, tous les deux ? N'allez pas gâcher l'ambiance, alors qu'Urazato et moi passions un si bon moment. Il était devenu un vrai bourreau des cœurs du jour au lendemain. Genbei et Tasuke, à bout de patience, tentèrent de l'apaiser. Genbei : Jeune maître, votre père doit s'inquiéter. Mais Tokijiro les écarta d'un geste. Tokijiro : Bah, qu'importe si on est un peu en retard ? Pourquoi ne rentrez-vous pas sans moi, tous les deux ? S'installant comme s'il avait tout son temps. En fin de compte, ce furent eux qui durent supplier. Genbei : Je vous en prie, jeune maître, rentrons vite !" },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Complètement dépassé, Genbei ne put s'empêcher de marmonner. Genbei : Franchement, c'est nous qui l'avons traîné ici de force, et voilà que c'est nous qui le supplions de rentrer vite. Tokijiro, imperturbable, n'eut qu'une chose à répondre. Tokijiro : Oh, ne vous en faites pas. Vous n'aurez qu'à me ramener une prochaine fois. Genbei et Tasuke se regardèrent et soupirèrent : eh bien, nous avons vraiment transformé un innocent chanceux en un homme fait, dis donc." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Akegarasu, El Cuervo del Amanecer, es la historia de un joven serio y aplicado que pisa Yoshiwara por primera vez en su vida. Ya conocen el tipo, criado solo entre libros, llegado a la adultez sin la menor idea del mundo. Los padres encuentran tranquilizador tener un hijo así, y a la vez algo preocupante. Hoy les traigo una historia deliciosa sobre un joven de ese tipo, que termina quitándose la coraza, no una sino dos veces, en el lugar más inesperado." },
+    { id:'p2', title:"②若旦那と父の心配", ssml:false, text:"Había un joven señor llamado Tokijiro, hijo de una gran casa comercial de Nihonbashi. Desde que nació, este Tokijiro jamás había puesto un pie en Yoshiwara, ni siquiera había ido a ver una obra de teatro, un joven de una seriedad casi irreal. De la mañana a la noche no hacía más que leer las Analectas y a Mencio, sin la menor idea de lo que significaba divertirse. Su padre, el dueño de la casa, encontraba esto tranquilizador por un lado, pero se preocupaba: ser tan serio no es del todo bueno, aunque vaya a heredar el negocio familiar, si nunca prueba nada del mundo seguirá siendo peligrosamente ingenuo. Así que, en secreto, llamó aparte a dos empleados de la casa, Genbei y Tasuke, para pedirles ayuda." },
+    { id:'p3', title:"③二人の計略", ssml:false, text:"Enséñenle al joven señor el gusto por divertirse, ese fue el encargo, y Genbei y Tasuke se rompieron la cabeza sabiendo que esto exigiría verdadero esfuerzo. Invitarlo simplemente con vamos a Yoshiwara jamás funcionaría con alguien tan rígido como Tokijiro. Así que tramaron un plan. Genbei: Vayamos a hacer una vigilia de oración toda la noche en el santuario Inari de Nihon-zutsumi. Rezar toda la noche garantiza la prosperidad del negocio. Devoto como siempre, Tokijiro cayó de lleno. Tokijiro: Con mucho gusto iré. Y los acompañó felizmente." },
+    { id:'p4', title:"④動揺する若旦那", ssml:false, text:"Pero el lugar al que en realidad lo llevaron no era ningún santuario, sino una conocida casa de té de Yoshiwara. Al ver el barrio resplandeciente de faroles, hileras de mujeres maquilladas alineadas ante él, Tokijiro quedó atónito. Tokijiro: ¿Qué significa esto? ¡Nadie me dijo que veníamos a un lugar tan escandaloso! Se puso pálido y comenzó a temblar. Genbei: Vamos, vamos, joven señor, las oraciones se hacen justo por aquí, al fondo. Ningún halago de Genbei y los demás logró moverlo. Tokijiro: ¡Me voy a casa! ¿Cómo podría alguien quedarse en un lugar así? Armó un escándalo, medio llorando. Aun así, de alguna manera lo metieron en una habitación, donde le asignaron una cortesana llamada Urazato." },
+    { id:'p5', title:"⑤一夜明けての豹変", ssml:false, text:"Esa noche, Tokijiro no había hecho más que temblar, pero a la mañana siguiente todo había cambiado por completo. Ahí estaba, con la cabeza apoyada en el regazo de Urazato, con aspecto de estar completamente a gusto. Tokijiro: Ah, Urazato, nunca había conocido a alguien tan amable como tú. Hablaba embelesado como un hombre perdidamente enamorado. La misma atmósfera del barrio que tanto había despreciado la noche anterior ahora le resultaba de lo más familiar. Cuando Genbei y Tasuke llegaron a buscarlo. Genbei: Joven señor, la tienda abrirá pronto, ¿deberíamos irnos? Tokijiro no quiso escuchar ni una palabra." },
+    { id:'p6', title:"⑥帰りたがらない若旦那", ssml:false, text:"Tokijiro: ¿Qué les pasa a ustedes dos? No arruinen el ambiente, justo cuando Urazato y yo la estábamos pasando tan bien. Se había convertido en todo un galán de la noche a la mañana. Genbei y Tasuke, ya sin paciencia, intentaron calmarlo. Genbei: Joven señor, su padre debe estar preocupado. Pero Tokijiro los apartó con la mano. Tokijiro: Bah, ¿qué importa si llegamos un poco tarde? ¿Por qué no se van ustedes dos sin mí? Acomodándose como si tuviera todo el tiempo del mundo. Al final, fueron ellos quienes terminaron suplicando. Genbei: ¡Por favor, joven señor, volvamos pronto a casa!" },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Completamente exasperado, Genbei no pudo evitar murmurar. Genbei: Sinceramente, nosotros lo trajimos aquí a la fuerza, y ahora somos nosotros los que le rogamos que se apure a volver. Tokijiro, imperturbable, solo tuvo una cosa que decir. Tokijiro: Ah, no se preocupen. La próxima vez simplemente tráiganme de nuevo. Genbei y Tasuke se miraron y suspiraron: vaya, sí que convertimos a un inocente afortunado en todo un hombre hecho y derecho." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

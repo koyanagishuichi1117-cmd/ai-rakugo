@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>強情灸 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 強情灸 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜にんげんて〜ものはみょうなもので、痛いの熱いのは大嫌いなくせに、人前になるとやたら強がりたがるという、困った癖がございます。<break time=\"500ms\"/>「なんの、こんなもの平気の平左」なんて言いながら、内心は涙目だったりする。<break time=\"400ms\"/>ことに江戸っ子と来た日には、この痩せ我慢がまた格別でしてね。まけずぎらいにもほどがある、というくらいの意地っ張りが、あちらこちらにおりました。<break time=\"600ms\"/>今日はそんな、意地と意地とがぶつかり合った、ちょいと迷惑な男たちのお話でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②我慢自慢", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">さて、ある町内の煙草屋の前で、熊さんとたっつぁんが顔を合わせましてね。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">よ、たっつぁん、この寒いのに薄着だな。<break time=\"300ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">なんの、俺は寒さなんぞ生まれてこの方感じたことがねぇしょうぶんでな。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">へっ、威張るない。俺なんざ先月、歯医者で虫歯を抜いたが、痛いのなんの、これっぽっちも感じやしなかったぜ。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">はぁ〜〜いっぽんぐれえで大きな顔するない。俺なんぞ去年、屋根から落っこってあしくじいたが、一言も泣き言は言わなかったぞ。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、こんな調子で、どっちが我慢強いか、競い合いが始まりました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③灸の一言", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">そこへ熊さんが思い出したように言いましてね。<break time=\"350ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">そういやぁ、俺のおふくろが毎月、灸を据えろってうるさくてな。だが俺は灸なんざ屁とも思わねぇ。据えてる間、煙管で一服やりながら、鼻歌まじりよ。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">灸ぐれえで大きく出たな。俺なんざ灸は好きでな、熱くなればなるほど気持ちがいい。<break time=\"250ms\"/></prosody><prosody rate=\"94%\" pitch=\"-1st\">あんなもの、蚊に刺されたほどにも感じやしねぇ。<break time=\"400ms\"/></prosody><prosody rate=\"135%\" pitch=\"+1st\">ほう、</prosody><prosody rate=\"115%\" pitch=\"+1st\">言うじゃねぇか。それなら今ここで試してみるか？<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">上等だ、やろうじゃねぇか。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、売り言葉に買い言葉、とんでもない勝負が始まることになりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④山盛りの勝負", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">というわけで、どこからか艾を取り寄せまして、まずは豆粒ほどの灸を互いの腕に据えてひをつけました。ジリジリと燃え出しても、二人とも涼しい顔。近所の者たちも面白がって集まってきましてね、けんぶつを相手に、だんだんと灸の山が大きくなっていきます。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">なんだ、そんな小さいのじゃものたりね〜。<break time=\"200ms\"/>俺の腕にゃ、こんぐらい乗っけてもらおうか。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">とこぶしほどの艾の山を腕に積み上げます。<break time=\"300ms\"/></prosody><prosody rate=\"88%\" pitch=\"0st\">へっ、</prosody><prosody rate=\"112%\" pitch=\"0st\">負けちゃいられねぇ。俺にも同じだけ乗っけてくれ。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、互いに負けじと灸の山はどんどん大きくなり、しまいには腕の上にちょっとした小山のような艾が二つ、並ぶことになりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤やせ我慢", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">ひをつけられた艾の山は、ジリジリ、ジリジリと音を立てて燃え続けます。二人のひたいには玉のような汗が浮かび、顔は真っ赤になっておりますが、それでも二人は平気な顔を崩しません。<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">あ〜、ちょうどいいゆかげんだ<break time=\"300ms\"/>春の陽気ってのは、こう暖かいもんだねぇ。<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">お、おうよ……ぽかぽかして、気持ちのいいことだ……<break time=\"500ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">声は震え、ひたいの血管が浮き出すほどこらえておりますが、どちらも「参った」の一言だけは、意地でも口にしようとしません。けんぶつの衆も、はらはらしながら見ておりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥オチ", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">とうとう艾の山が燃え尽き、肌に熱が突き刺さったその瞬間、たっつぁんがとうとうこらえきれず、<break time=\"300ms\"/></prosody><prosody rate=\"130%\" pitch=\"+1st\">た、たまらねぇ〜！熱い！熱いよう！<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">と飛び上がって腕を振り回し、井戸端まで転がるように駆けていってしまいました。けんぶつの衆は「熊さんの勝ちだ」と囃し立て、熊さんは煙管をくわえたまま、したり顔で「なぁに、これしき」なんて澄まし込んでおりましたが……たっつぁんの姿がろじのかどに消えたとたん、熊さんもガクッと膝から崩れ落ちましてね。<break time=\"500ms\"/></prosody><prosody rate=\"125%\" pitch=\"0st\">い、いてぇ〜！痛いに決まってらぁ！なにが湯加減だ、バカ野郎ぁ！<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、誰もいなくなったところで、さっきまでの澄まし顔はどこへやら、大声でなきわめいたという。意地と意地のぶつかり合い、勝ったのはほんの紙一重、結局のところ、どっちも強情な痩せ我慢だったという、お粗末なオチでございました。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Now, human beings are strange creatures. We hate pain, we hate heat, and yet the moment someone's watching, we can't help but act tough. \"Oh, this? Doesn't bother me one bit,\" we say, while secretly on the verge of tears. This is especially true of Edo natives, who take this brand of stubborn bravado to another level entirely. There's being a sore loser, and then there's being pig-headed beyond all reason — and Edo had plenty of that kind wandering about. Today's story is about two such men, whose clashing stubbornness caused no end of trouble for everyone around them." },
+    { id:'p2', title:"②我慢自慢", ssml:false, text:"One day, near the tobacco shop in a certain neighborhood, Kuma-san ran into Tatsu-tsuan. Kuma: \"Well look at you, Tatsu, dressed so light in this cold.\" Tatsu: \"Ha! I was born without ever feeling cold, that's just how I'm made.\" Kuma: \"Don't get cocky. Last month I had a rotten tooth pulled at the dentist and didn't feel a lick of pain.\" Tatsu: \"One tooth? Don't act so proud. Last year I fell off a roof and twisted my ankle, and I didn't utter one word of complaint.\" And so it went, back and forth, each trying to out-tough the other." },
+    { id:'p3', title:"③灸の一言", ssml:false, text:"Then Kuma-san, as if suddenly remembering something, spoke up. Kuma: \"Come to think of it, my mother's always nagging me to get moxibustion treatments every month. But I don't feel a thing — I just smoke my pipe and hum a tune while it burns.\" Tatsu: \"Big talk, over a little moxa. Me, I actually enjoy it — the hotter it gets, the better it feels. I don't feel it any more than a mosquito bite.\" Kuma: \"Oh really? Then how about we test that right here and now?\" Tatsu: \"Fine by me, let's do it.\" And so, one challenge answering another, an utterly ridiculous contest was set in motion." },
+    { id:'p4', title:"④山盛りの勝負", ssml:false, text:"So, moxa was fetched from somewhere, and they started with pea-sized cones on each other's arms, lighting them up. Even as the embers began to smolder and sizzle, both men kept perfectly cool faces. Neighbors gathered around, delighted by the spectacle, and with an audience now watching, the mounds of moxa kept growing bigger and bigger. Tatsu: \"Hah, something that small isn't even satisfying. Why don't you pile one this big on my arm?\" He heaped up a fist-sized mound of moxa on his arm. Kuma: \"Ha! I won't be outdone. Put the same amount on mine.\" And so, neither willing to lose, the mounds kept growing until eventually, two small mountains of moxa sat side by side on their arms." },
+    { id:'p5', title:"⑤やせ我慢", ssml:false, text:"The lit mounds of moxa kept sizzling and crackling away. Beads of sweat rose on both men's foreheads, and their faces turned beet red, yet neither would let his calm expression crack. Kuma: \"Ahh, this is just the right warmth... spring sunshine is a lovely, cozy thing, isn't it.\" Tatsu: (gritting his teeth) \"Y-yeah... nice and toasty, feels wonderful...\" Their voices trembled, the veins on their foreheads bulged from the strain, and yet neither would stoop to utter the words \"I give up.\" The gathered crowd watched on, hearts in their throats." },
+    { id:'p6', title:"⑥オチ", ssml:false, text:"Finally, as the mound of moxa burned all the way down and its heat pierced straight into the skin, Tatsu-tsuan couldn't take it any longer. Tatsu: \"I-I can't stand it! Hot! It's too hot!\" He leapt up, flailing his arm, and went stumbling off toward the well at a dead run. The crowd cheered, \"Kuma-san wins!\" and Kuma-san, pipe still in his mouth, sat there looking smug, saying \"Please, that was nothing.\" But the moment Tatsu disappeared around the corner of the alley, Kuma's knees buckled and he collapsed on the spot. Kuma: \"Ow, OWW! Of course it hurts! What warmth, my foot! You idiot!\" And with no one left to see, that composed face from moments ago vanished entirely, replaced by loud howls of pain. Two stubborn men clashing head-on — and the one who 'won' did so by the barest of margins. In the end, it turned out both of them had simply been putting up the same pig-headed front. And that, ladies and gentlemen, was the rather silly punchline of this tale." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Voyez-vous, les êtres humains sont d'étranges créatures. Nous détestons la douleur, nous détestons la chaleur, et pourtant, dès qu'on nous regarde, impossible de ne pas jouer les durs. « Oh, ça ? Ça ne me fait rien du tout », dit-on, tout en ravalant ses larmes en secret. C'est particulièrement vrai chez les natifs d'Edo, qui poussaient cette bravade obstinée à un niveau supérieur. Il y a être mauvais perdant, et il y a être têtu au-delà de toute raison — et Edo en comptait un bon nombre. L'histoire d'aujourd'hui parle de deux hommes dont l'entêtement, en se heurtant, allait causer bien des ennuis à tout le monde." },
+    { id:'p2', title:"②我慢自慢", ssml:false, text:"Un jour, devant le magasin de tabac du quartier, Kuma-san tomba sur Tatsu. Kuma : « Eh bien, Tatsu, si légèrement vêtu par ce froid ! » Tatsu : « Ha ! Je suis né sans jamais ressentir le froid, je suis fait comme ça. » Kuma : « Ne fais pas le fier. Le mois dernier, je me suis fait arracher une dent chez le dentiste et je n'ai rien senti du tout. » Tatsu : « Une seule dent ? Ne te vante pas autant. L'an dernier, je suis tombé d'un toit et me suis foulé la cheville, et je n'ai pas dit un mot de plainte. » Et ainsi de suite, chacun essayant de surpasser l'autre en endurance." },
+    { id:'p3', title:"③灸の一言", ssml:false, text:"Alors Kuma-san, comme s'il venait de se souvenir de quelque chose, prit la parole. Kuma : « Ça me fait penser, ma mère n'arrête pas de me harceler pour que je fasse des séances de moxibustion chaque mois. Mais moi, ça ne me fait rien — je fume ma pipe en fredonnant pendant que ça brûle. » Tatsu : « De grandes paroles, pour un peu de moxa. Moi, j'aime carrément ça — plus ça chauffe, meilleur c'est. Je ne sens pas plus qu'une piqûre de moustique. » Kuma : « Ah oui ? Alors si on testait ça tout de suite ? » Tatsu : « Avec plaisir, allons-y. » Et ainsi, un défi répondant à un autre, un concours parfaitement ridicule se mit en branle." },
+    { id:'p4', title:"④山盛りの勝負", ssml:false, text:"On fit donc venir du moxa, et ils commencèrent par de petits cônes de la taille d'un pois sur le bras de l'autre, qu'ils allumèrent. Même quand les braises se mirent à grésiller, les deux hommes gardèrent un visage parfaitement impassible. Les voisins, ravis du spectacle, s'attroupèrent, et avec ce public, les tas de moxa ne cessaient de grossir. Tatsu : « Ha, un si petit tas, ça ne suffit pas. Empile-m'en un aussi gros sur le bras. » Il entassa un tas de moxa gros comme un poing sur son bras. Kuma : « Ha ! Je ne vais pas me laisser faire. Mets-en autant sur le mien. » Et ainsi, aucun des deux ne voulant céder, les tas continuèrent de grossir jusqu'à ce que deux petites montagnes de moxa se dressent côte à côte sur leurs bras." },
+    { id:'p5', title:"⑤やせ我慢", ssml:false, text:"Les tas de moxa allumés continuaient de grésiller et de crépiter. Des gouttes de sueur perlaient sur le front des deux hommes, leurs visages viraient à l'écarlate, mais aucun des deux ne laissait fissurer son air impassible. Kuma : « Ahh, c'est juste la bonne chaleur... le soleil de printemps, c'est vraiment agréable et douillet, n'est-ce pas. » Tatsu : (serrant les dents) « O-oui... bien chaud, ça fait un bien fou... » Leurs voix tremblaient, les veines de leur front saillaient sous l'effort, mais aucun ne voulait s'abaisser à prononcer les mots « j'abandonne ». La foule rassemblée regardait, le cœur battant." },
+    { id:'p6', title:"⑥オチ", ssml:false, text:"Enfin, quand le tas de moxa eut fini de se consumer et que sa chaleur transperça la peau, Tatsu ne put plus tenir. Tatsu : « J-je n'en peux plus ! Ça brûle ! C'est trop chaud ! » Il bondit, agitant son bras, et partit en titubant vers le puits en courant. La foule s'écria : « Kuma-san a gagné ! » et Kuma-san, la pipe toujours à la bouche, affichait un air satisfait, disant « Voyons, ce n'était rien. » Mais à l'instant où Tatsu disparut au coin de la ruelle, les genoux de Kuma flanchèrent et il s'effondra sur place. Kuma : « Aïe, AÏE ! Bien sûr que ça fait mal ! Quelle bonne chaleur, tu parles ! Espèce d'idiot ! » Et avec plus personne pour le voir, ce visage impassible de tout à l'heure disparut complètement, remplacé par des hurlements de douleur. Deux entêtés qui s'affrontaient de front — et celui qui « gagna » ne le fit que d'un cheveu. En fin de compte, tous deux n'avaient fait que jouer la même comédie de bravade obstinée. Et voilà, mesdames et messieurs, la chute plutôt sotte de cette histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Verán, los seres humanos somos criaturas extrañas. Odiamos el dolor, odiamos el calor, y sin embargo, en cuanto alguien nos mira, no podemos evitar hacernos los valientes. \"¿Esto? A mí no me afecta en absoluto\", decimos, mientras por dentro estamos a punto de llorar. Esto es especialmente cierto entre los nativos de Edo, que llevaban esta bravuconería testaruda a otro nivel. Una cosa es ser mal perdedor, y otra muy distinta ser terco más allá de toda razón — y en Edo abundaban de estos últimos. La historia de hoy trata de dos hombres cuya obstinación, al chocar entre sí, causó no pocos problemas a todos a su alrededor." },
+    { id:'p2', title:"②我慢自慢", ssml:false, text:"Un día, frente a la tienda de tabaco del barrio, Kuma-san se encontró con Tatsu. Kuma: \"Vaya, Tatsu, qué poco abrigado vas con este frío.\" Tatsu: \"¡Ja! Nací sin sentir jamás el frío, así soy yo.\" Kuma: \"No te las des de valiente. El mes pasado me sacaron una muela en el dentista y no sentí absolutamente nada.\" Tatsu: \"¿Un solo diente? No presumas tanto. El año pasado me caí de un tejado y me torcí el tobillo, y no solté ni una queja.\" Y así seguían, cada uno tratando de superar al otro en aguante." },
+    { id:'p3', title:"③灸の一言", ssml:false, text:"Entonces Kuma-san, como si de repente recordara algo, habló. Kuma: \"Pensándolo bien, mi madre no deja de insistir en que me haga moxibustión cada mes. Pero a mí no me hace nada — me fumo la pipa tarareando mientras arde.\" Tatsu: \"Qué valiente, por un poco de moxa. A mí, la verdad, me gusta — cuanto más caliente, mejor se siente. No lo noto más que la picadura de un mosquito.\" Kuma: \"¿Ah, sí? Entonces, ¿qué tal si lo probamos aquí mismo?\" Tatsu: \"Encantado, hagámoslo.\" Y así, un desafío respondiendo a otro, se puso en marcha un concurso absolutamente ridículo." },
+    { id:'p4', title:"④山盛りの勝負", ssml:false, text:"Así que trajeron moxa de algún lado, y empezaron con conos del tamaño de un guisante en el brazo del otro, encendiéndolos. Aunque las brasas comenzaron a chisporrotear, ambos mantuvieron el rostro totalmente impasible. Los vecinos, encantados con el espectáculo, se fueron reuniendo, y con público presente, los montones de moxa no dejaban de crecer. Tatsu: \"Já, un montoncito así no satisface a nadie. Apílame uno de este tamaño en el brazo.\" Y amontonó una pila de moxa del tamaño de un puño sobre su brazo. Kuma: \"¡Já! No pienso quedarme atrás. Pon la misma cantidad en el mío.\" Y así, sin que ninguno quisiera ceder, los montones siguieron creciendo hasta que dos pequeñas montañas de moxa quedaron una junto a la otra sobre sus brazos." },
+    { id:'p5', title:"⑤やせ我慢", ssml:false, text:"Los montones de moxa encendidos seguían chisporroteando y crepitando. Gotas de sudor brotaban en la frente de ambos hombres, sus rostros se ponían como la grana, pero ninguno dejaba que se le quebrara la expresión serena. Kuma: \"Ahh, esta es la temperatura justa... el sol de primavera es algo cálido y agradable, ¿verdad?\" Tatsu: (apretando los dientes) \"S-sí... calentito, se siente maravilloso...\" Sus voces temblaban, las venas de sus frentes sobresalían por el esfuerzo, pero ninguno se rebajaría a pronunciar las palabras \"me rindo\". La multitud reunida observaba, con el corazón en un puño." },
+    { id:'p6', title:"⑥オチ", ssml:false, text:"Por fin, cuando el montón de moxa terminó de consumirse y su calor atravesó la piel, Tatsu no pudo aguantar más. Tatsu: \"¡N-no lo soporto! ¡Quema! ¡Quema demasiado!\" Saltó, agitando el brazo, y salió corriendo tambaleante hacia el pozo. La multitud gritó: \"¡Kuma-san gana!\", y Kuma-san, todavía con la pipa en la boca, se quedó ahí con aire satisfecho, diciendo \"Por favor, eso no fue nada.\" Pero en cuanto Tatsu desapareció por la esquina del callejón, las rodillas de Kuma cedieron y se desplomó en el sitio. Kuma: \"¡Ay, AY! ¡Claro que duele! ¡Qué temperatura agradable ni qué nada! ¡Idiota!\" Y sin nadie ya para verlo, aquel rostro sereno de hace un momento desapareció por completo, reemplazado por alaridos de dolor. Dos hombres tercos chocando de frente — y el que \"ganó\" lo hizo por el más mínimo margen. Al final, resultó que ambos habían estado fingiendo la misma testarudez. Y ese, señoras y señores, fue el final bastante tonto de esta historia." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

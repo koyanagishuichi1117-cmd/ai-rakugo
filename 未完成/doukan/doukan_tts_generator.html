@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>道灌 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 道灌 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、ちょいとした物知りというのは、重宝なものでございましてね。酒の席なんぞでちょいと気の利いた故事のひとつも披露すりゃ、「こいつぁできる」なんて一目置かれる。ただし、うろ覚えのまま中途半端に使おうものなら、かえって恥をかくことにもなりかねません。<break time=\"500ms\"/>とある長屋に、無学を笑われて悔しい思いをした、熊さんという男がおりまして、これが大家さんのところへ「なにか気の利いた話を教えてくれ」と頼みに行くところから、お話が始まります。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②大家さんに頼む", ssml:true, text:"<speak><prosody rate=\"115%\" pitch=\"+1st\">熊さんが大家さんのところへ駆け込んでまいりました。<break time=\"300ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">大家さん、聞いてくださいよ。この間、寄合で何にも気の利いたことが言えなくて、みんなに笑われちまったんですよ。悔しいったらありゃしない。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">ほう、それはとんだ災難だったな。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">そこで頼みなんですがね、大家さんは物知りだ。何か一つ、賢そうに聞こえる話を教えちゃもらえませんか。<break time=\"400ms\"/></prosody><prosody rate=\"97%\" pitch=\"-1st\">よかろう、それなら一つ、いい話を教えてやろう。太田道灌公の、山吹の話というのがあってな。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③太田道灌の逸話", ssml:true, text:"<speak><prosody rate=\"97%\" pitch=\"-1st\">むかし、太田道灌という武将がいてな。ある日、鷹狩りに出ていたところ、にわかに雨が降り出してしまった。<break time=\"400ms\"/>道灌公は蓑を持っていなかったので、近くのみすぼらしい小屋に立ち寄って、そこにいた若い娘に『蓑を貸してくれ』と頼んだそうだ。ところがその娘は何も言わず、黙って一枝の山吹の花を差し出したそうでな。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">へぇ、蓑を貸してくれって言ったのに、なんで花なんか渡すんです？馬鹿な娘ですね。<break time=\"400ms\"/></prosody><prosody rate=\"97%\" pitch=\"-1st\">まぁ慌てるな。道灌公もお前と同じで、その場では意味がわからず、ぷりぷり怒って帰ったそうだ。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④実の一つだになきぞ悲しき", ssml:true, text:"<speak><prosody rate=\"115%\" pitch=\"+1st\">それで、その花にはどういう意味があったんです？<break time=\"350ms\"/></prosody><prosody rate=\"97%\" pitch=\"-1st\">後になって家来に聞いて、道灌公もようやく気づいたそうだ。兼明親王の古い歌に、『七重八重花は咲けども山吹の実の一つだになきぞ悲しき』というのがあってな。<break time=\"500ms\"/>山吹の花は、いくつ咲いても実が一つもならない。その『実』と、蓑笠の『蓑』をかけて、『うちにはお貸しできる蓑の一つもございません』と、それはそれは奥ゆかしく、遠回しにお断りしていたわけだ。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">へぇ〜、そりゃあ粋な断り方だ。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">道灌公もそこに感服してな。貧しい家の娘ですら古歌を諳んじているというのに、自分は武将のくせに歌の道にうとかったと恥じ入り、それからというもの歌道の勉強に励んで、のちには立派な歌人にもなったという、まぁそういう話だ。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤覚えた話を使ってみる", ssml:true, text:"<speak><prosody rate=\"118%\" pitch=\"+1st\">熊さんはすっかり感心してしまいましてね。<break time=\"300ms\"/></prosody><prosody rate=\"122%\" pitch=\"+1st\">こいつぁいい話だ！これを今度の寄合で披露すりゃ、みんな俺を見直すに違いねぇ！<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、大家さんの話を頭の中でなんとか覚え込んで、意気揚々と家へ帰りました。すると折あしく、その帰り道でにわか雨に降られましてね。傘も蓑も持っていない熊さんは「これぞ絶好の機会だ」とばかりに、近くの家の戸を叩いて、傘を借りようとしたのでございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">戸を開けたのは、その家の娘さんでございました。<break time=\"350ms\"/></prosody><prosody rate=\"115%\" pitch=\"0st\">すまねぇが、傘を一本貸してもらえねぇか。<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">すると娘さん、たまたま庭に咲いていた山吹の枝を一つ折って、黙って差し出しました。熊さんは「おっ、これぞまさに道灌公の故事そのままだ」と勇み立ちまして、さっそく教わったばかりの故事を披露しようといたしましたが……<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">えぇ〜と、たしか……『七重八重花は咲けども、実の一つも貸さぬとは……いや、蓑が一つも悲しいとは……』畜生、どうもうまく出てこねぇ！<break time=\"500ms\"/></prosody><prosody rate=\"125%\" pitch=\"+1st\">まぁいいや！とにかく花なんぞいらねぇんだよ、こちとら傘を貸してくれって言ってるんだ！気の利いたつもりかもしれねぇが、こっちはずぶ濡れになっちまうじゃねぇか！<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、すっかり怒り出す始末。習いたての故事も台無し、せっかくの風流も丸つぶれ。賢そうに見せようとして、かえって墓穴を掘ってしまったという、なんともお粗末なオチでございました。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Now, having a bit of learning up your sleeve is a handy thing indeed. Drop some clever bit of history at a drinking party, and people will look at you with newfound respect. But try to use half-remembered knowledge carelessly, and you might just embarrass yourself instead. In a certain tenement lived a man named Kuma-san, who'd been mocked once too often for his lack of learning, and it stung. Our story begins as he marches off to see his landlord to ask for some clever bit of wisdom he could show off." },
+    { id:'p2', title:"②大家さんに頼む", ssml:false, text:"Kuma-san came rushing into the landlord's place. Kuma: \"Landlord, you gotta hear this. At the neighborhood meeting the other day, I couldn't think of one clever thing to say, and everyone laughed at me. I've never been so mortified.\" Landlord: \"Well now, that sounds like quite the ordeal.\" Kuma: \"So here's what I'm asking — you're a learned man. Could you teach me some story that'll make me sound clever?\" Landlord: \"Very well, let me tell you a good one then. There's a tale about Lord Ōta Dōkan and a branch of yamabuki blossoms.\"" },
+    { id:'p3', title:"③太田道灌の逸話", ssml:false, text:"Landlord: \"Long ago, there was a military commander named Ōta Dōkan. One day, while out hawking, he was caught in a sudden downpour. Having no straw raincoat with him, he stopped at a shabby little hut nearby and asked the young girl there to lend him one. But instead of answering, the girl silently held out a single branch of yamabuki blossoms.\" Kuma: \"Huh? He asked for a raincoat and she handed him flowers? What a foolish girl.\" Landlord: \"Now hold on. Lord Dōkan was just like you — he had no idea what it meant at the time, and stormed off in a huff.\"" },
+    { id:'p4', title:"④実の一つだになきぞ悲しき", ssml:false, text:"Kuma: \"So what did those flowers actually mean?\" Landlord: \"Later on, he asked one of his retainers, and Lord Dōkan finally understood. There's an old poem by Prince Kaneakira that goes: 'Though it blooms in sevenfold, eightfold petals, the yamabuki bears not even a single seed — how sad.' The yamabuki flower, no matter how many blossoms it puts out, never bears any fruit — no 'mi,' meaning seed. And that word 'mi' is a pun on the 'mino' of a straw raincoat. So she was saying, ever so elegantly and indirectly: 'We don't have even a single raincoat to lend you.'\" Kuma: \"Huh, that's a pretty stylish way to turn someone down.\" Landlord: \"Lord Dōkan was deeply humbled by it too. Here was a girl from a poor household who could recite classical poetry from memory, while he, a mighty warrior, knew nothing of the way of poetry. Ashamed of himself, he threw himself into studying poetry from that day on, and eventually became a fine poet in his own right. That's the whole story.\"" },
+    { id:'p5', title:"⑤覚えた話を使ってみる", ssml:false, text:"Kuma-san was thoroughly impressed. Kuma: \"Now that's a good story! If I tell this one at the next neighborhood meeting, everyone's bound to think much more highly of me!\" He somehow crammed the landlord's tale into his head and headed home in high spirits. As luck would have it, on the way home he got caught in a sudden shower. Having neither umbrella nor raincoat, Kuma-san thought, \"What a perfect opportunity!\" and knocked on the door of a nearby house to ask for an umbrella to borrow." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"It was the daughter of the house who opened the door. Kuma: \"Sorry to bother you, but could I borrow an umbrella?\" The girl, as it happened, snapped off a branch of yamabuki blossoms growing in the garden and silently held it out to him. Kuma-san's eyes lit up. \"Oh ho, this is exactly like the story of Lord Dōkan!\" he thought, delighted, and eagerly tried to recite the tale he'd just learned... Kuma: \"Umm, let's see... 'Though it blooms in sevenfold, eightfold petals, not one single seed will it lend...' no wait, 'not even one raincoat, how sad...' Dammit, it's not coming out right!\" After thoroughly tangling himself up, he finally blurted: Kuma: \"Ah, forget it! I don't want any flowers — I asked you to lend me an umbrella! Maybe you think you're being clever, but I'm the one who's going to get soaked!\" And with that, he stormed off in a huff. His freshly learned bit of culture, utterly wasted; the elegant gesture, completely lost on him. In trying to look clever, he'd only dug himself a deeper hole — and that, rather pathetically, was the punchline of this tale." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Voyez-vous, avoir un peu de savoir en réserve, c'est bien pratique. Sortez une anecdote historique bien tournée lors d'un banquet, et les gens vous regarderont avec un respect tout neuf. Mais utilisez maladroitement un savoir à moitié retenu, et vous risquez plutôt de vous couvrir de ridicule. Dans un certain logement vivait un homme nommé Kuma-san, qui avait été moqué un peu trop souvent pour son manque d'instruction, et cela le vexait profondément. Notre histoire commence alors qu'il se rend chez son propriétaire pour lui demander quelque anecdote raffinée dont il pourrait se vanter." },
+    { id:'p2', title:"②大家さんに頼む", ssml:false, text:"Kuma-san se précipita chez le propriétaire. Kuma : « Propriétaire, il faut que vous entendiez ça. À la réunion de quartier l'autre jour, je n'ai rien trouvé d'intelligent à dire, et tout le monde s'est moqué de moi. Jamais je n'ai été aussi mortifié. » Propriétaire : « Eh bien, ça semble avoir été toute une épreuve. » Kuma : « Alors voilà ce que je vous demande — vous êtes un homme instruit. Pourriez-vous m'apprendre une histoire qui me ferait paraître intelligent ? » Propriétaire : « Très bien, laisse-moi t'en raconter une bonne alors. Il y a une histoire sur le seigneur Ōta Dōkan et une branche de fleurs de yamabuki. »" },
+    { id:'p3', title:"③太田道灌の逸話", ssml:false, text:"Propriétaire : « Il y a longtemps, il y avait un chef militaire nommé Ōta Dōkan. Un jour, alors qu'il chassait au faucon, une averse soudaine le surprit. N'ayant pas de manteau de paille sur lui, il s'arrêta dans une pauvre petite cabane et demanda à la jeune fille présente de lui en prêter un. Mais au lieu de répondre, la fille lui tendit silencieusement une simple branche de fleurs de yamabuki. » Kuma : « Hein ? Il demande un manteau et elle lui donne des fleurs ? Quelle fille stupide. » Propriétaire : « Attends un peu. Le seigneur Dōkan était exactement comme toi — il ne comprit pas ce que cela signifiait sur le moment, et repartit furieux. »" },
+    { id:'p4', title:"④実の一つだになきぞ悲しき", ssml:false, text:"Kuma : « Alors, que signifiaient réellement ces fleurs ? » Propriétaire : « Plus tard, il interrogea l'un de ses vassaux, et le seigneur Dōkan comprit enfin. Il existe un vieux poème du prince Kaneakira qui dit : 'Bien qu'elle fleurisse en pétales multiples, la fleur de yamabuki ne porte pas même une seule graine — quelle tristesse.' La fleur de yamabuki, peu importe combien elle fleurit, ne donne jamais de fruit — pas un seul 'mi', c'est-à-dire graine. Et ce mot 'mi' est un jeu de mots avec le 'mino' du manteau de paille. Elle disait donc, avec une élégance toute discrète : 'Nous n'avons pas même un seul manteau à vous prêter.' » Kuma : « Ah, voilà une façon bien élégante de refuser. » Propriétaire : « Le seigneur Dōkan en fut lui aussi profondément touché. Voilà qu'une fille d'une famille pauvre pouvait réciter la poésie classique de mémoire, alors que lui, puissant guerrier, ne connaissait rien à l'art de la poésie. Honteux, il se consacra dès lors à l'étude de la poésie, et devint par la suite un poète accompli. Voilà toute l'histoire. »" },
+    { id:'p5', title:"⑤覚えた話を使ってみる", ssml:false, text:"Kuma-san était profondément impressionné. Kuma : « Ça, c'est une bonne histoire ! Si je raconte ça à la prochaine réunion de quartier, tout le monde va sûrement me voir d'un meilleur œil ! » Il enfonça tant bien que mal l'histoire du propriétaire dans sa tête et rentra chez lui plein d'entrain. Par un hasard malheureux, sur le chemin du retour, une averse soudaine le surprit. N'ayant ni parapluie ni manteau, Kuma-san se dit : « Quelle occasion parfaite ! » et frappa à la porte d'une maison voisine pour emprunter un parapluie." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Ce fut la fille de la maison qui ouvrit la porte. Kuma : « Désolé de vous déranger, mais pourriez-vous me prêter un parapluie ? » La jeune fille, comme il se trouve, cassa une branche de fleurs de yamabuki qui poussait dans le jardin et la lui tendit en silence. Les yeux de Kuma-san s'illuminèrent. « Oh là là, c'est exactement comme l'histoire du seigneur Dōkan ! » pensa-t-il, ravi, et il tenta avec empressement de réciter l'histoire qu'il venait d'apprendre... Kuma : « Euh, voyons voir... 'Bien qu'elle fleurisse en pétales multiples, elle ne prêtera pas même une seule graine...' non attendez, 'pas même un seul manteau, quelle tristesse...' Zut, ça ne sort pas bien ! » Après s'être complètement emmêlé les pinceaux, il finit par lâcher : Kuma : « Ah, laisse tomber ! Je ne veux pas de fleurs — je t'ai demandé de me prêter un parapluie ! Tu crois peut-être faire preuve de raffinement, mais c'est moi qui vais me faire tremper ! » Et sur ce, il repartit furieux. Son savoir tout juste appris, complètement gâché ; le geste élégant, totalement perdu pour lui. En essayant de paraître intelligent, il n'avait fait que se creuser un trou plus profond — et voilà, plutôt pathétique, la chute de cette histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Verán, tener un poco de sabiduría guardada resulta muy útil. Suelte una anécdota histórica ingeniosa en una fiesta con bebida, y la gente lo mirará con renovado respeto. Pero use ese conocimiento a medias de forma descuidada, y podría terminar avergonzándose en su lugar. En cierta vivienda vivía un hombre llamado Kuma-san, que había sido objeto de burlas demasiadas veces por su falta de estudios, y aquello le dolía. Nuestra historia comienza cuando va a ver a su casero para pedirle alguna anécdota ingeniosa con la que presumir." },
+    { id:'p2', title:"②大家さんに頼む", ssml:false, text:"Kuma-san corrió hacia la casa del casero. Kuma: \"Casero, tiene que escuchar esto. En la reunión del vecindario el otro día, no se me ocurrió nada ingenioso que decir, y todos se rieron de mí. Nunca me había sentido tan avergonzado.\" Casero: \"Vaya, eso suena a toda una prueba.\" Kuma: \"Por eso le pido esto — usted es un hombre culto. ¿Podría enseñarme alguna historia que me haga parecer inteligente?\" Casero: \"Muy bien, entonces déjame contarte una buena. Hay una historia sobre el señor Ōta Dōkan y una rama de flores de yamabuki.\"" },
+    { id:'p3', title:"③太田道灌の逸話", ssml:false, text:"Casero: \"Hace mucho tiempo, hubo un comandante militar llamado Ōta Dōkan. Un día, mientras cazaba con halcones, lo sorprendió un chaparrón repentino. Como no llevaba capa de paja, se detuvo en una humilde choza cercana y le pidió a la joven que había allí que le prestara una. Pero en lugar de responder, la muchacha le tendió en silencio una simple rama de flores de yamabuki.\" Kuma: \"¿Eh? ¿Le pide una capa y ella le da flores? Qué muchacha tan tonta.\" Casero: \"Espera un momento. El señor Dōkan era igual que tú — no entendió el significado en ese momento, y se marchó furioso.\"" },
+    { id:'p4', title:"④実の一つだになきぞ悲しき", ssml:false, text:"Kuma: \"Entonces, ¿qué significaban en realidad esas flores?\" Casero: \"Más tarde, le preguntó a uno de sus vasallos, y el señor Dōkan por fin lo entendió. Hay un viejo poema del príncipe Kaneakira que dice: 'Aunque florece en pétalos múltiples, el yamabuki no da ni una sola semilla — qué triste.' La flor de yamabuki, por muchas flores que dé, nunca produce fruto — ni un solo 'mi', es decir, semilla. Y esa palabra 'mi' es un juego de palabras con el 'mino' de la capa de paja. Así que ella estaba diciendo, con toda elegancia e indirecta: 'No tenemos ni una sola capa que prestarle.'\" Kuma: \"Vaya, qué manera tan elegante de rechazar a alguien.\" Casero: \"El señor Dōkan quedó profundamente conmovido también. Resulta que una muchacha de una familia pobre podía recitar poesía clásica de memoria, mientras que él, un poderoso guerrero, no sabía nada del camino de la poesía. Avergonzado de sí mismo, se dedicó desde entonces a estudiar poesía, y con el tiempo se convirtió en un poeta excelente. Esa es toda la historia.\"" },
+    { id:'p5', title:"⑤覚えた話を使ってみる", ssml:false, text:"Kuma-san quedó profundamente impresionado. Kuma: \"¡Vaya que es una buena historia! ¡Si la cuento en la próxima reunión del vecindario, seguro que todos me verán con mejores ojos!\" Metió como pudo la historia del casero en su cabeza y volvió a casa animadísimo. Por una casualidad desafortunada, de camino a casa lo sorprendió un chaparrón repentino. Sin paraguas ni capa, Kuma-san pensó: \"¡Qué ocasión perfecta!\", y llamó a la puerta de una casa cercana para pedir prestado un paraguas." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Fue la hija de la casa quien abrió la puerta. Kuma: \"Disculpe la molestia, ¿podría prestarme un paraguas?\" La muchacha, casualmente, cortó una rama de flores de yamabuki que crecía en el jardín y se la tendió en silencio. A Kuma-san se le iluminaron los ojos. \"Vaya, esto es exactamente como la historia del señor Dōkan\", pensó encantado, e intentó con entusiasmo recitar la historia que acababa de aprender... Kuma: \"Ejem, a ver... 'Aunque florece en pétalos múltiples, no prestará ni una sola semilla...' no espera, 'ni siquiera una capa, qué triste...' Maldición, no me sale bien!\" Después de enredarse por completo, finalmente soltó: Kuma: \"¡Ah, olvídalo! No quiero flores — ¡te pedí que me prestaras un paraguas! Puede que creas que estás siendo elegante, pero soy yo el que se va a empapar!\" Y con eso, se marchó furioso. Su cultura recién aprendida, completamente desperdiciada; el gesto elegante, totalmente perdido para él. Al intentar parecer inteligente, sólo había cavado un hoyo más profundo para sí mismo — y ese, bastante patético, fue el final de esta historia." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

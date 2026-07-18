@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>転失気 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 転失気 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜〜、一席申し上げますが。<break time=\"500ms\"/>世の中には知ったかぶりというものがございましてね、<break time=\"300ms\"/>知らないことを「知らない」と、ひとこと言えばいいものを、それが言えないばっかりに、恥の上塗りをしてしまう。<break time=\"500ms\"/>これはお医者さまだろうが、お坊さまだろうが、身分に関係なく、みな同じでございます。<break time=\"600ms\"/>今日はそんな、知ったかぶりが重なりに重なって、とんでもない騒動になるというお噺でございます。<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p2', title:"②和尚と珍念", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">町の、とある寺に、少々もの知り顔の和尚さまがおりまして。<break time=\"400ms\"/>ある日、風邪をこじらせて寝込んでしまい、かかりつけの玄庵先生というお医者さまを呼びました。<break time=\"400ms\"/>玄庵先生、和尚の脈を取りながら、こう尋ねます。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">和尚さま、近頃、転失気はございますかな？<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">和尚は「てんしき」と聞いて、はてなんのことやら、さっぱり分かりません。<break time=\"300ms\"/>しかし、ここで「存じません」と言っては、一寺の住職の沽券に関わる。<break time=\"300ms\"/>そこで澄ました顔でこう答えました。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">ああ、転失気か。実はそれが、<sub alias=\"にさんにちまえ\">二、三日前</sub>にひとつ、割れましてな。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">玄庵先生、妙な顔をしながらも「さようでございますか」と、そのまま帰っていきました。<break time=\"400ms\"/>和尚、医者が帰ったとたん、急に不安になってまいります。<break time=\"300ms\"/>「割れた」などと、知ったかぶりで答えてしまったが、いったい転失気とは何なのか。<break time=\"300ms\"/>捨て置くわけにもまいりません。<break time=\"300ms\"/>そこで、そばにいた小僧の珍念を呼びつけました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p3', title:"③医者への使い", ssml:true, text:"<speak><prosody rate=\"95%\" pitch=\"-2st\">珍念、珍念や。ちょいとお使いを頼まれておくれ。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">へえ、なんでございましょう。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">玄庵先生のところへ行ってな転失気とはなんでございますかと、聞いてまいれ。<break time=\"300ms\"/>ああ、それから、これは和尚が知りたがっていたとは言うでないぞ。お前が知りたくて聞きに来た、ということにしておくのだぞ。<break time=\"500ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">はい、かしこまりました。<break time=\"500ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">珍念、素直な子でございますから、言われた通り、玄庵先生のお宅まで、とことこと出かけてまいりました。<break time=\"400ms\"/></prosody><prosody rate=\"122%\" pitch=\"+2st\">先生、先生。お伺いしたいことがございます。転失気とは、いったいなんでございますか？<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">玄庵先生、この問いを聞いて、ピンときました。<break time=\"300ms\"/>さては、さっきの和尚、知ったかぶりをしおったな。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④医者のからかい", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">玄庵先生、内心にやりとしながらも、和尚の恥をあらわに笑ってやるほど、野暮な男ではございません。<break time=\"300ms\"/>かえって、この機会に一つ、からかってやろうと思いつきました。<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">珍念や、よく聞きに来た。転失気というのはな、目には見えぬ尊いものでな。<break time=\"400ms\"/>そうさな、酒の席で使う、あの盃のことを言うのじゃ。それも、大層珍しい、値打ちのある盃でな。<break time=\"500ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">へえ〜、盃でございますか。それは知りませんでした。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">よいか、和尚さまにも、そうお伝え申せ。ついでに、先生も転失気を三つほどお持ちだそうです、とでも言うておくとよい。<break time=\"500ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">はい、かしこまりました。ありがとう存じます。<break time=\"500ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">珍念、すっかり感心して、寺への帰り道を急ぎました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤和尚、知ったかぶり", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">寺に戻った珍念、さっそく和尚に申し上げます。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\"><sub alias=\"おしょうさま\">和尚さま</sub>、ただいま戻りました。転失気とは、酒を飲む盃のことだそうにございます。大層珍しい、値打ちのある盃だとか。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">和尚、これを聞いて、内心ほっと胸をなでおろします。<break time=\"300ms\"/>なるほど、盃か。それなら割れたと言うても、辻褄が合う。<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">うむ、うむ。さすがはわし、よう知っておったであろう。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">すっかり気をよくした和尚、その日の午後に訪ねてきた<sub alias=\"となりてら\">隣寺</sub>の和尚にも、得意げにこの話を披露いたします。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">いやなに、転失気と申しましてな、あれはたいそう値打ちのある盃でしてな。手前も三つほど持っておりましたが、この間、一つ割ってしまいましてな。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">隣の和尚も、ほほう〜〜、それは惜しいことを、と感心して聞いておりました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">そこへちょうど、様子見にとやってきたのが、当の玄庵先生でございます。<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">これはこれは先生、良いところへ。先生も転失気をお持ちだそうで。手前も三つほどございましたが、先日、一つ、すかしてしまいましてな。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">玄庵先生、これを聞いて、噴き出しそうになるのをぐっとこらえます。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">和尚さま、盃を、すかす、とは、また妙な言い方でございますな。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">そこへ、そばに控えていた珍念が、無邪気な顔でひとこと。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">先生、この間教わった通りにお伝えしましたよ。転失気は盃だって。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">玄庵先生、とうとうこらえきれずに大笑い。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">いやいや和尚さま、盃が、すかす、わけがございません。すかしてしまうのは、盃ではのうて……近頃、お腹の具合はいかがで？<break time=\"600ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">和尚、真っ赤になって、しどろもどろ。<break time=\"300ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">い、いや、その……それを申されると、面目次第もございません。<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">というわけで、知ったかぶりが知ったかぶりを呼び、とんだ落ちがついたところで、一席、これにてお開きとさせていただきます。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In this world, there's a certain kind of person who just can't stand to admit they don't know something. If they'd only say 'I don't know,' that would be the end of it — but because they can't bring themselves to say those words, they end up piling embarrassment on top of embarrassment. Doctors, priests, it makes no difference — everyone's the same in this regard. Today's tale is about exactly that: a case of not-knowing piled on not-knowing, until it turns into an almighty mess." },
+    { id:'p2', title:"②和尚と珍念", ssml:false, text:"In a certain town temple lived a priest who fancied himself quite knowledgeable. One day he caught a bad cold and took to his bed, so he called in his regular doctor, a man named Gen'an. While taking the priest's pulse, Doctor Gen'an asked: Doctor: \"Reverend, have you had a tenshiki lately?\" The priest had never heard the word 'tenshiki' in his life and had no idea what it meant. But admitting 'I don't know' would damage the dignity of a temple's head priest. So, putting on a composed face, he answered: Priest: \"Ah, tenshiki — well, as it happens, one of mine broke just two or three days ago.\" Gen'an gave a puzzled look but simply said, \"I see,\" and left. The moment the doctor was gone, the priest grew anxious — he'd bluffed his way through with that answer about something 'breaking,' but what on earth was a tenshiki, really? He couldn't just leave it be, so he called over the young acolyte at his side, a boy named Chinnen." },
+    { id:'p3', title:"③医者への使い", ssml:false, text:"Priest: \"Chinnen, oh Chinnen. I need you to run a little errand for me.\" Chinnen: \"Yes sir, what is it?\" Priest: \"Go to Doctor Gen'an's house and ask him, 'What is a tenshiki?' Oh, and one more thing — don't say it's me who wants to know. Let him think you're the one who's curious.\" Chinnen: \"Yes sir, understood.\" Chinnen was an obedient boy, so he did exactly as told and trotted off to Doctor Gen'an's house. Chinnen: \"Doctor, Doctor! I have something I'd like to ask you. What in the world is a tenshiki?\" The moment Gen'an heard the question, it clicked for him at once. (Ha — so that priest was bluffing earlier after all...)" },
+    { id:'p4', title:"④医者のからかい", ssml:false, text:"Doctor Gen'an smirked to himself, but he wasn't crude enough to expose the priest's ignorance outright and laugh in his face. Instead, he thought he'd have a bit of fun with the situation. Gen'an: \"Well now, Chinnen, good of you to come ask. A tenshiki, you see, is a precious thing invisible to the eye... yes, it's the little cup used for sake at a banquet. And a rather rare, valuable cup at that.\" Chinnen: \"Ohh, a sake cup! I never knew that.\" Gen'an: \"Now, be sure to tell the priest exactly that. And while you're at it, add that the doctor himself owns about three tenshiki as well.\" Chinnen: \"Yes sir, understood. Thank you very much.\" Thoroughly impressed, Chinnen hurried back along the road to the temple." },
+    { id:'p5', title:"⑤和尚、知ったかぶり", ssml:false, text:"Back at the temple, Chinnen wasted no time reporting to the priest. Chinnen: \"Reverend, I'm back. A tenshiki is apparently a cup for drinking sake — a rather rare and valuable one at that.\" Hearing this, the priest secretly breathed a sigh of relief. (Ah, a cup, is it. Then my line about it 'breaking' actually holds together after all.) Priest: \"Mm, yes, indeed. Just as I thought — I knew it all along, didn't I.\" Thoroughly pleased with himself, the priest, when a neighboring temple's priest came to visit that afternoon, proudly showed off this bit of knowledge. Priest: \"Oh, it's nothing much, but there's this thing called a tenshiki — a most valuable sort of sake cup. I myself owned about three, but I'm afraid I broke one of them the other day.\" The visiting priest listened, impressed. \"My, my, what a shame that is.\"" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Just then, who should arrive to check on the priest's condition but Doctor Gen'an himself. Priest: \"Well, well, Doctor, perfect timing. I hear you own a tenshiki yourself. I had about three of my own, but I'm afraid I let one slip out just the other day.\" Hearing this, Gen'an had to fight down the urge to burst out laughing. Gen'an: \"Reverend... 'let one slip out' is a rather odd way to describe a cup, isn't it?\" At that moment, Chinnen, sitting quietly nearby, piped up with innocent honesty. Chinnen: \"Doctor, I told him exactly what you taught me the other day — that a tenshiki is a cup!\" At last, Gen'an couldn't hold it in any longer and burst out laughing. Gen'an: \"Now, now, Reverend, a cup can't very well 'slip out.' What slips out isn't a cup at all... tell me, how has your stomach been feeling lately?\" The priest turned bright red and stammered helplessly. Priest: \"W-well, ah, that is... if you put it that way, I have no face left to show.\" And so, with one bluff calling forth another bluff, the whole thing came tumbling down to its punchline — and on that note, I'll bring this story to a close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Dans ce monde, il existe une certaine sorte de personne qui ne supporte tout simplement pas d'admettre son ignorance. S'ils disaient simplement « je ne sais pas », tout s'arrêterait là — mais comme ils n'arrivent pas à prononcer ces mots, ils s'enfoncent dans un embarras toujours plus grand. Médecins, moines, peu importe leur rang, tous pareils. L'histoire d'aujourd'hui parle justement de cela : une ignorance qui s'empile sur une autre, jusqu'à devenir un joyeux désastre." },
+    { id:'p2', title:"②和尚と珍念", ssml:false, text:"Dans le temple d'une certaine ville vivait un moine qui se croyait très savant. Un jour, un mauvais rhume le cloua au lit, et il fit venir son médecin habituel, un certain docteur Gen'an. Tout en prenant son pouls, le docteur Gen'an lui demanda : Médecin : « Révérend, avez-vous eu un tenshiki récemment ? » Le moine n'avait jamais entendu ce mot de sa vie et n'en avait pas la moindre idée. Mais avouer « je ne sais pas » aurait entaché la dignité d'un père supérieur. Alors, prenant un air posé, il répondit : Moine : « Ah, un tenshiki — eh bien, justement, l'un des miens s'est brisé il y a deux ou trois jours. » Gen'an eut un air perplexe mais se contenta de dire « Je vois » avant de partir. À peine le médecin parti, le moine se mit à paniquer : il avait bluffé avec cette histoire de chose « brisée », mais qu'était donc, au juste, un tenshiki ? Impossible de laisser cela ainsi. Il appela donc le jeune novice à ses côtés, un garçon nommé Chinnen." },
+    { id:'p3', title:"③医者への使い", ssml:false, text:"Moine : « Chinnen, oh Chinnen. J'ai une petite course à te confier. » Chinnen : « Oui, maître, de quoi s'agit-il ? » Moine : « Va chez le docteur Gen'an et demande-lui : \"Qu'est-ce qu'un tenshiki ?\" Ah, et surtout, ne dis pas que c'est moi qui veux savoir. Laisse-le croire que c'est toi qui es curieux. » Chinnen : « Oui, maître, entendu. » Chinnen était un garçon obéissant, il fit donc exactement comme on le lui avait dit et trottina jusque chez le docteur Gen'an. Chinnen : « Docteur, Docteur ! J'ai une question à vous poser. Qu'est-ce donc qu'un tenshiki ? » Dès qu'il entendit la question, tout devint clair pour Gen'an. (Ha, ainsi ce moine bluffait tout à l'heure...)" },
+    { id:'p4', title:"④医者のからかい", ssml:false, text:"Le docteur Gen'an eut un sourire intérieur, mais il n'était pas homme à humilier grossièrement le moine en révélant son ignorance au grand jour. Il préféra plutôt s'amuser un peu de la situation. Gen'an : « Eh bien, Chinnen, tu as bien fait de venir demander. Un tenshiki, vois-tu, est une chose précieuse, invisible à l'œil... oui, c'est cette petite coupe qu'on utilise pour le saké lors des banquets. Et une coupe plutôt rare et précieuse, en plus. » Chinnen : « Oh, une coupe à saké ! Je ne le savais pas. » Gen'an : « Bien, veille à bien rapporter cela au moine. Et pendant que tu y es, ajoute que le docteur lui-même en possède environ trois. » Chinnen : « Oui, entendu. Merci beaucoup. » Tout impressionné, Chinnen se hâta de reprendre le chemin du temple." },
+    { id:'p5', title:"⑤和尚、知ったかぶり", ssml:false, text:"De retour au temple, Chinnen se hâta de faire son rapport au moine. Chinnen : « Révérend, je suis de retour. Un tenshiki serait une coupe pour boire le saké — une coupe plutôt rare et précieuse, à ce qu'on dit. » En entendant cela, le moine poussa un soupir de soulagement intérieur. (Ah, une coupe, donc. Alors ma remarque sur la chose \"brisée\" tient debout, après tout.) Moine : « Hmm, oui, en effet. Comme je le pensais — je le savais depuis le début, n'est-ce pas. » Tout content de lui, le moine, lorsque le supérieur du temple voisin vint lui rendre visite cet après-midi-là, se vanta fièrement de ce savoir. Moine : « Oh, ce n'est rien, mais il existe une chose appelée tenshiki — une coupe à saké des plus précieuses. J'en possédais moi-même environ trois, mais j'en ai malheureusement brisé une l'autre jour. » Le moine visiteur écouta, impressionné. « Ma foi, quel dommage. »" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Juste à ce moment, qui vint prendre des nouvelles du moine, sinon le docteur Gen'an lui-même. Moine : « Tiens, tiens, Docteur, quelle bonne visite. Il paraît que vous possédez aussi un tenshiki. J'en avais moi-même trois, mais j'en ai bien peur, l'autre jour, j'en ai laissé échapper un discrètement. » En entendant cela, Gen'an dut lutter pour ne pas éclater de rire. Gen'an : « Révérend... \"laisser échapper discrètement\" est une bien étrange façon de parler d'une coupe, n'est-ce pas ? » C'est alors que Chinnen, assis tranquillement à côté, lança innocemment une remarque. Chinnen : « Docteur, je lui ai dit exactement ce que vous m'avez appris l'autre jour — qu'un tenshiki est une coupe ! » Cette fois, Gen'an ne put plus se retenir et éclata de rire. Gen'an : « Allons, allons, Révérend, une coupe ne peut pas \"s'échapper discrètement\". Ce qui s'échappe ainsi, ce n'est certainement pas une coupe... dites-moi, comment se porte votre ventre, ces derniers temps ? » Le moine devint écarlate et bafouilla, désemparé. Moine : « E-eh bien, euh, c'est-à-dire... en le formulant ainsi, je n'ai plus aucune dignité à sauver. » Et voilà comment un bluff en entraînant un autre finit par déboucher sur cette chute — et sur ce, je vais clore cette histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. En este mundo existe cierto tipo de persona que no soporta admitir que no sabe algo. Si tan solo dijeran «no lo sé», ahí terminaría todo — pero como no logran pronunciar esas palabras, van acumulando vergüenza sobre vergüenza. Médicos, monjes, no importa el rango, todos igual. La historia de hoy trata justamente de eso: una ignorancia apilada sobre otra, hasta convertirse en un alegre disparate." },
+    { id:'p2', title:"②和尚と珍念", ssml:false, text:"En el templo de cierto pueblo vivía un monje que se creía muy sabio. Un día, un fuerte resfriado lo obligó a guardar cama, así que llamó a su médico de confianza, el doctor Gen'an. Mientras le tomaba el pulso, el doctor Gen'an le preguntó: Médico: «Reverendo, ¿ha tenido usted un tenshiki últimamente?» El monje jamás había oído esa palabra y no tenía idea de qué significaba. Pero admitir «no lo sé» dañaría la dignidad de un abad. Así que, con rostro sereno, respondió: Monje: «Ah, un tenshiki... pues resulta que se me rompió uno hace dos o tres días.» Gen'an puso cara de extrañeza, pero solo dijo «Ya veo» y se marchó. En cuanto el médico se fue, el monje empezó a inquietarse: había fanfarroneado con eso de que «se rompió», pero ¿qué diablos era un tenshiki? No podía dejarlo así. Llamó entonces al joven aprendiz que tenía cerca, un muchacho llamado Chinnen." },
+    { id:'p3', title:"③医者への使い", ssml:false, text:"Monje: «Chinnen, oh Chinnen. Necesito que hagas un pequeño mandado.» Chinnen: «Sí, maestro, ¿de qué se trata?» Monje: «Ve a casa del doctor Gen'an y pregúntale: \"¿Qué es un tenshiki?\" Ah, y una cosa más: no digas que soy yo quien quiere saberlo. Deja que crea que eres tú el curioso.» Chinnen: «Sí, maestro, entendido.» Chinnen era un muchacho obediente, así que hizo exactamente lo que le dijeron y trotó hasta la casa del doctor Gen'an. Chinnen: «¡Doctor, Doctor! Tengo algo que preguntarle. ¿Qué diablos es un tenshiki?» En cuanto Gen'an oyó la pregunta, todo encajó de inmediato. (Vaya... así que aquel monje estaba fanfarroneando hace un rato...)" },
+    { id:'p4', title:"④医者のからかい", ssml:false, text:"El doctor Gen'an sonrió para sus adentros, pero no era hombre tan grosero como para exponer la ignorancia del monje riéndose en su cara. En cambio, decidió divertirse un poco con la situación. Gen'an: «Vaya, Chinnen, hiciste bien en venir a preguntar. Un tenshiki, verás, es algo precioso e invisible a los ojos... sí, es esa copita que se usa para el sake en los banquetes. Y una copa bastante rara y valiosa, además.» Chinnen: «¡Oh, una copa de sake! No lo sabía.» Gen'an: «Bien, asegúrate de decírselo así al monje. Y ya que estás, añade que el propio doctor posee unas tres.» Chinnen: «Sí, entendido. Muchas gracias.» Chinnen, muy impresionado, apuró el paso de regreso al templo." },
+    { id:'p5', title:"⑤和尚、知ったかぶり", ssml:false, text:"De vuelta en el templo, Chinnen no perdió tiempo en informar al monje. Chinnen: «Reverendo, ya volví. Al parecer, un tenshiki es una copa para beber sake, y bastante rara y valiosa.» Al oír esto, el monje suspiró de alivio para sus adentros. (Ah, una copa, vaya. Entonces lo de que \"se rompió\" sí tiene sentido, después de todo.) Monje: «Mmm, sí, claro. Tal como pensaba... yo lo sabía desde el principio, ¿no es cierto?» Muy satisfecho consigo mismo, el monje, cuando el abad del templo vecino lo visitó esa tarde, presumió con orgullo de este conocimiento. Monje: «Ah, no es nada, pero existe algo llamado tenshiki, una copa de sake de lo más valiosa. Yo mismo tenía unas tres, pero lamentablemente rompí una el otro día.» El monje visitante escuchó, impresionado. «Vaya, vaya, qué lástima.»" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Justo entonces, quien vino a ver cómo seguía el monje fue nada menos que el propio doctor Gen'an. Monje: «Vaya, vaya, Doctor, qué buena visita. Tengo entendido que usted también posee un tenshiki. Yo mismo tenía unos tres, pero me temo que el otro día se me escapó uno sin querer.» Al oír esto, Gen'an tuvo que contenerse para no soltar la carcajada. Gen'an: «Reverendo... \"escapársele\" es una forma bastante rara de describir una copa, ¿no le parece?» En ese momento, Chinnen, sentado tranquilamente cerca, soltó con inocente sinceridad: Chinnen: «¡Doctor, le dije exactamente lo que usted me enseñó el otro día, que un tenshiki es una copa!» Por fin, Gen'an no pudo contenerse más y estalló en carcajadas. Gen'an: «Vamos, vamos, Reverendo, una copa no puede \"escapársele\" a nadie. Lo que se escapa así no es ninguna copa... dígame, ¿cómo ha estado su estómago últimamente?» El monje se puso como un tomate y balbuceó sin saber qué decir. Monje: «B-bueno, esto... dicho así, no me queda ninguna dignidad que salvar.» Y así, con una fanfarronada llamando a otra fanfarronada, todo terminó por venirse abajo en este desenlace... y con esto, doy por concluida la historia de hoy." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

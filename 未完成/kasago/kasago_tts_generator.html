@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>笠碁 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 笠碁 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。人という生き物は、歳を取れば取るほど意地っ張りになるものだそうで。<break time=\"400ms\"/>とりわけ長年連れ添った友人同士というのは、仲がいいんだか悪いんだか分からないほど、しょっちゅう喧嘩をしているもので。<break time=\"500ms\"/>今日はそんな、大の仲良し、いえ大の碁敵のお話でございます。<break time=\"600ms\"/>碁というのはまことに不思議な遊びで、盤を挟んで座れば、昨日までの親友も今日は敵、待ったをかければ意地の張り合い、勝てば大威張り、負ければふくれっ面。<break time=\"500ms\"/>年寄り二人の意地の張り合いほど、傍から見ていて面白いものはございません。</prosody></speak>" },
+  { id:'p2', title:"②碁敵の二人", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">この話に出て参りますのは、もう五十年来の付き合いという、裏長屋の隠居さん二人でございます。<break time=\"400ms\"/>一人は元、質屋の旦那で徳兵衛さん。もう一人は元、小間物屋の旦那で清兵衛さん。<break time=\"500ms\"/>両方とも隠居の身の上で、暇といえばこれほど暇な身分もない。<break time=\"400ms\"/>することといえば、朝起きて顔を洗ったら、もう碁盤を抱えてどちらかの家に上がり込む。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"-1st\">よ、精が出るね<break time=\"250ms\"/></prosody><prosody rate=\"112%\" pitch=\"-1st\">おう、また来たか<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">なんて言いながら、日がな一日パチリパチリ。二人の腕前はほとんど互角、十番打てば五分と五分。<break time=\"400ms\"/>これがまた面白いようで、判で押したように毎日毎日、雨の日も風の日も、この二人は碁を打っておりました。</prosody></speak>" },
+  { id:'p3', title:"③待ったの喧嘩", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">ところがある日のこと。いつものように徳兵衛さんの家で碁を打っておりますてえと、清兵衛さんが一目、迂闊な手を打ってしまった。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">あ、しまった<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と言うが早いか、石をつまんで引っ込めようとする。すかさず徳兵衛さんが、<break time=\"300ms\"/></prosody><prosody rate=\"110%\" pitch=\"-2st\">おいおい、それは待ったじゃないか<break time=\"350ms\"/></prosody><prosody rate=\"118%\" pitch=\"-1st\">なぁに、これしきの待った、いつもの通りじゃないか<break time=\"350ms\"/></prosody><prosody rate=\"112%\" pitch=\"-2st\">いつもと今日は違う、今日のは大きな待ったで、これを許しちゃあ碁というものが成り立たない<break time=\"350ms\"/></prosody><prosody rate=\"120%\" pitch=\"-1st\">なんだと、たかが碁で何をそんなにむきになる<break time=\"350ms\"/></prosody><prosody rate=\"115%\" pitch=\"-2st\">たかが碁とは何だ、碁を馬鹿にするか<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">売り言葉に買い言葉、とうとう二人とも真っ赤になって怒鳴り合いになってしまいました。</prosody></speak>" },
+  { id:'p4', title:"④意地の張り合い", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">とうとう清兵衛さんは、<break time=\"300ms\"/></prosody><prosody rate=\"115%\" pitch=\"-2st\">こんな碁敵とは金輪際、口も利かん<break time=\"350ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と啖呵を切って帰ってしまう。徳兵衛さんも、<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"-1st\">こっちから願い下げだ、二度と敷居はまたがせない<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と負け惜しみ。それからというもの、二人はぷっつり行き来が絶えてしまいました。<break time=\"500ms\"/>ところが困ったのは暇を持て余す隠居の身。碁を打つ相手がいないというのは、これほど手持ち無沙汰なものかと、両方とも身にしみて分かってくる。<break time=\"500ms\"/>徳兵衛さんは縁側でひとり碁盤を眺めてはため息、清兵衛さんも将棋の駒をいじりながら気もそぞろ。<break time=\"400ms\"/>意地を張っている手前、詫びに行くわけにもいかず、日に日に機嫌が悪くなるばかりでございます。</prosody></speak>" },
+  { id:'p5', title:"⑤そわそわ", ssml:true, text:"<speak><prosody rate=\"102%\" pitch=\"0st\">そんなある日、清兵衛さんがふらりと表へ出て、なんとなく徳兵衛さんの家の方へ足が向く。<break time=\"400ms\"/>別に用があるわけじゃない、ただの散歩でございますよと自分に言い聞かせながら、家の前を行ったり来たり。<break time=\"500ms\"/>窓の障子がすうっと開いて、中から徳兵衛さんがひょいと顔を出す。<break time=\"400ms\"/>これも別に待っていたわけじゃない、たまたま外の空気を吸いに出ただけだと、これまた自分に言い聞かせる。<break time=\"500ms\"/>目が合うと二人とも、ふん、とそっぽを向いて知らんぷり。<break time=\"400ms\"/>けれどもお互い、心の中では、ああ達者そうで何よりだ、なんて思っている。<break time=\"500ms\"/>意地というのは実に厄介なもので、会いたくて仕方がないくせに、素直に久しぶり一局やらないかの一言がどうしても出てまいりません。</prosody></speak>" },
+  { id:'p6', title:"⑥雨の日の笠", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">そうこうするうち、ある日の昼下がり、急に空が真っ暗になったかと思うと、ざあっと大粒の雨が降ってまいりました。<break time=\"400ms\"/>表を歩いていた徳兵衛さん、慌てて軒先に飛び込むやら難儀している折も折、ふと見ると清兵衛さんの家がすぐそこ。<break time=\"400ms\"/>雨宿りに立ち寄るだけなら、意地を曲げたことにはなるまい、と、都合のいい理屈をこしらえて、表戸をとんとんと叩く。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"-1st\">清兵衛さん、こっちに笠が余分にあったのを思い出しましてね。ついでだから貸してあげようと思って<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">なんて、我ながら苦しい言い訳をこしらえながら顔を出す。すると清兵衛さんの方も、実は待ってましたとばかりに顔をほころばせて、<break time=\"300ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">おお、これはこれは、ちょうど退屈していたところだ。まあ上がんなさい<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、二つ返事で招き入れる。笠を貸すの、借りるのという理屈は、しょせん仲直りの言い訳。二人とも、その理屈が嘘だということは百も承知でございます。</prosody></speak>" },
+  { id:'p7', title:"⑦仲直りの一局", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">上がり込んだ徳兵衛さん、案の定というべきか、<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">せっかく来たんだ、一局どうだい<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と碁盤を引っ張り出す。清兵衛さんも、<break time=\"250ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">そうこなくっちゃ<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、待ってましたとばかりに石を並べ始める。まるで何事もなかったかのように、パチリ、パチリと石を置く音が響き渡る。<break time=\"500ms\"/>そして三十手も進んだ頃、清兵衛さんがまた一目危ない手を打って、<break time=\"300ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">あ、しまった<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と石をつまむ。徳兵衛さんすかさず、<break time=\"250ms\"/></prosody><prosody rate=\"112%\" pitch=\"-1st\">これこれ、また待ったかい<break time=\"350ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">なあに、これくらいは大目に見てくれよ、笠を借りた義理があるんだから<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">徳兵衛さん、呆れながらも嬉しそうに笑って、<break time=\"300ms\"/></prosody><prosody rate=\"105%\" pitch=\"-1st\">相変わらず調子のいいことを言う。まあいいや、そのかわり今度は大負けさせてもらうよ<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">雨がすっかり上がった表で、パチリ、パチリと石の音。<break time=\"500ms\"/>喧嘩するほど仲がいいとは、よく申したもので、この二人にはぴったりの言葉でございます。</prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. They say the older people get, the more stubborn they become - and nowhere is that truer than between old friends who have known each other for decades. They bicker so constantly you can hardly tell if they like each other or cannot stand each other. Today's tale is about two such great friends - or should I say, two great rivals at the board game of Go. Go is a strange pastime: sit down across the board and yesterday's best friend becomes today's enemy. Cry \"take-back!\" and pride flares up; win and you strut, lose and you sulk. There is nothing more entertaining to watch from the sidelines than two old men locked in a battle of wills over a game board." },
+    { id:'p2', title:"②碁敵の二人", ssml:false, text:"The two men in our story have known each other for fifty years, both retired old-timers living in the same row of tenement houses. One used to run a pawnshop - call him Tokubei. The other ran a little sundries shop - call him Seibei. Both retired, and there is no idler life than a retired man's. Every morning, the moment they wash their faces, one of them tucks the Go board under his arm and barges into the other's house. Tokubei: \"Well look at you, keeping busy!\" Seibei: \"Oh, back again, are you?\" And so it goes, click-clack, click-clack, all day long. Their skill is almost perfectly matched - out of ten games, five apiece. That is what makes it so fun, and like clockwork, rain or shine, these two played Go together every single day." },
+    { id:'p3', title:"③待ったの喧嘩", ssml:false, text:"But one day, while playing at Tokubei's house as usual, Seibei made a careless move. Seibei: \"Oh, no-\" he said, and just as quickly reached to take the stone back. Tokubei stopped him at once. Tokubei: \"Hold on, hold on, isn't that a take-back?\" Seibei: \"Come on, it's just a small one, same as always.\" Tokubei: \"Today's different - that's a big take-back, and if I let that slide, the whole game means nothing.\" Seibei: \"What are you getting so worked up about, it's just Go!\" Tokubei: \"Just Go? Are you mocking the game?\" And so, insult answered insult, until both old men turned red in the face, shouting at each other." },
+    { id:'p4', title:"④意地の張り合い", ssml:false, text:"At last Seibei declared, Seibei: \"I'll never speak to a Go rival like you again as long as I live!\" and stormed home. Tokubei shot back, Tokubei: \"Fine by me - don't you dare darken my doorstep again!\" And from that day, the two stopped visiting each other entirely. But the trouble was, an idle retiree with no one to play Go against finds the days unbearably empty - and both of them came to feel it deeply. Tokubei sat alone on his porch staring at his Go board, sighing; Seibei fiddled with shogi pieces, distracted and restless. Too proud to go apologize, each grew more short-tempered by the day." },
+    { id:'p5', title:"⑤そわそわ", ssml:false, text:"Then one day, Seibei wandered outside and somehow found his feet carrying him toward Tokubei's house. \"It's nothing special,\" he told himself, \"just an ordinary stroll\" - and he paced back and forth in front of the house. Just then, the paper screen slid open, and Tokubei poked his head out. He too told himself he wasn't waiting for anyone - just getting some fresh air. Their eyes met, and both turned away with a \"hmph,\" pretending not to notice. Yet in their hearts, each thought, \"Ah, good to see he's doing well.\" Pride is a troublesome thing - desperate as they were to see each other, neither could bring himself to simply say, \"Long time no see, how about a game?\"" },
+    { id:'p6', title:"⑥雨の日の笠", ssml:false, text:"Then one afternoon, the sky suddenly turned pitch black, and fat drops of rain came pouring down. Tokubei, caught out walking, scrambled for shelter under an eave - and just his luck, Seibei's house was right there. \"If I just stop in to get out of the rain, that's not really giving in,\" he reasoned conveniently, and knocked on the door. Tokubei: \"Say, Seibei, I just remembered I had a spare rain hat lying around. Thought I'd lend it to you while I'm at it,\" he said, cobbling together a flimsy excuse. Seibei, for his part, lit up as if he'd been waiting all along. Seibei: \"Well, well, and here I was getting bored. Come on in!\" and welcomed him with open arms. The business of lending and borrowing a rain hat was, of course, just an excuse to make up - and both of them knew perfectly well it was a lie." },
+    { id:'p7', title:"⑦仲直りの一局", ssml:false, text:"Once inside, Tokubei did just as expected. Tokubei: \"Well, since I'm here, how about a game?\" he said, dragging out the Go board. Seibei needed no urging. Seibei: \"Now you're talking!\" and began setting out the stones as if he'd been waiting all along. As though nothing had ever happened, the click-clack of stones being set down filled the room again. About thirty moves in, Seibei made another risky move. Seibei: \"Oh, no-\" he said, reaching for the stone. Tokubei was on him at once. Tokubei: \"Now, now, is that another take-back?\" Seibei: \"Come on, let this one slide - you owe me for the rain hat, after all.\" Tokubei: \"Still as shameless as ever. Fine, but in exchange, I'm going to beat you badly this time,\" Tokubei laughed, half exasperated, half delighted. Outside, the rain had cleared completely, and the click-clack of Go stones rang out once more. As they say, the more you quarrel, the closer you are - and no words could suit these two better." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. On dit que plus on vieillit, plus on devient tetu - et c'est particulierement vrai entre vieux amis qui se connaissent depuis des decennies. Ils se chamaillent si souvent qu'on ne sait plus s'ils s'aiment bien ou se detestent. L'histoire d'aujourd'hui parle de deux grands amis comme ca - ou plutot, de deux grands rivaux au jeu de go. Le go est un passe-temps etrange: on s'assied face a face et l'ami d'hier devient l'ennemi d'aujourd'hui. On crie « reprise! » et la fierte s'enflamme; on gagne et on se pavane, on perd et on boude. Rien n'est plus amusant a observer que deux vieillards qui s'entetent l'un contre l'autre sur un plateau de jeu." },
+    { id:'p2', title:"②碁敵の二人", ssml:false, text:"Les deux hommes de notre histoire se connaissent depuis cinquante ans, tous deux vieux retraites vivant dans la meme rangee de maisons mitoyennes. L'un tenait autrefois un pret sur gages - appelons-le Tokubei. L'autre tenait une petite mercerie - appelons-le Seibei. Tous deux a la retraite, et il n'y a pas de vie plus oisive que celle d'un retraite. Chaque matin, a peine le visage lave, l'un des deux attrape le plateau de go sous le bras et debarque chez l'autre. Tokubei : « Eh bien, on ne chome pas ! » Seibei : « Oh, encore toi ? » Et ainsi de suite, clic-clac, clic-clac, toute la journee. Leur niveau est presque parfaitement egal - sur dix parties, cinq chacun. C'est bien ce qui rend la chose amusante, et comme une horloge, qu'il pleuve ou qu'il vente, ces deux-la jouaient au go ensemble tous les jours." },
+    { id:'p3', title:"③待ったの喧嘩", ssml:false, text:"Mais un jour, alors qu'ils jouaient comme d'habitude chez Tokubei, Seibei fit un coup imprudent. Seibei : « Oh, zut- » dit-il, et aussitot il tendit la main pour reprendre la pierre. Tokubei l'arreta net. Tokubei : « Attends, attends, ce n'est pas une reprise, ca ? » Seibei : « Allez, c'est une toute petite, comme d'habitude. » Tokubei : « Aujourd'hui c'est different - c'est une grosse reprise, et si je laisse passer ca, la partie ne veut plus rien dire. » Seibei : « Pourquoi tu t'enerves autant, c'est juste un jeu ! » Tokubei : « Juste un jeu ? Tu te moques du go ? » Et ainsi, insulte pour insulte, les deux vieillards finirent rouges de colere, a se hurler dessus." },
+    { id:'p4', title:"④意地の張り合い", ssml:false, text:"Seibei finit par declarer : Seibei : « Je ne reparlerai plus jamais a un rival de go comme toi, de toute ma vie ! » et rentra chez lui, furieux. Tokubei retorqua : Tokubei : « Tant mieux - et n'ose plus jamais remettre les pieds chez moi ! » Et a partir de ce jour, les deux hommes cesserent completement de se rendre visite. Mais le probleme, c'est qu'un retraite desoeuvre sans adversaire de go trouve les journees insupportablement vides - et tous deux en ressentirent le poids. Tokubei restait assis seul sur sa veranda a contempler son plateau de go en soupirant ; Seibei triturait des pieces de shogi, distrait et agite. Trop fiers pour aller s'excuser, ils devenaient chaque jour plus grincheux." },
+    { id:'p5', title:"⑤そわそわ", ssml:false, text:"Puis un jour, Seibei sortit se promener et, sans trop savoir pourquoi, ses pas le menerent vers la maison de Tokubei. « Ce n'est rien de special, » se dit-il, « juste une promenade ordinaire » - et il fit les cent pas devant la maison. A cet instant, le panneau de papier coulissa, et Tokubei passa la tete dehors. Lui aussi se dit qu'il n'attendait personne - juste un peu d'air frais. Leurs regards se croiserent, et tous deux detournerent la tete avec un « hmph », feignant de ne rien remarquer. Pourtant, au fond d'eux, chacun pensait : « Ah, content de voir qu'il va bien. » La fierte est une chose bien genante - aussi desesperes soient-ils de se revoir, ni l'un ni l'autre ne put se resoudre a simplement dire : « Ca fait longtemps, une partie ? »" },
+    { id:'p6', title:"⑥雨の日の笠", ssml:false, text:"Puis un apres-midi, le ciel devint soudain tout noir, et de grosses gouttes de pluie se mirent a tomber. Tokubei, surpris en pleine rue, se precipita sous un avant-toit - et par chance, la maison de Seibei se trouvait juste la. « Si je m'arrete juste pour m'abriter de la pluie, ce n'est pas vraiment ceder, » se dit-il, se fabriquant un raisonnement bien commode, et il frappa a la porte. Tokubei : « Dis donc, Seibei, je viens de me rappeler que j'avais un chapeau de pluie en trop. Je me suis dit que je pourrais te le preter, tant qu'a faire, » dit-il, bricolant une excuse peu convaincante. Seibei, de son cote, s'illumina comme s'il n'avait attendu que ca. Seibei : « Eh bien, eh bien, et moi qui commencais a m'ennuyer. Entre donc ! » et l'accueillit a bras ouverts. Cette histoire de preter et d'emprunter un chapeau de pluie n'etait, bien sur, qu'un pretexte pour se reconcilier - et tous deux savaient parfaitement que c'etait un mensonge." },
+    { id:'p7', title:"⑦仲直りの一局", ssml:false, text:"Une fois a l'interieur, Tokubei fit exactement ce a quoi on s'attendait. Tokubei : « Bon, puisque je suis la, une partie ? » dit-il en sortant le plateau de go. Seibei n'eut pas besoin qu'on l'encourage. Seibei : « Voila qui est parle ! » et il se mit a disposer les pierres comme s'il n'avait attendu que ca. Comme si rien ne s'etait jamais passe, le clic-clac des pierres qu'on pose emplit de nouveau la piece. Une trentaine de coups plus tard, Seibei fit a nouveau un coup risque. Seibei : « Oh, zut- » dit-il, tendant la main vers la pierre. Tokubei fut sur lui aussitot. Tokubei : « Alors, alors, encore une reprise ? » Seibei : « Allez, laisse passer celle-la - tu me dois bien ca pour le chapeau de pluie. » Tokubei : « Toujours aussi culotte. Bon, d'accord, mais en echange, je vais te battre a plate couture cette fois, » Tokubei eclata de rire, mi-exaspere, mi-ravi. Dehors, la pluie avait completement cesse, et le clic-clac des pierres de go resonnait de nouveau. Comme on dit, plus on se dispute, plus on est proches - et aucune parole ne convenait mieux a ces deux-la." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Permitanme contarles una historia. Dicen que cuanto mas envejece una persona, mas terca se vuelve, y eso es especialmente cierto entre viejos amigos que se conocen desde hace decadas. Discuten tan a menudo que ya no se sabe si se llevan bien o mal. La historia de hoy trata de dos grandes amigos asi, o mas bien, de dos grandes rivales en el juego del go. El go es un pasatiempo curioso: uno se sienta frente al tablero y el mejor amigo de ayer se convierte en el enemigo de hoy. Se grita \"¡retiro esa jugada!\" y el orgullo se enciende; se gana y uno se pavonea, se pierde y uno hace pucheros. No hay nada mas entretenido de observar que dos ancianos enfrascados en un pulso de tercas voluntades sobre un tablero." },
+    { id:'p2', title:"②碁敵の二人", ssml:false, text:"Los dos hombres de nuestra historia se conocen desde hace cincuenta anos, ambos ancianos jubilados que viven en la misma hilera de casas vecinas. Uno solia llevar una casa de empenos; llamemoslo Tokubei. El otro tenia una pequena tienda de articulos varios; llamemoslo Seibei. Ambos jubilados, y no hay vida mas ociosa que la de un jubilado. Cada manana, apenas se lavan la cara, uno de ellos agarra el tablero de go bajo el brazo e irrumpe en casa del otro. Tokubei: \"¡Vaya, que activo estas!\" Seibei: \"Ah, ¿otra vez tu?\" Y asi, clic-clac, clic-clac, todo el dia. Su nivel es casi perfectamente parejo: de diez partidas, cinco para cada uno. Eso es lo que lo hace tan divertido, y como un reloj, llueva o truene, estos dos jugaban al go juntos todos los dias." },
+    { id:'p3', title:"③待ったの喧嘩", ssml:false, text:"Pero un dia, mientras jugaban como siempre en casa de Tokubei, Seibei hizo una jugada descuidada. Seibei: \"Ay, no-\" dijo, y de inmediato intento retirar la piedra. Tokubei lo detuvo en el acto. Tokubei: \"Espera, espera, ¿eso no es un retiro de jugada?\" Seibei: \"Vamos, es solo uno pequeno, como siempre.\" Tokubei: \"Hoy es diferente, es un retiro grande, y si dejo pasar eso, la partida no significa nada.\" Seibei: \"¿Por que te pones asi, si es solo un juego?\" Tokubei: \"¿Solo un juego? ¿Te estas burlando del go?\" Y asi, insulto tras insulto, los dos ancianos terminaron rojos de ira, gritandose el uno al otro." },
+    { id:'p4', title:"④意地の張り合い", ssml:false, text:"Seibei acabo declarando: Seibei: \"¡Jamas en la vida volvere a hablarle a un rival de go como tu!\" y se marcho furioso a su casa. Tokubei replico: Tokubei: \"Mejor para mi, ¡y no te atrevas a volver a pisar mi puerta!\" Y desde ese dia, los dos dejaron de visitarse por completo. Pero el problema era que un jubilado ocioso sin nadie con quien jugar al go encuentra los dias insoportablemente vacios, y ambos lo sintieron muy hondo. Tokubei se sentaba solo en su porche mirando el tablero de go, suspirando; Seibei toqueteaba las piezas de shogi, distraido e inquieto. Demasiado orgullosos para ir a disculparse, cada dia se volvian mas malhumorados." },
+    { id:'p5', title:"⑤そわそわ", ssml:false, text:"Entonces, un dia, Seibei salio a caminar y, sin saber muy bien por que, sus pasos lo llevaron hacia la casa de Tokubei. \"No es nada especial,\" se dijo, \"solo un paseo cualquiera\", y camino de un lado a otro frente a la casa. Justo entonces, el panel de papel se deslizo y Tokubei asomo la cabeza. El tambien se dijo que no esperaba a nadie, solo tomaba un poco de aire fresco. Sus miradas se cruzaron, y ambos apartaron la vista con un \"je\", fingiendo no notarlo. Sin embargo, en su interior, cada uno pensaba: \"Ah, que bien que le vaya bien.\" El orgullo es algo verdaderamente molesto: por mas desesperados que estuvieran por verse, ninguno de los dos lograba simplemente decir: \"Cuanto tiempo, ¿una partida?\"" },
+    { id:'p6', title:"⑥雨の日の笠", ssml:false, text:"Entonces, una tarde, el cielo se puso repentinamente negro y empezaron a caer gruesas gotas de lluvia. Tokubei, sorprendido en la calle, corrio a refugiarse bajo un alero, y que casualidad, la casa de Seibei estaba justo ahi. \"Si solo entro a resguardarme de la lluvia, en realidad no estoy cediendo,\" razono convenientemente, y llamo a la puerta. Tokubei: \"Oye, Seibei, acabo de recordar que tenia un sombrero de lluvia de sobra. Pense en prestartelo, ya que estoy aqui,\" dijo, improvisando una excusa poco convincente. Seibei, por su parte, se ilumino como si hubiera estado esperando todo ese tiempo. Seibei: \"Vaya, vaya, y yo que me estaba aburriendo. ¡Pasa, pasa!\" y lo recibio con los brazos abiertos. Todo el asunto de prestar y pedir prestado un sombrero de lluvia era, por supuesto, solo una excusa para reconciliarse, y ambos sabian perfectamente que era una mentira." },
+    { id:'p7', title:"⑦仲直りの一局", ssml:false, text:"Una vez dentro, Tokubei hizo exactamente lo que se esperaba. Tokubei: \"Bueno, ya que estoy aqui, ¿una partida?\" dijo, sacando el tablero de go. Seibei no necesito que lo animaran. Seibei: \"¡Asi se habla!\" y empezo a colocar las piedras como si hubiera estado esperando todo ese tiempo. Como si nada hubiera pasado jamas, el clic-clac de las piedras al colocarse volvio a llenar la habitacion. Unas treinta jugadas despues, Seibei hizo de nuevo una jugada arriesgada. Seibei: \"Ay, no-\" dijo, alargando la mano hacia la piedra. Tokubei estuvo sobre el al instante. Tokubei: \"Vamos, vamos, ¿otra vez un retiro de jugada?\" Seibei: \"Anda, deja pasar esta, al fin y al cabo me debes una por el sombrero de lluvia.\" Tokubei: \"Sigues tan descarado como siempre. Esta bien, pero a cambio, esta vez te voy a dar una paliza,\" rio Tokubei, mitad exasperado, mitad encantado. Afuera, la lluvia habia cesado por completo, y el clic-clac de las piedras de go volvio a resonar. Como dicen, cuanto mas se pelea, mas cerca se esta, y ninguna palabra les sienta mejor a estos dos." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

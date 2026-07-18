@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>牛ほめ TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 牛ほめ TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。<break time=\"500ms\"/>人を褒めるというのは、なかなか難しいものでございましてね。<break time=\"300ms\"/>心にもないお世辞を並べたところで、すぐに見抜かれてしまう。<break time=\"400ms\"/>かと思えば、案外、不器用な褒め言葉のほうが、相手の心に届くこともある。<break time=\"500ms\"/>今日は、そんな褒め言葉をめぐる、少々おっちょこちょいな若者のお噺を、一席申し上げます。<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p2', title:"②父の稽古", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">なんでもこの与太郎という若者、少々のんびりというか、おつむのほうがいささか心もとない。ある日、おとっつぁんが与太郎を呼びつけました。<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">これ与太郎、伯父さんが、このたび新しいおうちを建てなすった。祝いを言いに行っておいで。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">へえ、行ってもいいけど、おいら、何を言えばいいんだい？<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">ばか、ただ行くだけじゃいけない。お世辞のひとつも言うもんだ。よし、教えてやるから、よく聞いておけ。<break time=\"400ms\"/>まず、お座敷に通されたら、柱を見て、こう言うんだ。結構な檜の柱で、ひとつもふしがございませんな。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">けっこうな、ひのきの、はしらで……ふしがない……<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">そうだ。次に、天井を見て、天井は、薩摩の杉の柾目板で、実にきれいに張ってございますな、と言うんだ。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">てんじょうは、さつまの、すぎの……なんだっけ。<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">まさめいただ。それから、台所の柱に割れ目があったら、この割れ目は、銭を貼っておくと、模様になって、かえって粋でございますな、と言っておやり。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">銭を貼る……なるほど。<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">最後に、牛小屋のうしを見たら、これが肝心だ。このうしはたいそう立派で、これなら後ろに火除けの火桶をお作りになるとよろしゅうございます、と言うんだぞ。これは伯父さんも喜ぶ、大事な文句だからな。<break time=\"600ms\"/></prosody><prosody rate=\"118%\" pitch=\"+2st\">ひおけ、ひおけ……よし、覚えた。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③座敷を褒めそこなう", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">与太郎、勇んで伯父さんの家に出かけてまいりました。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+2st\">伯父さん、今日は。おとっつぁんに言われて、お祝いに来たよ。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">おお、これは与太郎、よく来たな。まあ上がっておくれ。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">お座敷に通された与太郎、教わった文句を思い出そうとしますが、あいにく頭の中がすっかりこんがらがっております。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">えー、この、天井の柱は、結構な節が、ひとつもございませんで、檜の……いや、柾目の……とにかく、たいそうきれいでございますな。<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">はて、なんのことやら分からんが……まあ、褒めてくれておるのだろうな。<break time=\"500ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">それから、あの、天井は薩摩の何かで、実に、ふしがなくて……いや、これは柱で言ったんだったか……<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">伯父、苦笑いをしながらも、与太郎の一生懸命な様子に免じて、聞き流しております。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④台所の柱と牛小屋へ", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">与太郎、台所に案内されると、ふと柱の割れ目に目をとめました。<break time=\"400ms\"/></prosody><prosody rate=\"116%\" pitch=\"+1st\">あ、そうだ。伯父さん、この柱の割れ目は、銭を貼っておくと、模様になって、かえって粋でございますな。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">おや、これは感心。よく気づいたな、与太郎。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">これだけは、どうやらうまく言えたようで、与太郎、すっかり得意になりました。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">そういえば、与太郎、裏の牛小屋も見ていくかい。この間、良いうしを買ったんだ。<break time=\"500ms\"/></prosody><prosody rate=\"116%\" pitch=\"+1st\">うし……あ、そうだ、うしのことも、おとっつぁんに教わったんだった。<break time=\"500ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">与太郎、大急ぎで裏の牛小屋へと向かいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤牛をほめる", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">牛小屋の前に立った与太郎、教わった文句を、今度こそはと、一生懸命に思い出します。<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">伯父さん、このうしは……えーと、たいそう立派で……これなら後ろに、火除けの、火桶を、お作りになると、よろしゅうございます。<break time=\"600ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">伯父、これを聞いて、はたと手を打ちました。<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">おお、これはよく言った！ 与太郎、お前、よくぞ気づいてくれた。<break time=\"500ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">へ？ あの、これ、おとっつぁんに教わった通りに言っただけだけど……<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">なんでもいい、これは本当にありがたい忠告だ。新しい牛小屋は木も新しく、乾いておるから、火が出やすい。後ろに火除けを作っておけば、なるほど安心というものだ。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">伯父さん、すっかり感心して、与太郎に小遣いを握らせました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">よし、これは褒美だ。取っておきなさい。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">へえ、ありがとう。……あれ、伯父さん、なんでおいらの言ったことだけ、そんなに喜んでくれるんだい？ 柱や天井のことは、ちっとも喜んでくれなかったのに。<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">そりゃそうだ。柱や天井のことは、なにを言ってるんだかさっぱり分からなかったからな。だが、うしのことだけは、はっきり分かった。<break time=\"500ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">へえ、そういうもんかね。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-2st\">うむ。もっとも、お前の頭にも、ちょいと割れ目があるようじゃで、銭でも貼っておくと、よろしゅうございますな。<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">というわけで、覚えたての世辞が、思わぬところで役に立つという、めでたいお噺、これにてお開きとさせていただきます。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Praising someone is a surprisingly difficult art. String together flattery you don't really mean, and it gets seen through in an instant. And yet, sometimes it's the clumsiest, most awkward compliment that ends up reaching a person's heart. Today's tale is about exactly that — a rather scatterbrained young man and his adventures with words of praise." },
+    { id:'p2', title:"②父の稽古", ssml:false, text:"Now, this young man Yotaro was, well, rather easygoing, or to put it plainly, not the sharpest tool in the shed. One day his father called him over. Father: \"Listen, Yotaro. Your uncle's just built himself a new house. Go over and offer your congratulations.\" Yotaro: \"Sure, I can go, but what am I supposed to say?\" Father: \"Idiot, you can't just show up empty-handed. You've got to offer a compliment or two. Fine, I'll teach you — listen carefully.\" Father: \"First, once you're shown into the main room, look at the pillar and say this: 'What a splendid cypress pillar — not a single knot in it.'\" Yotaro: \"Splendid... cypress... pillar... no knots...\" Father: \"That's it. Next, look up at the ceiling and say: 'What fine straight-grained cedar boards from Satsuma — laid so beautifully.'\" Yotaro: \"Ceiling... Satsuma... cedar... what was it again...\" Father: \"Straight-grained boards. And then, if there's a crack in the kitchen pillar, tell him: 'This crack, if you paste a coin over it, becomes quite a stylish little pattern.'\" Yotaro: \"Paste a coin over it... I see.\" Father: \"And finally, when you see the cow in the barn — this is the most important part. Say: 'This is a truly splendid cow. You really ought to build a fire-guard box behind it.' Your uncle will be especially pleased with this one, so don't forget it.\" Yotaro: \"Fire-guard box, fire-guard box... all right, got it.\"" },
+    { id:'p3', title:"③座敷を褒めそこなう", ssml:false, text:"Full of eager spirit, Yotaro set off for his uncle's house. Yotaro: \"Afternoon, uncle! Pop told me to come by and offer congratulations.\" Uncle: \"Well, well, Yotaro, good of you to come. Come in, come in.\" Shown into the main room, Yotaro tried to recall the phrases he'd been taught, but unfortunately his head was already a hopeless tangle. Yotaro: \"Um, this... the pillar of the ceiling has a splendid knot, not a single one, made of cypress... no wait, straight-grain... anyway, it's awfully pretty.\" Uncle: \"Hm, I haven't the faintest idea what you mean... but well, I suppose you're complimenting it somehow.\" Yotaro: \"And then, um, the ceiling is made of some Satsuma something, really no knots at all... no wait, was that the pillar...\" The uncle gave a wry smile, but out of consideration for how earnestly Yotaro was trying, he simply let it all wash over him." },
+    { id:'p4', title:"④台所の柱と牛小屋へ", ssml:false, text:"When Yotaro was shown to the kitchen, his eye happened to fall on a crack in the pillar there. Yotaro: \"Oh, right! Uncle, this crack — if you paste a coin over it, it becomes quite a stylish little pattern, doesn't it.\" Uncle: \"Well now, that's rather clever. Good eye, Yotaro.\" This one, at least, he seemed to have gotten right, and Yotaro swelled with pride. Uncle: \"Say, Yotaro, care to see the cow barn out back too? I bought a fine cow just the other day.\" Yotaro: \"A cow... oh, that's right, Pop taught me something about a cow too!\" Yotaro hurried off toward the barn out back as fast as his legs would carry him." },
+    { id:'p5', title:"⑤牛をほめる", ssml:false, text:"Standing in front of the barn, Yotaro strained with all his might to recall the words he'd been taught, determined to get it right this time. Yotaro: \"Uncle, this cow is... um, truly splendid... and you really ought to build a fire-guard box behind it.\" Hearing this, the uncle clapped his hands in sudden realization. Uncle: \"Oh, well said! Yotaro, I'm impressed you noticed that.\" Yotaro: \"Huh? Well, I just said exactly what Pop taught me...\" Uncle: \"Never mind that, this is genuinely excellent advice. The barn's new wood is still dry, so it catches fire easily. Building a fire-guard behind it really would set my mind at ease.\"" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Thoroughly impressed, the uncle pressed some pocket money into Yotaro's hand. Uncle: \"There, that's your reward. Keep it.\" Yotaro: \"Wow, thanks. ...Hey wait, uncle, why are you so pleased with only the thing I said about the cow? You weren't pleased at all about the pillar or the ceiling.\" Uncle: \"Well, of course. I hadn't the faintest idea what you were talking about with the pillar or the ceiling. But the thing about the cow — that one I understood perfectly.\" Yotaro: \"Huh, is that how it works.\" Uncle: \"Indeed. Though I dare say there's a bit of a crack in that head of yours too — might be worth pasting a coin over it.\" And so, with this happy tale of freshly learned flattery proving useful in the most unexpected way, I'll bring this story to its close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Complimenter quelqu'un est un art étonnamment difficile. Enchaînez des flatteries que vous ne pensez pas vraiment, et cela se voit tout de suite. Et pourtant, parfois, c'est le compliment le plus maladroit qui touche le cœur d'une personne. L'histoire d'aujourd'hui parle justement de cela : un jeune homme un peu écervelé et ses aventures avec les mots de louange." },
+    { id:'p2', title:"②父の稽古", ssml:false, text:"Ce jeune homme, Yotaro, était plutôt du genre nonchalant, ou pour dire les choses franchement, pas la lumière la plus vive de la pièce. Un jour, son père l'appela. Père : « Écoute, Yotaro. Ton oncle vient de se faire construire une nouvelle maison. Va lui présenter tes félicitations. » Yotaro : « D'accord, je peux y aller, mais qu'est-ce que je suis censé dire ? » Père : « Idiot, tu ne peux pas y aller les mains vides. Il faut offrir un ou deux compliments. Bon, je vais t'apprendre — écoute bien. » Père : « D'abord, une fois qu'on t'aura fait entrer dans la pièce principale, regarde le pilier et dis ceci : 'Quel splendide pilier de cyprès — pas un seul nœud.' » Yotaro : « Splendide... cyprès... pilier... pas de nœud... » Père : « C'est ça. Ensuite, regarde le plafond et dis : 'Quelles belles planches de cèdre à grain droit de Satsuma — posées avec tant de beauté.' » Yotaro : « Plafond... Satsuma... cèdre... c'était quoi déjà... » Père : « Planches à grain droit. Et puis, s'il y a une fissure dans le pilier de la cuisine, dis-lui : 'Cette fissure, si on colle une pièce dessus, ça devient un joli motif élégant.' » Yotaro : « Coller une pièce dessus... je vois. » Père : « Et enfin, quand tu verras la vache à l'étable — c'est le plus important. Dis : 'Voilà une vache vraiment splendide. Vous devriez vraiment construire un coffre pare-feu derrière elle.' Ton oncle sera particulièrement content de celle-là, alors ne l'oublie pas. » Yotaro : « Coffre pare-feu, coffre pare-feu... bon, c'est noté. »" },
+    { id:'p3', title:"③座敷を褒めそこなう", ssml:false, text:"Plein d'entrain, Yotaro partit pour la maison de son oncle. Yotaro : « Bonjour, mon oncle ! Papa m'a dit de venir vous féliciter. » Oncle : « Eh bien, Yotaro, quelle bonne visite. Entre, entre. » Une fois introduit dans la pièce principale, Yotaro essaya de se rappeler les phrases apprises, mais malheureusement sa tête était déjà un fouillis sans espoir. Yotaro : « Euh, ce... le pilier du plafond a un splendide nœud, pas un seul, en cyprès... non attendez, à grain droit... enfin bref, c'est terriblement joli. » Oncle : « Hmm, je n'ai pas la moindre idée de ce que tu veux dire... mais bon, je suppose que tu essaies de complimenter quelque chose. » Yotaro : « Et puis, euh, le plafond est fait d'un certain Satsuma, vraiment aucun nœud du tout... non attendez, c'était le pilier... » L'oncle eut un sourire crispé, mais par égard pour les efforts sincères de Yotaro, il laissa simplement passer." },
+    { id:'p4', title:"④台所の柱と牛小屋へ", ssml:false, text:"Quand on fit entrer Yotaro dans la cuisine, son regard tomba justement sur une fissure du pilier. Yotaro : « Ah, c'est vrai ! Mon oncle, cette fissure, si vous collez une pièce dessus, ça devient un joli motif élégant, n'est-ce pas. » Oncle : « Tiens donc, c'est plutôt astucieux. Bon œil, Yotaro. » Celle-là, au moins, il semblait l'avoir bien dite, et Yotaro se gonfla de fierté. Oncle : « Au fait, Yotaro, ça te dirait de voir l'étable derrière aussi ? J'ai acheté une belle vache l'autre jour. » Yotaro : « Une vache... ah oui, c'est vrai, papa m'a aussi appris quelque chose sur une vache ! » Yotaro se précipita vers l'étable à l'arrière aussi vite que ses jambes le lui permettaient." },
+    { id:'p5', title:"⑤牛をほめる", ssml:false, text:"Debout devant l'étable, Yotaro se creusa la tête de toutes ses forces pour se rappeler les mots qu'on lui avait appris, bien décidé à réussir cette fois. Yotaro : « Mon oncle, cette vache est... euh, vraiment splendide... et vous devriez vraiment construire un coffre pare-feu derrière elle. » En entendant cela, l'oncle frappa dans ses mains, frappé d'une soudaine prise de conscience. Oncle : « Oh, bien dit ! Yotaro, je suis impressionné que tu aies remarqué ça. » Yotaro : « Hein ? Ben, j'ai juste dit exactement ce que papa m'a appris... » Oncle : « Peu importe, c'est vraiment un excellent conseil. Le bois neuf de l'étable est encore sec, alors le feu y prend facilement. Construire un pare-feu derrière rassurerait vraiment mon esprit. »" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Tout à fait impressionné, l'oncle glissa un peu d'argent de poche dans la main de Yotaro. Oncle : « Tiens, voilà ta récompense. Garde-la. » Yotaro : « Oh, merci. ...Attendez, mon oncle, pourquoi êtes-vous si content seulement de ce que j'ai dit sur la vache ? Vous n'étiez pas content du tout pour le pilier ou le plafond. » Oncle : « Eh bien, évidemment. Je n'avais pas la moindre idée de ce dont tu parlais avec le pilier ou le plafond. Mais la chose sur la vache, celle-là, je l'ai parfaitement comprise. » Yotaro : « Ah bon, c'est comme ça que ça marche. » Oncle : « En effet. Quoique j'oserais dire qu'il y a aussi une petite fissure dans cette tête à toi... ça vaudrait peut-être la peine d'y coller une pièce. » Et voilà, avec cette joyeuse histoire d'une flatterie tout juste apprise qui se révèle utile de la façon la plus inattendue, je vais clore ce récit." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Elogiar a alguien es un arte sorprendentemente difícil. Enhebre halagos que no siente de verdad, y se le descubrirá al instante. Y sin embargo, a veces es el cumplido más torpe el que termina llegando al corazón de una persona. La historia de hoy trata justamente de eso: un joven bastante despistado y sus aventuras con las palabras de elogio." },
+    { id:'p2', title:"②父の稽古", ssml:false, text:"Este joven, Yotaro, era más bien despreocupado, o para decirlo sin rodeos, no era el más brillante. Un día su padre lo llamó. Padre: «Escucha, Yotaro. Tu tío acaba de construirse una casa nueva. Ve a felicitarlo.» Yotaro: «Bueno, puedo ir, pero ¿qué se supone que debo decir?» Padre: «Idiota, no puedes ir con las manos vacías. Hay que ofrecer uno o dos cumplidos. Bien, te voy a enseñar, escucha con atención.» Padre: «Primero, en cuanto te hagan pasar a la sala principal, mira el pilar y di esto: 'Qué espléndido pilar de ciprés, sin un solo nudo.'» Yotaro: «Espléndido... ciprés... pilar... sin nudos...» Padre: «Eso es. Luego, mira el techo y di: 'Qué hermosas tablas de cedro de grano recto de Satsuma, colocadas con tanta belleza.'» Yotaro: «Techo... Satsuma... cedro... ¿qué era?...» Padre: «Tablas de grano recto. Y luego, si hay una grieta en el pilar de la cocina, dile: 'Esta grieta, si le pega una moneda encima, se convierte en un bonito adorno elegante.'» Yotaro: «Pegarle una moneda encima... ya veo.» Padre: «Y finalmente, cuando veas la vaca en el establo, esto es lo más importante. Di: 'Esta es una vaca verdaderamente espléndida. Debería construir una caja contra incendios detrás de ella.' Tu tío estará especialmente contento con esto, así que no lo olvides.» Yotaro: «Caja contra incendios, caja contra incendios... bien, entendido.»" },
+    { id:'p3', title:"③座敷を褒めそこなう", ssml:false, text:"Lleno de entusiasmo, Yotaro partió hacia la casa de su tío. Yotaro: «¡Buenas tardes, tío! Papá me dijo que viniera a felicitarlo.» Tío: «Vaya, vaya, Yotaro, qué bueno que viniste. Pasa, pasa.» Una vez en la sala principal, Yotaro intentó recordar las frases que le habían enseñado, pero desgraciadamente ya tenía la cabeza hecha un lío sin remedio. Yotaro: «Eh, este... el pilar del techo tiene un espléndido nudo, ni uno solo, de ciprés... no espere, de grano recto... en fin, es tremendamente bonito.» Tío: «Hmm, no tengo la menor idea de qué quieres decir... pero bueno, supongo que estás elogiando algo.» Yotaro: «Y luego, eh, el techo está hecho de un tal Satsuma, de verdad sin ningún nudo... no espere, ¿eso era el pilar?...» El tío sonrió con resignación, pero por consideración al esfuerzo sincero de Yotaro, simplemente dejó que todo pasara." },
+    { id:'p4', title:"④台所の柱と牛小屋へ", ssml:false, text:"Cuando llevaron a Yotaro a la cocina, su mirada cayó justo en una grieta del pilar. Yotaro: «¡Ah, es verdad! Tío, esta grieta, si le pega una moneda encima, se convierte en un bonito adorno elegante, ¿no le parece?» Tío: «Vaya, qué astuto. Buen ojo, Yotaro.» Esta al menos parecía haberla dicho bien, y Yotaro se hinchó de orgullo. Tío: «Por cierto, Yotaro, ¿quieres ver también el establo de atrás? Compré una vaca excelente el otro día.» Yotaro: «Una vaca... ah, es verdad, papá también me enseñó algo sobre una vaca!» Yotaro corrió hacia el establo de atrás tan rápido como sus piernas se lo permitían." },
+    { id:'p5', title:"⑤牛をほめる", ssml:false, text:"De pie frente al establo, Yotaro se esforzó con todas sus fuerzas por recordar las palabras que le habían enseñado, decidido a acertar esta vez. Yotaro: «Tío, esta vaca es... eh, verdaderamente espléndida... y de verdad debería construir una caja contra incendios detrás de ella.» Al oír esto, el tío dio una palmada, sorprendido por una repentina revelación. Tío: «¡Oh, bien dicho! Yotaro, me impresiona que te dieras cuenta de eso.» Yotaro: «¿Eh? Bueno, solo dije exactamente lo que papá me enseñó...» Tío: «No importa, es un consejo verdaderamente excelente. La madera nueva del establo todavía está seca, así que el fuego prende con facilidad. Construir un cortafuegos detrás realmente me tranquilizaría.»" },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Completamente impresionado, el tío le puso algo de dinero de bolsillo en la mano a Yotaro. Tío: «Toma, esa es tu recompensa. Guárdatela.» Yotaro: «Vaya, gracias. ...Espere, tío, ¿por qué está tan contento solo con lo que dije de la vaca? No estaba nada contento con lo del pilar o el techo.» Tío: «Bueno, claro. No tenía la menor idea de qué hablabas con lo del pilar o el techo. Pero lo de la vaca, eso sí lo entendí perfectamente.» Yotaro: «Vaya, así que así funciona.» Tío: «Así es. Aunque me atrevería a decir que también hay una pequeña grieta en esa cabeza tuya... valdría la pena pegarle una moneda encima.» Y así, con esta alegre historia de un halago recién aprendido que resulta útil de la manera más inesperada, doy por concluido este relato." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

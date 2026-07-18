@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>笠碁 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.28 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">笠碁</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Kasago / Go in the Rain</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②碁敵の二人</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③待ったの喧嘩</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④意地の張り合い</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤そわそわ</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥雨の日の笠</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦仲直りの一局</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">人<rt>ひと</rt></ruby>という<ruby class="v1">生<rt>い</rt></ruby>き<ruby class="v1">物<rt>もの</rt></ruby>は、<ruby class="v1">歳<rt>とし</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>れば<ruby class="v1">取<rt>と</rt></ruby>るほど<ruby class="v2">意地<rt>いじ</rt></ruby>っ<ruby class="v1">張<rt>ば</rt></ruby>りになるものだそうで。とりわけ<ruby class="v1">長年<rt>ながねん</rt></ruby><ruby class="v1">連<rt>つ</rt></ruby>れ<ruby class="v1">添<rt>そ</rt></ruby>った<ruby class="v1">友人同士<rt>ゆうじんどうし</rt></ruby>というのは、<ruby class="v1">仲<rt>なか</rt></ruby>がいいんだか<ruby class="v1">悪<rt>わる</rt></ruby>いんだか<ruby class="v1">分<rt>わ</rt></ruby>からないほど、しょっちゅう<ruby class="v1">喧嘩<rt>けんか</rt></ruby>をしているもので。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v1">大<rt>だい</rt></ruby>の<ruby class="v1">仲良<rt>なかよ</rt></ruby>し、いえ<ruby class="v1">大<rt>だい</rt></ruby>の<ruby class="v2">碁敵<rt>ごがたき</rt></ruby>のお<ruby class="v1">話<rt>はなし</rt></ruby>でございます。<ruby class="v1">碁<rt>ご</rt></ruby>というのはまことに<ruby class="v2">不思議<rt>ふしぎ</rt></ruby>な<ruby class="v1">遊<rt>あそ</rt></ruby>びで、<ruby class="v1">盤<rt>ばん</rt></ruby>を<ruby class="v1">挟<rt>はさ</rt></ruby>んで<ruby class="v1">座<rt>すわ</rt></ruby>れば、<ruby class="v1">昨日<rt>きのう</rt></ruby>までの<ruby class="v1">親友<rt>しんゆう</rt></ruby>も<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v1">敵<rt>てき</rt></ruby>、<ruby class="v1">待<rt>ま</rt></ruby>ったをかければ<ruby class="v2">意地<rt>いじ</rt></ruby>の<ruby class="v1">張<rt>は</rt></ruby>り<ruby class="v1">合<rt>あ</rt></ruby>い、<ruby class="v1">勝<rt>か</rt></ruby>てば<ruby class="v2">大威張<rt>おおいば</rt></ruby>り、<ruby class="v1">負<rt>ま</rt></ruby>ければふくれっ<ruby class="v1">面<rt>つら</rt></ruby>。<ruby class="v1">年寄<rt>としよ</rt></ruby>り<ruby class="v1">二人<rt>ふたり</rt></ruby>の<ruby class="v2">意地<rt>いじ</rt></ruby>の<ruby class="v1">張<rt>は</rt></ruby>り<ruby class="v1">合<rt>あ</rt></ruby>いほど、<ruby class="v1">傍<rt>はた</rt></ruby>から<ruby class="v1">見<rt>み</rt></ruby>ていて<ruby class="v1">面白<rt>おもしろ</rt></ruby>いものはございません。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【碁敵の二人】</span>
+                    この<ruby class="v1">話<rt>はなし</rt></ruby>に<ruby class="v1">出<rt>で</rt></ruby>て<ruby class="v1">参<rt>まい</rt></ruby>りますのは、もう<ruby class="v1">五十年来<rt>ごじゅうねんらい</rt></ruby>の<ruby class="v1">付<rt>つ</rt></ruby>き<ruby class="v1">合<rt>あ</rt></ruby>いという、<ruby class="v2">裏長屋<rt>うらながや</rt></ruby>の<ruby class="v2">隠居<rt>いんきょ</rt></ruby>さん<ruby class="v1">二人<rt>ふたり</rt></ruby>でございます。<ruby class="v1">一人<rt>ひとり</rt></ruby>は<ruby class="v1">元<rt>もと</rt></ruby>、<ruby class="v1">質屋<rt>しちや</rt></ruby>の<ruby class="v1">旦那<rt>だんな</rt></ruby>で<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さん。もう<ruby class="v1">一人<rt>ひとり</rt></ruby>は<ruby class="v1">元<rt>もと</rt></ruby>、<ruby class="v2">小間物屋<rt>こまものや</rt></ruby>の<ruby class="v1">旦那<rt>だんな</rt></ruby>で<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さん。<ruby class="v1">両方<rt>りょうほう</rt></ruby>とも<ruby class="v2">隠居<rt>いんきょ</rt></ruby>の<ruby class="v1">身<rt>み</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>で、<ruby class="v1">暇<rt>ひま</rt></ruby>といえばこれほど<ruby class="v1">暇<rt>ひま</rt></ruby>な<ruby class="v1">身分<rt>みぶん</rt></ruby>もない。することといえば、<ruby class="v1">朝<rt>あさ</rt></ruby><ruby class="v1">起<rt>お</rt></ruby>きて<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">洗<rt>あら</rt></ruby>ったら、もう<ruby class="v1">碁盤<rt>ごばん</rt></ruby>を<ruby class="v1">抱<rt>かか</rt></ruby>えてどちらかの<ruby class="v1">家<rt>いえ</rt></ruby>に<ruby class="v1">上<rt>あ</rt></ruby>がり<ruby class="v1">込<rt>こ</rt></ruby>む。<br><strong>徳兵衛：</strong>「よ、<ruby class="v1">精<rt>せい</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>るね」<br><strong>清兵衛：</strong>「おう、また<ruby class="v1">来<rt>き</rt></ruby>たか」<br>なんて<ruby class="v1">言<rt>い</rt></ruby>いながら、<ruby class="v1">日<rt>ひ</rt></ruby>がな<ruby class="v1">一日<rt>いちにち</rt></ruby>パチリパチリ。<ruby class="v1">二人<rt>ふたり</rt></ruby>の<ruby class="v1">腕前<rt>うでまえ</rt></ruby>はほとんど<ruby class="v2">互角<rt>ごかく</rt></ruby>、<ruby class="v1">十番<rt>じゅうばん</rt></ruby><ruby class="v1">打<rt>う</rt></ruby>てば<ruby class="v1">五分<rt>ごぶ</rt></ruby>と<ruby class="v1">五分<rt>ごぶ</rt></ruby>。これがまた<ruby class="v1">面白<rt>おもしろ</rt></ruby>いようで、<ruby class="v1">判<rt>はん</rt></ruby>で<ruby class="v1">押<rt>お</rt></ruby>したように<ruby class="v1">毎日<rt>まいにち</rt></ruby><ruby class="v1">毎日<rt>まいにち</rt></ruby>、<ruby class="v1">雨<rt>あめ</rt></ruby>の<ruby class="v1">日<rt>ひ</rt></ruby>も<ruby class="v1">風<rt>かぜ</rt></ruby>の<ruby class="v1">日<rt>ひ</rt></ruby>も、この<ruby class="v1">二人<rt>ふたり</rt></ruby>は<ruby class="v1">碁<rt>ご</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>っておりました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【待ったの喧嘩】</span>
+                    <ruby class="v1">所<rt>ところ</rt></ruby>がある<ruby class="v1">日<rt>ひ</rt></ruby>のこと。いつものように<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんの<ruby class="v1">家<rt>いえ</rt></ruby>で<ruby class="v1">碁<rt>ご</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>っておりますてえと、<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんが<ruby class="v1">一目<rt>ひとめ</rt></ruby>、<ruby class="v2">迂闊<rt>うかつ</rt></ruby>な<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>ってしまった。<br><strong>清兵衛：</strong>「あ、しまった」<br>と<ruby class="v1">言<rt>い</rt></ruby>うが<ruby class="v1">早<rt>はや</rt></ruby>いか、<ruby class="v1">石<rt>いし</rt></ruby>をつまんで<ruby class="v1">引<rt>ひ</rt></ruby>っ<ruby class="v1">込<rt>こ</rt></ruby>めようとする。すかさず<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんが、<br><strong>徳兵衛：</strong>「おいおい、それは<ruby class="v1">待<rt>ま</rt></ruby>ったじゃないか」<br><strong>清兵衛：</strong>「なぁに、これしきの<ruby class="v1">待<rt>ま</rt></ruby>った、いつもの<ruby class="v1">通<rt>とお</rt></ruby>りじゃないか」<br><strong>徳兵衛：</strong>「いつもと<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v1">違<rt>ちが</rt></ruby>う、<ruby class="v1">今日<rt>きょう</rt></ruby>のは<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">待<rt>ま</rt></ruby>ったで、これを<ruby class="v1">許<rt>ゆる</rt></ruby>しちゃあ<ruby class="v1">碁<rt>ご</rt></ruby>というものが<ruby class="v2">成<rt>な</rt></ruby>り<ruby class="v1">立<rt>た</rt></ruby>たない」<br><strong>清兵衛：</strong>「なんだと、たかが<ruby class="v1">碁<rt>ご</rt></ruby>で<ruby class="v1">何<rt>なに</rt></ruby>をそんなにむきになる」<br><strong>徳兵衛：</strong>「たかが<ruby class="v1">碁<rt>ご</rt></ruby>とは<ruby class="v1">何<rt>なん</rt></ruby>だ、<ruby class="v1">碁<rt>ご</rt></ruby>を<ruby class="v1">馬鹿<rt>ばか</rt></ruby>にするか」<br><ruby class="v1">売<rt>う</rt></ruby>り<ruby class="v1">言葉<rt>ことば</rt></ruby>に<ruby class="v1">買<rt>か</rt></ruby>い<ruby class="v1">言葉<rt>ことば</rt></ruby>、とうとう<ruby class="v1">二人<rt>ふたり</rt></ruby>とも<ruby class="v1">真<rt>ま</rt></ruby>っ<ruby class="v1">赤<rt>か</rt></ruby>になって<ruby class="v1">怒鳴<rt>どな</rt></ruby>り<ruby class="v1">合<rt>あ</rt></ruby>いになってしまいました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【意地の張り合い】</span>
+                    とうとう<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんは、<br><strong>清兵衛：</strong>「こんな<ruby class="v2">碁敵<rt>ごがたき</rt></ruby>とは<ruby class="v2">金輪際<rt>こんりんざい</rt></ruby>、<ruby class="v1">口<rt>くち</rt></ruby>も<ruby class="v1">利<rt>き</rt></ruby>かん」<br>と<ruby class="v2">啖呵<rt>たんか</rt></ruby>を<ruby class="v1">切<rt>き</rt></ruby>って<ruby class="v1">帰<rt>かえ</rt></ruby>ってしまう。<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんも、<br><strong>徳兵衛：</strong>「こっちから<ruby class="v1">願<rt>ねが</rt></ruby>い<ruby class="v1">下<rt>さ</rt></ruby>げだ、<ruby class="v1">二度<rt>にど</rt></ruby>と<ruby class="v2">敷居<rt>しきい</rt></ruby>はまたがせない」<br>と<ruby class="v1">負<rt>ま</rt></ruby>け<ruby class="v1">惜<rt>お</rt></ruby>しみ。それからというもの、<ruby class="v1">二人<rt>ふたり</rt></ruby>はぷっつり<ruby class="v1">行<rt>い</rt></ruby>き<ruby class="v1">来<rt>き</rt></ruby>が<ruby class="v1">絶<rt>た</rt></ruby>えてしまいました。ところが<ruby class="v1">困<rt>こま</rt></ruby>ったのは<ruby class="v1">暇<rt>ひま</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>て<ruby class="v1">余<rt>あま</rt></ruby>す<ruby class="v2">隠居<rt>いんきょ</rt></ruby>の<ruby class="v1">身<rt>み</rt></ruby>。<ruby class="v1">碁<rt>ご</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>つ<ruby class="v1">相手<rt>あいて</rt></ruby>がいないというのは、これほど<ruby class="v2">手持<rt>てもち</rt></ruby>ち<ruby class="v2">無沙汰<rt>ぶさた</rt></ruby>なものかと、<ruby class="v1">両方<rt>りょうほう</rt></ruby>とも<ruby class="v1">身<rt>み</rt></ruby>にしみて<ruby class="v1">分<rt>わ</rt></ruby>かってくる。<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんは<ruby class="v2">縁側<rt>えんがわ</rt></ruby>でひとり<ruby class="v1">碁盤<rt>ごばん</rt></ruby>を<ruby class="v1">眺<rt>なが</rt></ruby>めてはため<ruby class="v1">息<rt>いき</rt></ruby>、<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんも<ruby class="v1">将棋<rt>しょうぎ</rt></ruby>の<ruby class="v1">駒<rt>こま</rt></ruby>をいじりながら<ruby class="v1">気<rt>き</rt></ruby>もそぞろ。<ruby class="v2">意地<rt>いじ</rt></ruby>を<ruby class="v1">張<rt>は</rt></ruby>っている<ruby class="v1">手前<rt>てまえ</rt></ruby>、<ruby class="v1">詫<rt>わ</rt></ruby>びに<ruby class="v1">行<rt>い</rt></ruby>くわけにもいかず、<ruby class="v1">日<rt>ひ</rt></ruby>に<ruby class="v1">日<rt>ひ</rt></ruby>に<ruby class="v1">機嫌<rt>きげん</rt></ruby>が<ruby class="v1">悪<rt>わる</rt></ruby>くなるばかりでございます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【そわそわ】</span>
+                    そんなある<ruby class="v1">日<rt>ひ</rt></ruby>、<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんがふらりと<ruby class="v1">表<rt>おもて</rt></ruby>へ<ruby class="v1">出<rt>で</rt></ruby>て、なんとなく<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんの<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">方<rt>ほう</rt></ruby>へ<ruby class="v1">足<rt>あし</rt></ruby>が<ruby class="v1">向<rt>む</rt></ruby>く。<ruby class="v1">別<rt>べつ</rt></ruby>に<ruby class="v1">用<rt>よう</rt></ruby>があるわけじゃない、ただの<ruby class="v1">散歩<rt>さんぽ</rt></ruby>でございますよと<ruby class="v1">自分<rt>じぶん</rt></ruby>に<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">聞<rt>き</rt></ruby>かせながら、<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>を<ruby class="v1">行<rt>い</rt></ruby>ったり<ruby class="v1">来<rt>き</rt></ruby>たり。<ruby class="v1">窓<rt>まど</rt></ruby>の<ruby class="v2">障子<rt>しょうじ</rt></ruby>がすうっと<ruby class="v1">開<rt>あ</rt></ruby>いて、<ruby class="v1">中<rt>なか</rt></ruby>から<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんがひょいと<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>す。これも<ruby class="v1">別<rt>べつ</rt></ruby>に<ruby class="v1">待<rt>ま</rt></ruby>っていたわけじゃない、たまたま<ruby class="v1">外<rt>そと</rt></ruby>の<ruby class="v1">空気<rt>くうき</rt></ruby>を<ruby class="v1">吸<rt>す</rt></ruby>いに<ruby class="v1">出<rt>で</rt></ruby>ただけだと、これまた<ruby class="v1">自分<rt>じぶん</rt></ruby>に<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">聞<rt>き</rt></ruby>かせる。<ruby class="v1">目<rt>め</rt></ruby>が<ruby class="v1">合<rt>あ</rt></ruby>うと<ruby class="v1">二人<rt>ふたり</rt></ruby>とも「ふん」とそっぽを<ruby class="v1">向<rt>む</rt></ruby>いて<ruby class="v1">知<rt>し</rt></ruby>らんぷり。けれどもお<ruby class="v1">互<rt>たが</rt></ruby>い、<ruby class="v1">心<rt>こころ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>では、ああ<ruby class="v2">達者<rt>たっしゃ</rt></ruby>そうで<ruby class="v1">何<rt>なに</rt></ruby>よりだ、なんて<ruby class="v1">思<rt>おも</rt></ruby>っている。<ruby class="v2">意地<rt>いじ</rt></ruby>というのは<ruby class="v1">実<rt>じつ</rt></ruby>に<ruby class="v2">厄介<rt>やっかい</rt></ruby>なもので、<ruby class="v1">会<rt>あ</rt></ruby>いたくて<ruby class="v1">仕方<rt>しかた</rt></ruby>がないくせに、<ruby class="v1">素直<rt>すなお</rt></ruby>に<ruby class="v1">久<rt>ひさ</rt></ruby>しぶり<ruby class="v1">一局<rt>いっきょく</rt></ruby>やらないかの<ruby class="v1">一言<rt>ひとこと</rt></ruby>がどうしても<ruby class="v1">出<rt>で</rt></ruby>てまいりません。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【雨の日の笠】</span>
+                    そうこうするうち、ある<ruby class="v1">日<rt>ひ</rt></ruby>の<ruby class="v1">昼下<rt>ひるさ</rt></ruby>がり、<ruby class="v1">急<rt>きゅう</rt></ruby>に<ruby class="v1">空<rt>そら</rt></ruby>が<ruby class="v1">真<rt>ま</rt></ruby>っ<ruby class="v1">暗<rt>くら</rt></ruby>になったかと<ruby class="v1">思<rt>おも</rt></ruby>うと、ざあっと<ruby class="v2">大粒<rt>おおつぶ</rt></ruby>の<ruby class="v1">雨<rt>あめ</rt></ruby>が<ruby class="v1">降<rt>ふ</rt></ruby>ってまいりました。<ruby class="v1">表<rt>おもて</rt></ruby>を<ruby class="v1">歩<rt>ある</rt></ruby>いていた<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さん、<ruby class="v1">慌<rt>あわ</rt></ruby>てて<ruby class="v2">軒先<rt>のきさき</rt></ruby>に<ruby class="v1">飛<rt>と</rt></ruby>び<ruby class="v1">込<rt>こ</rt></ruby>むやら<ruby class="v2">難儀<rt>なんぎ</rt></ruby>している<ruby class="v1">折<rt>おり</rt></ruby>も<ruby class="v1">折<rt>おり</rt></ruby>、ふと<ruby class="v1">見<rt>み</rt></ruby>ると<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんの<ruby class="v1">家<rt>いえ</rt></ruby>がすぐそこ。<ruby class="v2">雨宿<rt>あまやど</rt></ruby>りに<ruby class="v1">立<rt>た</rt></ruby>ち<ruby class="v1">寄<rt>よ</rt></ruby>るだけなら、<ruby class="v2">意地<rt>いじ</rt></ruby>を<ruby class="v1">曲<rt>ま</rt></ruby>げたことにはなるまい、と、<ruby class="v1">都合<rt>つごう</rt></ruby>のいい<ruby class="v1">理屈<rt>りくつ</rt></ruby>をこしらえて、<ruby class="v1">表戸<rt>おもてど</rt></ruby>をとんとんと<ruby class="v1">叩<rt>たた</rt></ruby>く。<br><strong>徳兵衛：</strong>「<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さん、こっちに<ruby class="v1">笠<rt>かさ</rt></ruby>が<ruby class="v1">余分<rt>よぶん</rt></ruby>にあったのを<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>しましてね。ついでだから<ruby class="v1">貸<rt>か</rt></ruby>してあげようと<ruby class="v1">思<rt>おも</rt></ruby>って」<br>なんて、<ruby class="v1">我<rt>われ</rt></ruby>ながら<ruby class="v1">苦<rt>くる</rt></ruby>しい<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">訳<rt>わけ</rt></ruby>をこしらえながら<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>す。すると<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんの<ruby class="v1">方<rt>ほう</rt></ruby>も、<ruby class="v1">実<rt>じつ</rt></ruby>は<ruby class="v1">待<rt>ま</rt></ruby>ってましたとばかりに<ruby class="v1">顔<rt>かお</rt></ruby>をほころばせて、<br><strong>清兵衛：</strong>「おお、これはこれは、ちょうど<ruby class="v1">退屈<rt>たいくつ</rt></ruby>していたところだ。まあ<ruby class="v1">上<rt>あ</rt></ruby>がんなさい」<br>と、<ruby class="v1">二<rt>ふた</rt></ruby>つ<ruby class="v1">返事<rt>へんじ</rt></ruby>で<ruby class="v1">招<rt>まね</rt></ruby>き<ruby class="v1">入<rt>い</rt></ruby>れる。<ruby class="v1">笠<rt>かさ</rt></ruby>を<ruby class="v1">貸<rt>か</rt></ruby>すの、<ruby class="v1">借<rt>か</rt></ruby>りるのという<ruby class="v1">理屈<rt>りくつ</rt></ruby>は、しょせん<ruby class="v1">仲直<rt>なかなお</rt></ruby>りの<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">訳<rt>わけ</rt></ruby>。<ruby class="v1">二人<rt>ふたり</rt></ruby>とも、その<ruby class="v1">理屈<rt>りくつ</rt></ruby>が<ruby class="v1">嘘<rt>うそ</rt></ruby>だということは<ruby class="v1">百<rt>ひゃく</rt></ruby>も<ruby class="v1">承知<rt>しょうち</rt></ruby>でございます。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【仲直りの一局】</span>
+                    <ruby class="v1">上<rt>あ</rt></ruby>がり<ruby class="v1">込<rt>こ</rt></ruby>んだ<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さん、<ruby class="v2">案<rt>あん</rt></ruby>の<ruby class="v1">定<rt>じょう</rt></ruby>というべきか、<br><strong>徳兵衛：</strong>「せっかく<ruby class="v1">来<rt>き</rt></ruby>たんだ、<ruby class="v1">一局<rt>いっきょく</rt></ruby>どうだい」<br>と<ruby class="v1">碁盤<rt>ごばん</rt></ruby>を<ruby class="v1">引<rt>ひ</rt></ruby>っ<ruby class="v1">張<rt>ぱ</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>す。<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんも、<br><strong>清兵衛：</strong>「そうこなくっちゃ」<br>と、<ruby class="v1">待<rt>ま</rt></ruby>ってましたとばかりに<ruby class="v1">石<rt>いし</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べ<ruby class="v1">始<rt>はじ</rt></ruby>める。まるで<ruby class="v1">何事<rt>なにごと</rt></ruby>もなかったかのように、パチリ、パチリと<ruby class="v1">石<rt>いし</rt></ruby>を<ruby class="v1">置<rt>お</rt></ruby>く<ruby class="v1">音<rt>おと</rt></ruby>が<ruby class="v2">響<rt>ひび</rt></ruby>き<ruby class="v1">渡<rt>わた</rt></ruby>る。そして<ruby class="v1">三十手<rt>さんじって</rt></ruby>も<ruby class="v1">進<rt>すす</rt></ruby>んだ<ruby class="v1">頃<rt>ころ</rt></ruby>、<ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さんがまた<ruby class="v1">一目<rt>ひとめ</rt></ruby><ruby class="v1">危<rt>あぶ</rt></ruby>ない<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>って、<br><strong>清兵衛：</strong>「あ、しまった」<br>と<ruby class="v1">石<rt>いし</rt></ruby>をつまむ。<ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さんすかさず、<br><strong>徳兵衛：</strong>「これこれ、また<ruby class="v1">待<rt>ま</rt></ruby>ったかい」<br><ruby class="v1">清兵衛<rt>せいべえ</rt></ruby>さん、<ruby class="v1">悪<rt>わる</rt></ruby>びれもせず、<br><strong>清兵衛：</strong>「なあに、これくらいは<ruby class="v1">大目<rt>おおめ</rt></ruby>に<ruby class="v1">見<rt>み</rt></ruby>てくれよ、<ruby class="v1">笠<rt>かさ</rt></ruby>を<ruby class="v1">借<rt>か</rt></ruby>りた<ruby class="v1">義理<rt>ぎり</rt></ruby>があるんだから」<br><ruby class="v1">徳兵衛<rt>とくべえ</rt></ruby>さん、<ruby class="v1">呆<rt>あき</rt></ruby>れながらも<ruby class="v1">嬉<rt>うれ</rt></ruby>しそうに<ruby class="v1">笑<rt>わら</rt></ruby>って、<br><strong>徳兵衛：</strong>「<ruby class="v1">相変<rt>あいか</rt></ruby>わらず<ruby class="v1">調子<rt>ちょうし</rt></ruby>のいいことを<ruby class="v1">言<rt>い</rt></ruby>う。まあいいや、そのかわり<ruby class="v1">今度<rt>こんど</rt></ruby>は<ruby class="v1">大負<rt>おおま</rt></ruby>けさせてもらうよ」<br><ruby class="v1">雨<rt>あめ</rt></ruby>がすっかり<ruby class="v1">上<rt>あ</rt></ruby>がった<ruby class="v1">表<rt>おもて</rt></ruby>で、パチリ、パチリと<ruby class="v1">石<rt>いし</rt></ruby>の<ruby class="v1">音<rt>おと</rt></ruby>。<ruby class="v1">喧嘩<rt>けんか</rt></ruby>するほど<ruby class="v1">仲<rt>なか</rt></ruby>がいいとは、よく<ruby class="v1">申<rt>もう</rt></ruby>したもので、この<ruby class="v1">二人<rt>ふたり</rt></ruby>にはぴったりの<ruby class="v1">言葉<rt>ことば</rt></ruby>でございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. They say the older people get, the more stubborn they become - and nowhere is that truer than between old friends who have known each other for decades. They bicker so constantly you can hardly tell if they like each other or cannot stand each other. Today's tale is about two such great friends - or should I say, two great rivals at the board game of Go. Go is a strange pastime: sit down across the board and yesterday's best friend becomes today's enemy. Cry "take-back!" and pride flares up; win and you strut, lose and you sulk. There is nothing more entertaining to watch from the sidelines than two old men locked in a battle of wills over a game board.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWO GO RIVALS]</span>The two men in our story have known each other for fifty years, both retired old-timers living in the same row of tenement houses. One used to run a pawnshop - call him Tokubei. The other ran a little sundries shop - call him Seibei. Both retired, and there is no idler life than a retired man's. Every morning, the moment they wash their faces, one of them tucks the Go board under his arm and barges into the other's house.<br><strong>Tokubei:</strong> "Well look at you, keeping busy!"<br><strong>Seibei:</strong> "Oh, back again, are you?"<br>And so it goes, click-clack, click-clack, all day long. Their skill is almost perfectly matched - out of ten games, five apiece. That is what makes it so fun, and like clockwork, rain or shine, these two played Go together every single day.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TAKE-BACK QUARREL]</span>But one day, while playing at Tokubei's house as usual, Seibei made a careless move.<br><strong>Seibei:</strong> "Oh, no-"<br>he said, and just as quickly reached to take the stone back. Tokubei stopped him at once.<br><strong>Tokubei:</strong> "Hold on, hold on, isn't that a take-back?"<br><strong>Seibei:</strong> "Come on, it's just a small one, same as always."<br><strong>Tokubei:</strong> "Today's different - that's a big take-back, and if I let that slide, the whole game means nothing."<br><strong>Seibei:</strong> "What are you getting so worked up about, it's just Go!"<br><strong>Tokubei:</strong> "Just Go? Are you mocking the game?"<br>And so, insult answered insult, until both old men turned red in the face, shouting at each other.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STUBBORN STANDOFF]</span>At last Seibei declared,<br><strong>Seibei:</strong> "I'll never speak to a Go rival like you again as long as I live!"<br>and stormed home. Tokubei shot back,<br><strong>Tokubei:</strong> "Fine by me - don't you dare darken my doorstep again!"<br>And from that day, the two stopped visiting each other entirely. But the trouble was, an idle retiree with no one to play Go against finds the days unbearably empty - and both of them came to feel it deeply. Tokubei sat alone on his porch staring at his Go board, sighing; Seibei fiddled with shogi pieces, distracted and restless. Too proud to go apologize, each grew more short-tempered by the day.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[RESTLESS DAYS]</span>Then one day, Seibei wandered outside and somehow found his feet carrying him toward Tokubei's house. "It's nothing special," he told himself, "just an ordinary stroll" - and he paced back and forth in front of the house. Just then, the paper screen slid open, and Tokubei poked his head out. He too told himself he wasn't waiting for anyone - just getting some fresh air. Their eyes met, and both turned away with a "hmph," pretending not to notice. Yet in their hearts, each thought, "Ah, good to see he's doing well." Pride is a troublesome thing - desperate as they were to see each other, neither could bring himself to simply say, "Long time no see, how about a game?"</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE RAIN HAT]</span>Then one afternoon, the sky suddenly turned pitch black, and fat drops of rain came pouring down. Tokubei, caught out walking, scrambled for shelter under an eave - and just his luck, Seibei's house was right there. "If I just stop in to get out of the rain, that's not really giving in," he reasoned conveniently, and knocked on the door.<br><strong>Tokubei:</strong> "Say, Seibei, I just remembered I had a spare rain hat lying around. Thought I'd lend it to you while I'm at it,"<br>he said, cobbling together a flimsy excuse. Seibei, for his part, lit up as if he'd been waiting all along.<br><strong>Seibei:</strong> "Well, well, and here I was getting bored. Come on in!"<br>and welcomed him with open arms. The business of lending and borrowing a rain hat was, of course, just an excuse to make up - and both of them knew perfectly well it was a lie.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[RECONCILIATION AND A NEW GAME]</span>Once inside, Tokubei did just as expected.<br><strong>Tokubei:</strong> "Well, since I'm here, how about a game?"<br>he said, dragging out the Go board. Seibei needed no urging.<br><strong>Seibei:</strong> "Now you're talking!"<br>and began setting out the stones as if he'd been waiting all along. As though nothing had ever happened, the click-clack of stones being set down filled the room again. About thirty moves in, Seibei made another risky move.<br><strong>Seibei:</strong> "Oh, no-"<br>he said, reaching for the stone. Tokubei was on him at once.<br><strong>Tokubei:</strong> "Now, now, is that another take-back?"<br><strong>Seibei:</strong> "Come on, let this one slide - you owe me for the rain hat, after all."<br><strong>Tokubei:</strong> "Still as shameless as ever. Fine, but in exchange, I'm going to beat you badly this time,"<br>Tokubei laughed, half exasperated, half delighted. Outside, the rain had cleared completely, and the click-clack of Go stones rang out once more. As they say, the more you quarrel, the closer you are - and no words could suit these two better.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. On dit que plus on vieillit, plus on devient tetu - et c'est particulierement vrai entre vieux amis qui se connaissent depuis des decennies. Ils se chamaillent si souvent qu'on ne sait plus s'ils s'aiment bien ou se detestent. L'histoire d'aujourd'hui parle de deux grands amis comme ca - ou plutot, de deux grands rivaux au jeu de go. Le go est un passe-temps etrange: on s'assied face a face et l'ami d'hier devient l'ennemi d'aujourd'hui. On crie « reprise! » et la fierte s'enflamme; on gagne et on se pavane, on perd et on boude. Rien n'est plus amusant a observer que deux vieillards qui s'entetent l'un contre l'autre sur un plateau de jeu.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWO GO RIVALS]</span>Les deux hommes de notre histoire se connaissent depuis cinquante ans, tous deux vieux retraites vivant dans la meme rangee de maisons mitoyennes. L'un tenait autrefois un pret sur gages - appelons-le Tokubei. L'autre tenait une petite mercerie - appelons-le Seibei. Tous deux a la retraite, et il n'y a pas de vie plus oisive que celle d'un retraite. Chaque matin, a peine le visage lave, l'un des deux attrape le plateau de go sous le bras et debarque chez l'autre.<br><strong>Tokubei :</strong> « Eh bien, on ne chome pas ! »<br><strong>Seibei :</strong> « Oh, encore toi ? »<br>Et ainsi de suite, clic-clac, clic-clac, toute la journee. Leur niveau est presque parfaitement egal - sur dix parties, cinq chacun. C'est bien ce qui rend la chose amusante, et comme une horloge, qu'il pleuve ou qu'il vente, ces deux-la jouaient au go ensemble tous les jours.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TAKE-BACK QUARREL]</span>Mais un jour, alors qu'ils jouaient comme d'habitude chez Tokubei, Seibei fit un coup imprudent.<br><strong>Seibei :</strong> « Oh, zut- »<br>dit-il, et aussitot il tendit la main pour reprendre la pierre. Tokubei l'arreta net.<br><strong>Tokubei :</strong> « Attends, attends, ce n'est pas une reprise, ca ? »<br><strong>Seibei :</strong> « Allez, c'est une toute petite, comme d'habitude. »<br><strong>Tokubei :</strong> « Aujourd'hui c'est different - c'est une grosse reprise, et si je laisse passer ca, la partie ne veut plus rien dire. »<br><strong>Seibei :</strong> « Pourquoi tu t'enerves autant, c'est juste un jeu ! »<br><strong>Tokubei :</strong> « Juste un jeu ? Tu te moques du go ? »<br>Et ainsi, insulte pour insulte, les deux vieillards finirent rouges de colere, a se hurler dessus.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STUBBORN STANDOFF]</span>Seibei finit par declarer :<br><strong>Seibei :</strong> « Je ne reparlerai plus jamais a un rival de go comme toi, de toute ma vie ! »<br>et rentra chez lui, furieux. Tokubei retorqua :<br><strong>Tokubei :</strong> « Tant mieux - et n'ose plus jamais remettre les pieds chez moi ! »<br>Et a partir de ce jour, les deux hommes cesserent completement de se rendre visite. Mais le probleme, c'est qu'un retraite desoeuvre sans adversaire de go trouve les journees insupportablement vides - et tous deux en ressentirent le poids. Tokubei restait assis seul sur sa veranda a contempler son plateau de go en soupirant ; Seibei triturait des pieces de shogi, distrait et agite. Trop fiers pour aller s'excuser, ils devenaient chaque jour plus grincheux.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[RESTLESS DAYS]</span>Puis un jour, Seibei sortit se promener et, sans trop savoir pourquoi, ses pas le menerent vers la maison de Tokubei. « Ce n'est rien de special, » se dit-il, « juste une promenade ordinaire » - et il fit les cent pas devant la maison. A cet instant, le panneau de papier coulissa, et Tokubei passa la tete dehors. Lui aussi se dit qu'il n'attendait personne - juste un peu d'air frais. Leurs regards se croiserent, et tous deux detournerent la tete avec un « hmph », feignant de ne rien remarquer. Pourtant, au fond d'eux, chacun pensait : « Ah, content de voir qu'il va bien. » La fierte est une chose bien genante - aussi desesperes soient-ils de se revoir, ni l'un ni l'autre ne put se resoudre a simplement dire : « Ca fait longtemps, une partie ? »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE RAIN HAT]</span>Puis un apres-midi, le ciel devint soudain tout noir, et de grosses gouttes de pluie se mirent a tomber. Tokubei, surpris en pleine rue, se precipita sous un avant-toit - et par chance, la maison de Seibei se trouvait juste la. « Si je m'arrete juste pour m'abriter de la pluie, ce n'est pas vraiment ceder, » se dit-il, se fabriquant un raisonnement bien commode, et il frappa a la porte.<br><strong>Tokubei :</strong> « Dis donc, Seibei, je viens de me rappeler que j'avais un chapeau de pluie en trop. Je me suis dit que je pourrais te le preter, tant qu'a faire, »<br>dit-il, bricolant une excuse peu convaincante. Seibei, de son cote, s'illumina comme s'il n'avait attendu que ca.<br><strong>Seibei :</strong> « Eh bien, eh bien, et moi qui commencais a m'ennuyer. Entre donc ! »<br>et l'accueillit a bras ouverts. Cette histoire de preter et d'emprunter un chapeau de pluie n'etait, bien sur, qu'un pretexte pour se reconcilier - et tous deux savaient parfaitement que c'etait un mensonge.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[RECONCILIATION AND A NEW GAME]</span>Une fois a l'interieur, Tokubei fit exactement ce a quoi on s'attendait.<br><strong>Tokubei :</strong> « Bon, puisque je suis la, une partie ? »<br>dit-il en sortant le plateau de go. Seibei n'eut pas besoin qu'on l'encourage.<br><strong>Seibei :</strong> « Voila qui est parle ! »<br>et il se mit a disposer les pierres comme s'il n'avait attendu que ca. Comme si rien ne s'etait jamais passe, le clic-clac des pierres qu'on pose emplit de nouveau la piece. Une trentaine de coups plus tard, Seibei fit a nouveau un coup risque.<br><strong>Seibei :</strong> « Oh, zut- »<br>dit-il, tendant la main vers la pierre. Tokubei fut sur lui aussitot.<br><strong>Tokubei :</strong> « Alors, alors, encore une reprise ? »<br><strong>Seibei :</strong> « Allez, laisse passer celle-la - tu me dois bien ca pour le chapeau de pluie. »<br><strong>Tokubei :</strong> « Toujours aussi culotte. Bon, d'accord, mais en echange, je vais te battre a plate couture cette fois, »<br>Tokubei eclata de rire, mi-exaspere, mi-ravi. Dehors, la pluie avait completement cesse, et le clic-clac des pierres de go resonnait de nouveau. Comme on dit, plus on se dispute, plus on est proches - et aucune parole ne convenait mieux a ces deux-la.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permitanme contarles una historia. Dicen que cuanto mas envejece una persona, mas terca se vuelve, y eso es especialmente cierto entre viejos amigos que se conocen desde hace decadas. Discuten tan a menudo que ya no se sabe si se llevan bien o mal. La historia de hoy trata de dos grandes amigos asi, o mas bien, de dos grandes rivales en el juego del go. El go es un pasatiempo curioso: uno se sienta frente al tablero y el mejor amigo de ayer se convierte en el enemigo de hoy. Se grita "¡retiro esa jugada!" y el orgullo se enciende; se gana y uno se pavonea, se pierde y uno hace pucheros. No hay nada mas entretenido de observar que dos ancianos enfrascados en un pulso de tercas voluntades sobre un tablero.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWO GO RIVALS]</span>Los dos hombres de nuestra historia se conocen desde hace cincuenta anos, ambos ancianos jubilados que viven en la misma hilera de casas vecinas. Uno solia llevar una casa de empenos; llamemoslo Tokubei. El otro tenia una pequena tienda de articulos varios; llamemoslo Seibei. Ambos jubilados, y no hay vida mas ociosa que la de un jubilado. Cada manana, apenas se lavan la cara, uno de ellos agarra el tablero de go bajo el brazo e irrumpe en casa del otro.<br><strong>Tokubei:</strong> "¡Vaya, que activo estas!"<br><strong>Seibei:</strong> "Ah, ¿otra vez tu?"<br>Y asi, clic-clac, clic-clac, todo el dia. Su nivel es casi perfectamente parejo: de diez partidas, cinco para cada uno. Eso es lo que lo hace tan divertido, y como un reloj, llueva o truene, estos dos jugaban al go juntos todos los dias.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TAKE-BACK QUARREL]</span>Pero un dia, mientras jugaban como siempre en casa de Tokubei, Seibei hizo una jugada descuidada.<br><strong>Seibei:</strong> "Ay, no-"<br>dijo, y de inmediato intento retirar la piedra. Tokubei lo detuvo en el acto.<br><strong>Tokubei:</strong> "Espera, espera, ¿eso no es un retiro de jugada?"<br><strong>Seibei:</strong> "Vamos, es solo uno pequeno, como siempre."<br><strong>Tokubei:</strong> "Hoy es diferente, es un retiro grande, y si dejo pasar eso, la partida no significa nada."<br><strong>Seibei:</strong> "¿Por que te pones asi, si es solo un juego?"<br><strong>Tokubei:</strong> "¿Solo un juego? ¿Te estas burlando del go?"<br>Y asi, insulto tras insulto, los dos ancianos terminaron rojos de ira, gritandose el uno al otro.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE STUBBORN STANDOFF]</span>Seibei acabo declarando:<br><strong>Seibei:</strong> "¡Jamas en la vida volvere a hablarle a un rival de go como tu!"<br>y se marcho furioso a su casa. Tokubei replico:<br><strong>Tokubei:</strong> "Mejor para mi, ¡y no te atrevas a volver a pisar mi puerta!"<br>Y desde ese dia, los dos dejaron de visitarse por completo. Pero el problema era que un jubilado ocioso sin nadie con quien jugar al go encuentra los dias insoportablemente vacios, y ambos lo sintieron muy hondo. Tokubei se sentaba solo en su porche mirando el tablero de go, suspirando; Seibei toqueteaba las piezas de shogi, distraido e inquieto. Demasiado orgullosos para ir a disculparse, cada dia se volvian mas malhumorados.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[RESTLESS DAYS]</span>Entonces, un dia, Seibei salio a caminar y, sin saber muy bien por que, sus pasos lo llevaron hacia la casa de Tokubei. "No es nada especial," se dijo, "solo un paseo cualquiera", y camino de un lado a otro frente a la casa. Justo entonces, el panel de papel se deslizo y Tokubei asomo la cabeza. El tambien se dijo que no esperaba a nadie, solo tomaba un poco de aire fresco. Sus miradas se cruzaron, y ambos apartaron la vista con un "je", fingiendo no notarlo. Sin embargo, en su interior, cada uno pensaba: "Ah, que bien que le vaya bien." El orgullo es algo verdaderamente molesto: por mas desesperados que estuvieran por verse, ninguno de los dos lograba simplemente decir: "Cuanto tiempo, ¿una partida?"</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE RAIN HAT]</span>Entonces, una tarde, el cielo se puso repentinamente negro y empezaron a caer gruesas gotas de lluvia. Tokubei, sorprendido en la calle, corrio a refugiarse bajo un alero, y que casualidad, la casa de Seibei estaba justo ahi. "Si solo entro a resguardarme de la lluvia, en realidad no estoy cediendo," razono convenientemente, y llamo a la puerta.<br><strong>Tokubei:</strong> "Oye, Seibei, acabo de recordar que tenia un sombrero de lluvia de sobra. Pense en prestartelo, ya que estoy aqui,"<br>dijo, improvisando una excusa poco convincente. Seibei, por su parte, se ilumino como si hubiera estado esperando todo ese tiempo.<br><strong>Seibei:</strong> "Vaya, vaya, y yo que me estaba aburriendo. ¡Pasa, pasa!"<br>y lo recibio con los brazos abiertos. Todo el asunto de prestar y pedir prestado un sombrero de lluvia era, por supuesto, solo una excusa para reconciliarse, y ambos sabian perfectamente que era una mentira.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[RECONCILIATION AND A NEW GAME]</span>Una vez dentro, Tokubei hizo exactamente lo que se esperaba.<br><strong>Tokubei:</strong> "Bueno, ya que estoy aqui, ¿una partida?"<br>dijo, sacando el tablero de go. Seibei no necesito que lo animaran.<br><strong>Seibei:</strong> "¡Asi se habla!"<br>y empezo a colocar las piedras como si hubiera estado esperando todo ese tiempo. Como si nada hubiera pasado jamas, el clic-clac de las piedras al colocarse volvio a llenar la habitacion. Unas treinta jugadas despues, Seibei hizo de nuevo una jugada arriesgada.<br><strong>Seibei:</strong> "Ay, no-"<br>dijo, alargando la mano hacia la piedra. Tokubei estuvo sobre el al instante.<br><strong>Tokubei:</strong> "Vamos, vamos, ¿otra vez un retiro de jugada?"<br><strong>Seibei:</strong> "Anda, deja pasar esta, al fin y al cabo me debes una por el sombrero de lluvia."<br><strong>Tokubei:</strong> "Sigues tan descarado como siempre. Esta bien, pero a cambio, esta vez te voy a dar una paliza,"<br>rio Tokubei, mitad exasperado, mitad encantado. Afuera, la lluvia habia cesado por completo, y el clic-clac de las piedras de go volvio a resonar. Como dicen, cuanto mas se pelea, mas cerca se esta, y ninguna palabra les sienta mejor a estos dos.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②碁敵の二人","③待ったの喧嘩","④意地の張り合い","⑤そわそわ","⑥雨の日の笠","⑦仲直りの一局"];
+        const partNamesEn = ["① Prologue","② The two go rivals","③ The take-back quarrel","④ The stubborn standoff","⑤ Restless days","⑥ The rain hat","⑦ Reconciliation and a new game"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

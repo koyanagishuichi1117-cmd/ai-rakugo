@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>浮世床 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 浮世床 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。むかしの床屋てぇものは、ただ髪を刈るだけの場所じゃございません。<break time=\"400ms\"/>町内の連中が寄り集まって、世間話に花を咲かせる、いわば町中の社交場でございましてね。<break time=\"500ms\"/>順番待ちの間、暇を持て余した男たちが、あることないこと喋り散らす。<break time=\"400ms\"/>威勢のいい職人もいれば、物知り顔で知ったかぶりをする男もいる。<break time=\"500ms\"/>今日はそんな、とある町の床屋の、なんてことのない一日を覗いてみようという趣向で。<break time=\"500ms\"/>題して「浮世床」。<break time=\"300ms\"/>さあさ、暖簾をくぐってご覧じましょう。</prosody></speak>" },
+  { id:'p2', title:"②親方と客たち", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">さて、この床屋の親方、名を留吉と申しまして、腕は確かながら口も達者で、客のお喋りに相槌を打ちながら鋏を動かす。<break time=\"400ms\"/>店先には長椅子が一台、そこに順番待ちの連中がずらりと腰を下ろしている。大工の熊五郎、魚屋の辰っつぁん、それに近所の隠居まで、みんな暇を持て余して集まってくる。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">よぉ親方、まだかかりそうかい<break time=\"300ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">なぁに熊さん、もうちょいの辛抱だ。今日も相変わらず賑やかだね、この店は<break time=\"350ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">なんてったって暇な連中の溜まり場だからな<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">なんて、誰からともなく軽口が飛び交う。鏡の前では一人の男が月代を当たってもらいながら、うとうと舟を漕いでいる。<break time=\"400ms\"/>この気楽な空気こそが、浮世床の身上でございます。</prosody></speak>" },
+  { id:'p3', title:"③妙な夢の話", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">そこへ、植木屋の半公が欠伸まじりに入ってくる。<break time=\"300ms\"/></prosody><prosody rate=\"102%\" pitch=\"-1st\">いやぁ聞いてくれよ、ゆうべ妙な夢を見ちまってさ<break time=\"350ms\"/></prosody><prosody rate=\"115%\" pitch=\"0st\">おう、どんな夢だ<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">それが、なんでも大きな鯛に乗って空を飛んでてよ、いや待てよ、あれは鯛じゃなくて鯉だったかな<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">おいおい、もう怪しいぞ<break time=\"300ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">んでもって、その魚の背中に乗って富士山のてっぺんまで行ったらば、そこに死んだはずの親父がいてよ、いや親父じゃなくて大家さんだったかもしれねえ<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">さっきから話がころころ変わるじゃないか<break time=\"350ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">まあ聞けって。その人が饅頭を山ほどくれようとするから、ありがてえと思って手を出したら、目が覚めちまった。それで腹が立って立って<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"-1st\">なにが腹が立つだ、鯛だか鯉だか、親父だか大家だか、てめえの夢にすら自信がねえのかい<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、どっと笑いが起こる。<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">うるせえな、夢ってなあ大体そういうもんだろ<break time=\"350ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">そりゃそうだが、お前のは輪をかけて要領を得ないな</prosody></speak>" },
+  { id:'p4', title:"④待合の将棋喧嘩", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">そうこうするうち、長椅子の隅では隠居と辰っつぁんが将棋盤を挟んで睨み合っている。<break time=\"350ms\"/></prosody><prosody rate=\"98%\" pitch=\"+1st\">さあ辰っつぁん、王手だよ<break time=\"300ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">なにを、まだまだ<break time=\"250ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、角を動かそうとした途端、<break time=\"250ms\"/></prosody><prosody rate=\"105%\" pitch=\"+1st\">おいおい、その角は動かせないよ、さっき歩を打ったろう<break time=\"350ms\"/></prosody><prosody rate=\"118%\" pitch=\"-1st\">いや、あれは冗談で置いただけだ、本当の手はこっちだよ<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">なんて、見え透いた言い訳を並べる。それを見ていた熊五郎が口を挟んで、<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"-2st\">辰、みっともねえぞ。将棋ってなあ武士の遊びだ、ずるはいけねえ<break time=\"350ms\"/></prosody><prosody rate=\"120%\" pitch=\"-1st\">うるせえ、お前は黙ってろ、魚屋のくせに<break time=\"300ms\"/></prosody><prosody rate=\"118%\" pitch=\"-2st\">なんだと、大工を馬鹿にするか<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、将棋そっちのけで二人が言い争いを始めてしまう。親方の留吉が呆れ顔で、<break time=\"300ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">もしもし、将棋の喧嘩で店を壊さないでおくれよ<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と割って入る羽目になりました。</prosody></speak>" },
+  { id:'p5', title:"⑤生兵法の素読み", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">ようやく喧嘩も収まった頃、半公がふと店の隅に置いてあった古い書物を見つけて、<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">おっ、こいつは難しそうな本だな。よし、ひとつ俺が読んで聞かせてやろう<break time=\"350ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、得意げに開いて読み上げ始める。<break time=\"300ms\"/></prosody><prosody rate=\"95%\" pitch=\"0st\">えー、昔日、中国にてえ国に、孔明てえ、いや孔明だったか、まあどっちでもいいや、そういう偉い人がおりまして<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"-1st\">おいおい、それは孔明と読むんだよ<break time=\"300ms\"/></prosody><prosody rate=\"95%\" pitch=\"0st\">へえ、そうかい。えー、この御方が戦のときに、大変ふ、ふ、奇々怪々な、いや奇々怪々じゃなくて、なんだこりゃ、奇策を用いて<break time=\"450ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">おい半公、さっきから怪しいところばっかりじゃねえか<break time=\"350ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">うるせえ、読めない字は飛ばして読むのが粋ってもんだ<break time=\"350ms\"/></prosody><prosody rate=\"105%\" pitch=\"-1st\">それを世間では誤魔化しと言うんだよ<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、店中がまたどっと笑いに包まれる。半公だけは涼しい顔で本を閉じ、<break time=\"300ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">まあ細かいことはいいじゃねえか、大意が伝わりゃそれでいいんだよ</prosody></speak>" },
+  { id:'p6', title:"⑥床屋の一日", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">そうこうしているうちに、いつのまにか日も暮れかかり、客もひとりふたりと減っていく。親方の留吉が大きく伸びをしながら、<break time=\"350ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">いやはや、今日も賑やかだったね。半公の妙な夢から始まって、将棋の喧嘩に、しまいには怪しい素読みまで<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">まったくだ。だがまあ、これだから床屋通いはやめられない<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">髪を刈りに来てるんだか、笑いに来てるんだか、わかりゃしねえ<break time=\"350ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">どっちだっていいじゃねえか、気持ちよく帰れりゃそれで上等さ<break time=\"450ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">なんて言いながら、めいめい腰を上げて表へ出ていく。誰が得をしたわけでも、損をしたわけでもない、ただ世間話で一日が過ぎていく。<break time=\"500ms\"/>これがまた、なんとも言えず心地いいもので。<break time=\"500ms\"/>明日もきっと、この床屋の長椅子には、また同じ顔触れが集まって、同じような馬鹿話に花を咲かせることでございましょう。<break time=\"600ms\"/>これにて浮世床、お開きとさせていただきます。</prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In the old days, a barbershop wasn't just a place to get your hair cut. It was where the whole neighborhood gathered to gossip and chat - a kind of town social club. While waiting their turn, idle men would rattle on about anything and everything, true or not. Some were loud, boastful craftsmen; others liked to show off, putting on know-it-all airs about things they barely understood. Today, let's peek in on one perfectly ordinary day at a certain neighborhood barbershop. We'll call it 'The Barbershop Tales.' Come now, let's duck through the curtain and have a look." },
+    { id:'p2', title:"②親方と客たち", ssml:false, text:"Now, the master of this barbershop was a man named Tomekichi. Skilled with his hands and quick with his tongue, he snipped away with his scissors while trading banter with every customer. Out front sat a single long bench, lined with men waiting their turn - Kumagoro the carpenter, Tatsu the fishmonger, even the neighborhood retiree - all with time on their hands and nowhere better to be. Kumagoro: \"Hey, boss, gonna be much longer?\" Tomekichi: \"Patience, Kuma, just a bit more. Lively as ever in here today, isn't it?\" Tatsu: \"Well, it is the hangout for men with nothing better to do.\" And so the wisecracks flew back and forth from no one in particular. In front of the mirror, a man dozed off mid-shave, nodding along in his sleep. This easy, unhurried air was the very heart and soul of the Barbershop Tales." },
+    { id:'p3', title:"③妙な夢の話", ssml:false, text:"Just then, Hankou the gardener wandered in with a yawn. Hankou: \"Hey, listen to this, I had the strangest dream last night.\" Kumagoro: \"Oh yeah? What kind of dream?\" Hankou: \"So I was riding on a giant sea bream, flying through the sky - no wait, hang on, maybe that was a carp, not a bream.\" Tatsu: \"Hold on now, that's already sounding shaky.\" Hankou: \"Anyway, I rode that fish's back all the way to the top of Mount Fuji, and there was my father, who's supposed to be dead - no wait, maybe it wasn't my father, maybe it was my landlord.\" Tomekichi: \"Your story keeps changing every few seconds.\" Hankou: \"Just listen. So this person was about to give me a huge pile of steamed buns, and just as I gratefully reached out my hand, I woke up. I was so mad, so mad.\" Kumagoro: \"Mad about what? You can't even keep straight whether it was a bream or a carp, your father or your landlord - you don't even trust your own dream!\" And the whole shop burst out laughing. Hankou: \"Oh, quiet, that's just how dreams are, generally.\" Tomekichi: \"Sure, that's true enough, but yours takes vagueness to a whole new level.\"" },
+    { id:'p4', title:"④待合の将棋喧嘩", ssml:false, text:"Meanwhile, in the corner of the bench, the old retiree and Tatsu were locked in a stare-down over a shogi board. Retiree: \"There now, Tatsu, check.\" Tatsu: \"What, no way, not yet.\" Just as he reached to move his bishop - Retiree: \"Now hold on, you can't move that bishop, you played a pawn there a moment ago.\" Tatsu: \"No, no, that pawn was just a joke, my real move is over here.\" He rattled off one transparent excuse after another. Kumagoro, watching, cut in. Kumagoro: \"Tatsu, that's shameful. Shogi is a warrior's game, no cheating allowed.\" Tatsu: \"Quiet, you, mind your own business, fishmonger.\" Kumagoro: \"What did you say? You mocking a carpenter?\" And with that, the two forgot all about the game and started arguing outright. Tomekichi the barber, exasperated, had no choice but to step in. Tomekichi: \"Now, now, please don't wreck my shop over a game of shogi.\"" },
+    { id:'p5', title:"⑤生兵法の素読み", ssml:false, text:"By the time the argument finally died down, Hankou happened to spot an old book sitting in the corner of the shop. Hankou: \"Ooh, this looks like a hard one. Alright, let me read it aloud for everyone.\" And with a proud flourish, he opened it and began to read. Hankou: \"Now then, long ago, in a country called China, there was a great man named Koumei - or was it Koumyou, eh, doesn't matter which.\" Retiree: \"Now hold on, that's read 'Koumei.'\" Hankou: \"Oh, is it. Anyway, this fellow, in times of battle, used a most, uh, kikikaikai... no wait, not kikikaikai, what is this word, used a clever strategy.\" Kumagoro: \"Hey Hankou, seems like every other word's been shaky since you started.\" Hankou: \"Quiet, skipping over the characters you can't read - that's just good style.\" Tomekichi: \"Out in the real world, that's called faking it.\" And the whole shop erupted in laughter again. Hankou alone kept a cool, unbothered face as he closed the book. Hankou: \"Ah, the details don't matter. As long as the gist gets across, that's good enough.\"" },
+    { id:'p6', title:"⑥床屋の一日", ssml:false, text:"Before anyone noticed, the sun had begun to set, and the customers thinned out one by one. Tomekichi the barber stretched with a big yawn. Tomekichi: \"Well now, quite a lively day again - starting with Hankou's strange dream, then a fight over shogi, and finally that dubious reading.\" Retiree: \"Indeed. But that's exactly why I can never give up coming to the barbershop.\" Kumagoro: \"Honestly, you can't tell if people come here for a haircut or just to have a laugh.\" Hankou: \"Who cares which - as long as you leave in a good mood, that's good enough.\" And with that, one by one, they rose from the bench and stepped out into the street. Nobody had gained anything, nobody had lost anything - just a day spent in idle chatter. And yet there was something strangely comforting about it. Tomorrow, no doubt, this same bench will fill again with these same familiar faces, spinning the same kind of nonsense. And with that, we'll bring the Barbershop Tales to a close for today." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Autrefois, un salon de coiffure n'etait pas seulement un endroit ou se faire couper les cheveux. C'etait la que tout le quartier se retrouvait pour bavarder - une sorte de club social du village. En attendant leur tour, des hommes desoeuvres racontaient tout et n'importe quoi, vrai ou faux. Certains etaient des artisans bruyants et vantards ; d'autres aimaient prendre des airs de savants sur des choses qu'ils comprenaient a peine. Aujourd'hui, jetons un coup d'oeil a une journee bien ordinaire dans un certain salon de coiffure de quartier. Appelons ca « Les Contes du Salon de Coiffure ». Allons, passons sous le rideau et regardons." },
+    { id:'p2', title:"②親方と客たち", ssml:false, text:"Le patron de ce salon de coiffure s'appelait Tomekichi. Habile de ses mains et prompt de sa langue, il maniait ses ciseaux tout en echangeant des plaisanteries avec chaque client. Devant, un seul long banc accueillait les hommes qui attendaient leur tour - Kumagoro le charpentier, Tatsu le poissonnier, meme le retraite du quartier - tous desoeuvres et sans rien de mieux a faire. Kumagoro : « Eh, patron, ca va encore prendre du temps ? » Tomekichi : « Patience, Kuma, encore un peu. Toujours aussi anime ici aujourd'hui, non ? » Tatsu : « Ben, c'est le repaire des hommes qui n'ont rien de mieux a faire. » Et ainsi les plaisanteries fusaient de toutes parts, sans qu'on sache d'ou elles venaient vraiment. Devant le miroir, un homme s'endormait en plein rasage, hochant la tete dans son sommeil. Cette atmosphere decontractee etait justement l'ame des Contes du Salon de Coiffure." },
+    { id:'p3', title:"③妙な夢の話", ssml:false, text:"A ce moment, Hankou le jardinier entra en baillant. Hankou : « Eh, ecoutez ca, j'ai fait le reve le plus etrange hier soir. » Kumagoro : « Ah oui ? Quel genre de reve ? » Hankou : « Alors, je chevauchais une grosse dorade, en volant dans le ciel - non attends, peut-etre que c'etait une carpe, pas une dorade. » Tatsu : « Attends un peu, ca commence deja a etre bancal. » Hankou : « Bref, j'ai chevauche le dos de ce poisson jusqu'au sommet du mont Fuji, et la, il y avait mon pere, qui est cense etre mort - non attends, peut-etre que ce n'etait pas mon pere, peut-etre que c'etait mon proprietaire. » Tomekichi : « Ton histoire change a chaque phrase. » Hankou : « Ecoute donc. Cette personne allait me donner un enorme tas de petits pains cuits a la vapeur, et juste au moment ou je tendais la main avec gratitude, je me suis reveille. J'etais tellement en colere, tellement en colere. » Kumagoro : « En colere pourquoi ? Tu n'arrives meme pas a te souvenir si c'etait une dorade ou une carpe, ton pere ou ton proprietaire - tu ne fais meme pas confiance a ton propre reve ! » Et toute la boutique eclata de rire. Hankou : « Oh, silence, c'est comme ca que sont les reves, en general. » Tomekichi : « Bien sur, c'est bien vrai, mais le tien pousse le flou a un tout autre niveau. »" },
+    { id:'p4', title:"④待合の将棋喧嘩", ssml:false, text:"Pendant ce temps, dans un coin du banc, le vieux retraite et Tatsu s'affrontaient du regard au-dessus d'un plateau de shogi. Le retraite : « Allez, Tatsu, echec. » Tatsu : « Quoi, non, pas encore. » Juste au moment ou il tendait la main pour deplacer son fou - Le retraite : « Attends un peu, tu ne peux pas bouger ce fou, tu as joue un pion la, il y a un instant. » Tatsu : « Non, non, ce pion c'etait juste pour rire, mon vrai coup est ici. » Il enchaina une excuse transparente apres l'autre. Kumagoro, qui observait, intervint. Kumagoro : « Tatsu, c'est honteux. Le shogi, c'est un jeu de guerrier, pas de triche. » Tatsu : « Silence, toi, occupe-toi de tes affaires, poissonnier. » Kumagoro : « Qu'est-ce que tu as dit ? Tu te moques d'un charpentier ? » Et sur ce, les deux hommes oublierent completement la partie et se mirent a se disputer pour de bon. Tomekichi le coiffeur, exaspere, dut intervenir. Tomekichi : « Allons, allons, ne cassez pas ma boutique pour une partie de shogi. »" },
+    { id:'p5', title:"⑤生兵法の素読み", ssml:false, text:"Au moment ou la dispute finit par s'apaiser, Hankou remarqua par hasard un vieux livre pose dans un coin de la boutique. Hankou : « Oh, ca a l'air d'un livre difficile. Bon, je vais vous le lire a voix haute. » Et avec une fierte affichee, il l'ouvrit et commenca a lire. Hankou : « Alors, il y a longtemps, dans un pays qu'on appelle la Chine, il y avait un grand homme nomme Koumei - ou peut-etre Koumyou, bon, peu importe. » Le retraite : « Attends un peu, ca se lit \"Koumei\". » Hankou : « Ah bon, d'accord. Bref, ce type, en temps de guerre, utilisait une strategie tres, euh, kikikaikai... non attends, pas kikikaikai, c'est quoi ce mot, une strategie tres astucieuse. » Kumagoro : « Hankou, on dirait qu'un mot sur deux est bancal depuis que tu as commence. » Hankou : « Silence, sauter les caracteres qu'on ne sait pas lire, c'est du bon style, ca. » Tomekichi : « Dans le vrai monde, ca s'appelle bluffer. » Et toute la boutique eclata de rire a nouveau. Hankou, seul, garda un visage impassible en refermant le livre. Hankou : « Ah, les details n'ont pas d'importance. Tant que l'idee generale passe, ca suffit. »" },
+    { id:'p6', title:"⑥床屋の一日", ssml:false, text:"Avant que quiconque ne s'en apercoive, le soleil avait commence a se coucher, et les clients s'eclaircissaient peu a peu. Tomekichi le coiffeur s'etira en baillant largement. Tomekichi : « Eh bien, encore une journee animee - ca a commence avec le reve etrange de Hankou, puis une dispute au shogi, et enfin cette lecture douteuse. » Le retraite : « En effet. Mais c'est bien pour ca que je ne peux jamais renoncer a venir au salon de coiffure. » Kumagoro : « Franchement, on ne sait jamais si les gens viennent ici pour se faire couper les cheveux ou juste pour rigoler. » Hankou : « Peu importe lequel - du moment qu'on repart de bonne humeur, ca suffit. » Et sur ce, l'un apres l'autre, ils se leverent du banc et sortirent dans la rue. Personne n'avait rien gagne, personne n'avait rien perdu - juste une journee passee en bavardages oisifs. Et pourtant, il y avait quelque chose d'etrangement reconfortant la-dedans. Demain, sans doute, ce meme banc se remplira a nouveau des memes visages familiers, tissant les memes betises. Et sur ce, nous allons clore les Contes du Salon de Coiffure pour aujourd'hui." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Permitanme contarles una historia. Antiguamente, una barberia no era solo un lugar para cortarse el pelo. Era donde todo el vecindario se reunia para charlar, una especie de club social del barrio. Mientras esperaban su turno, hombres ociosos parloteaban de todo y de nada, cierto o no. Algunos eran artesanos ruidosos y fanfarrones; otros les gustaba presumir, dandose aires de sabelotodo sobre cosas que apenas entendian. Hoy, echemos un vistazo a un dia perfectamente comun en cierta barberia de barrio. Lo llamaremos \"Los Cuentos de la Barberia\". Vamos, crucemos la cortina y miremos." },
+    { id:'p2', title:"②親方と客たち", ssml:false, text:"El maestro de esta barberia era un hombre llamado Tomekichi. Habil con las manos y rapido de lengua, cortaba con las tijeras mientras intercambiaba bromas con cada cliente. Al frente habia un unico banco largo, lleno de hombres esperando su turno: Kumagoro el carpintero, Tatsu el pescadero, incluso el jubilado del barrio, todos con tiempo de sobra y nada mejor que hacer. Kumagoro: \"Oye, jefe, ¿va a tardar mucho todavia?\" Tomekichi: \"Paciencia, Kuma, un poco mas. Que animado esta esto hoy, como siempre, ¿eh?\" Tatsu: \"Bueno, es el punto de reunion de los que no tienen nada mejor que hacer.\" Y asi las bromas volaban de un lado a otro sin que nadie supiera de quien venian. Frente al espejo, un hombre se quedaba dormido a medio afeitar, cabeceando en sueños. Ese ambiente relajado y sin prisas era precisamente el alma de los Cuentos de la Barberia." },
+    { id:'p3', title:"③妙な夢の話", ssml:false, text:"En ese momento, Hankou el jardinero entro bostezando. Hankou: \"Oigan, escuchen esto, anoche tuve el sueno mas extrano.\" Kumagoro: \"¿Ah si? ¿Que tipo de sueno?\" Hankou: \"Iba montado en una gran dorada, volando por el cielo, no espera, tal vez era una carpa, no una dorada.\" Tatsu: \"Espera un momento, eso ya suena poco fiable.\" Hankou: \"Bueno, monte el lomo de ese pez hasta la cima del monte Fuji, y alli estaba mi padre, que se supone que esta muerto, no espera, tal vez no era mi padre, tal vez era mi casero.\" Tomekichi: \"Tu historia cambia a cada rato.\" Hankou: \"Solo escuchen. Esa persona estaba a punto de darme un monton enorme de bollos al vapor, y justo cuando estire la mano agradecido, me desperte. Me dio tanta rabia, tanta rabia.\" Kumagoro: \"¿Rabia por que? Ni siquiera sabes si era dorada o carpa, tu padre o tu casero, ¡ni confianza tienes en tu propio sueno!\" Y toda la tienda estallo en risas. Hankou: \"Ay, callense, asi son los suenos, por lo general.\" Tomekichi: \"Claro, eso es bastante cierto, pero el tuyo lleva la vaguedad a otro nivel.\"" },
+    { id:'p4', title:"④待合の将棋喧嘩", ssml:false, text:"Mientras tanto, en una esquina del banco, el anciano jubilado y Tatsu se miraban fijamente sobre un tablero de shogi. Jubilado: \"Vamos, Tatsu, jaque.\" Tatsu: \"¿Que? No, todavia no.\" Justo cuando estiraba la mano para mover su alfil... Jubilado: \"Espera un momento, no puedes mover ese alfil, pusiste un peon ahi hace un momento.\" Tatsu: \"No, no, ese peon lo puse en broma, mi jugada de verdad es esta de aqui.\" Y siguio soltando excusa tras excusa, todas transparentes. Kumagoro, que estaba mirando, intervino. Kumagoro: \"Tatsu, que verguenza. El shogi es un juego de guerreros, nada de trampas.\" Tatsu: \"Callate tu, ocupate de lo tuyo, pescadero.\" Kumagoro: \"¿Que dijiste? ¿Te burlas de un carpintero?\" Y con eso, los dos se olvidaron por completo de la partida y empezaron a discutir de verdad. Tomekichi el barbero, exasperado, no tuvo mas remedio que intervenir. Tomekichi: \"Vamos, vamos, no me destrocen la tienda por una partida de shogi.\"" },
+    { id:'p5', title:"⑤生兵法の素読み", ssml:false, text:"Cuando la discusion por fin se calmo, Hankou se topo por casualidad con un libro viejo que habia en un rincon de la tienda. Hankou: \"Vaya, este parece un libro dificil. Bueno, dejenme leerselo en voz alta.\" Y con orgullo evidente, lo abrio y empezo a leer. Hankou: \"A ver, hace mucho tiempo, en un pais llamado China, hubo un gran hombre llamado Koumei, o tal vez Koumyou, bueno, da igual.\" Jubilado: \"Espera un momento, eso se lee 'Koumei'.\" Hankou: \"Ah, ¿si? Bueno, este hombre, en tiempos de guerra, uso una estrategia muy, eh, kikikaikai... no espera, no es kikikaikai, ¿que palabra es esta?, uso una estrategia muy astuta.\" Kumagoro: \"Oye Hankou, parece que cada dos palabras algo anda mal desde que empezaste.\" Hankou: \"Callate, saltarse los caracteres que uno no sabe leer es puro estilo.\" Tomekichi: \"En el mundo real, a eso se le llama disimular.\" Y toda la tienda estallo de nuevo en risas. Solo Hankou mantuvo la cara tranquila mientras cerraba el libro. Hankou: \"Ah, los detalles no importan. Mientras se entienda la idea general, con eso basta.\"" },
+    { id:'p6', title:"⑥床屋の一日", ssml:false, text:"Antes de que nadie se diera cuenta, el sol habia empezado a ponerse, y los clientes iban disminuyendo de a uno. Tomekichi el barbero se estiro con un gran bostezo. Tomekichi: \"Vaya, otro dia animado, empezando con el extrano sueno de Hankou, luego una pelea de shogi, y por ultimo esa lectura dudosa.\" Jubilado: \"Asi es. Pero por eso mismo nunca puedo dejar de venir a la barberia.\" Kumagoro: \"La verdad, uno no sabe si la gente viene aqui a cortarse el pelo o solo a reirse.\" Hankou: \"Que mas da cual sea, mientras uno se vaya de buen humor, con eso basta.\" Y con eso, uno por uno, se levantaron del banco y salieron a la calle. Nadie habia ganado nada, nadie habia perdido nada, solo un dia pasado en charla ociosa. Y sin embargo, habia algo extranamente reconfortante en ello. Manana, sin duda, este mismo banco se llenara de nuevo con las mismas caras conocidas, tejiendo las mismas tonterias. Y con esto, damos por concluidos los Cuentos de la Barberia por hoy." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

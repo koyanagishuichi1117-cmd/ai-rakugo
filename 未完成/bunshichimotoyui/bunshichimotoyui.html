@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文七元結 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.14 🔥エース</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">文七元結</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Bunshichi Motoyui / Bunshichi Motoyui</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p8.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                        <div class="part-dot" id="dot-7"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②左官長兵衛</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③お久の決意</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④女将の意見</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤吾妻橋</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥五十両を投げ渡す</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦近江屋のどんでん返し</button>
+                    <button onclick="playPart(7)" id="part-btn-7" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑧大団円</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">人<rt>ひと</rt></ruby>には<ruby class="v1">持<rt>も</rt></ruby>って<ruby class="v1">生<rt>う</rt></ruby>まれた<ruby class="v2">性分<rt>しょうぶん</rt></ruby>というものがございましてね、<ruby class="v1">腕<rt>うで</rt></ruby>は<ruby class="v1">確<rt>たし</rt></ruby>かでも、<ruby class="v2">博打<rt>ばくち</rt></ruby>だけはどうにもやめられないという<ruby class="v1">困<rt>こま</rt></ruby>った<ruby class="v1">人<rt>ひと</rt></ruby>がいる<ruby class="v1">一方<rt>いっぽう</rt></ruby>、<ruby class="v1">親<rt>おや</rt></ruby>のため、<ruby class="v1">家族<rt>かぞく</rt></ruby>のためなら<ruby class="v1">己<rt>おのれ</rt></ruby>の<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">投<rt>な</rt></ruby>げ<ruby class="v1">出<rt>だ</rt></ruby>しても<ruby class="v1">構<rt>かま</rt></ruby>わないという、<ruby class="v2">健気<rt>けなげ</rt></ruby>な<ruby class="v1">人<rt>ひと</rt></ruby>もいるものでございます。<ruby class="v1">今日<rt>きょう</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますのは、そんな<ruby class="v2">博打好<rt>ばくちず</rt></ruby>きの<ruby class="v2">左官<rt>さかん</rt></ruby>の<ruby class="v1">親方<rt>おやかた</rt></ruby>と、その<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>な<ruby class="v1">娘<rt>むすめ</rt></ruby>、そして<ruby class="v1">見<rt>み</rt></ruby>ず<ruby class="v1">知<rt>し</rt></ruby>らずの<ruby class="v1">若者<rt>わかもの</rt></ruby>との<ruby class="v1">間<rt>あいだ</rt></ruby>に<ruby class="v1">結<rt>むす</rt></ruby>ばれた、<ruby class="v1">不思議<rt>ふしぎ</rt></ruby>な<ruby class="v1">情<rt>なさ</rt></ruby>けの<ruby class="v1">糸<rt>いと</rt></ruby>のお<ruby class="v1">噺<rt>はなし</rt></ruby>、「<ruby class="v2">文七元結<rt>ぶんしちもとゆい</rt></ruby>」でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【左官長兵衛】</span>
+                    <ruby class="v2">本所<rt>ほんじょ</rt></ruby>に<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>という<ruby class="v2">左官<rt>さかん</rt></ruby>の<ruby class="v1">親方<rt>おやかた</rt></ruby>がおりました。<ruby class="v1">腕<rt>うで</rt></ruby>は<ruby class="v1">江戸<rt>えど</rt></ruby>でも<ruby class="v2">指折<rt>ゆびお</rt></ruby>りというほどの<ruby class="v1">職人<rt>しょくにん</rt></ruby>なのですが、これがどうにも<ruby class="v2">博打好<rt>ばくちず</rt></ruby>きでいけません。<ruby class="v1">仕事<rt>しごと</rt></ruby>の<ruby class="v1">稼<rt>かせ</rt></ruby>ぎはそっくり<ruby class="v2">博打場<rt>ばくちば</rt></ruby>に<ruby class="v1">消<rt>き</rt></ruby>えてしまい、<ruby class="v1">女房子供<rt>にょうぼうこども</rt></ruby>に<ruby class="v1">満足<rt>まんぞく</rt></ruby>な<ruby class="v1">飯<rt>めし</rt></ruby>も<ruby class="v1">食<rt>く</rt></ruby>わせられぬという<ruby class="v1">有様<rt>ありさま</rt></ruby>。ある<ruby class="v1">年<rt>とし</rt></ruby>の<ruby class="v1">暮<rt>く</rt></ruby>れ、<ruby class="v1">借金取<rt>しゃっきんと</rt></ruby>りが<ruby class="v1">次<rt>つぎ</rt></ruby>から<ruby class="v1">次<rt>つぎ</rt></ruby>へと<ruby class="v1">押<rt>お</rt></ruby>し<ruby class="v1">寄<rt>よ</rt></ruby>せる<ruby class="v1">中<rt>なか</rt></ruby>、<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>の<ruby class="v1">一人娘<rt>ひとりむすめ</rt></ruby>、お<ruby class="v2">久<rt>ひさ</rt></ruby>という<ruby class="v1">十七<rt>じゅうしち</rt></ruby>になる<ruby class="v1">娘<rt>むすめ</rt></ruby>が、こっそり<ruby class="v1">家<rt>いえ</rt></ruby>を<ruby class="v1">抜<rt>ぬ</rt></ruby>け<ruby class="v1">出<rt>だ</rt></ruby>しました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【お久の決意】</span>
+                    お<ruby class="v2">久<rt>ひさ</rt></ruby>は<ruby class="v1">父<rt>ちち</rt></ruby>の<ruby class="v2">博打狂<rt>ばくちぐる</rt></ruby>いと、<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v2">困窮<rt>こんきゅう</rt></ruby>ぶりに、もう<ruby class="v1">黙<rt>だま</rt></ruby>って<ruby class="v1">見<rt>み</rt></ruby>ていられなくなったのでございます。<ruby class="v2">吉原<rt>よしわら</rt></ruby>は<ruby class="v2">佐野槌<rt>さのづち</rt></ruby>という<ruby class="v2">見世<rt>みせ</rt></ruby>の<ruby class="v2">女将<rt>おかみ</rt></ruby>のもとを<ruby class="v1">訪<rt>たず</rt></ruby>ね、<br><strong>お久：</strong>「どうかわたしを<ruby class="v1">買<rt>か</rt></ruby>ってくださいまし。その<ruby class="v1">代<rt>か</rt></ruby>わり、このお<ruby class="v1">金<rt>かね</rt></ruby>で<ruby class="v1">父<rt>ちち</rt></ruby>を<ruby class="v1">助<rt>たす</rt></ruby>けてやってください」<br>と、<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">売<rt>う</rt></ruby>って<ruby class="v1">作<rt>つく</rt></ruby>った<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>というお<ruby class="v1">金<rt>かね</rt></ruby>を<ruby class="v1">差<rt>さ</rt></ruby>し<ruby class="v1">出<rt>だ</rt></ruby>そうとします。<ruby class="v2">女将<rt>おかみ</rt></ruby>はお<ruby class="v2">久<rt>ひさ</rt></ruby>の<ruby class="v1">孝行心<rt>こうこうしん</rt></ruby>にすっかり<ruby class="v1">感<rt>かん</rt></ruby>じ<ruby class="v1">入<rt>い</rt></ruby>り、すぐさま<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>を<ruby class="v1">呼<rt>よ</rt></ruby>びつけました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【女将の意見】</span>
+                    <ruby class="v2">女将<rt>おかみ</rt></ruby>は<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>を<ruby class="v1">座敷<rt>ざしき</rt></ruby>に<ruby class="v1">座<rt>すわ</rt></ruby>らせると、きつく<ruby class="v1">意見<rt>いけん</rt></ruby>をいたします。<br><strong>女将：</strong>「お<ruby class="v1">前<rt>まえ</rt></ruby>さんの<ruby class="v1">娘<rt>むすめ</rt></ruby>は、<ruby class="v1">親<rt>おや</rt></ruby>のために<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">売<rt>う</rt></ruby>ろうというんだよ。この<ruby class="v1">気持<rt>きも</rt></ruby>ちがわかるかい」。<br><ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>は<ruby class="v1">娘<rt>むすめ</rt></ruby>の<ruby class="v1">決意<rt>けつい</rt></ruby>を<ruby class="v1">知<rt>し</rt></ruby>って、<ruby class="v1">恥<rt>は</rt></ruby>じ<ruby class="v1">入<rt>い</rt></ruby>るやら<ruby class="v2">情<rt>なさ</rt></ruby>けないやらで<ruby class="v1">涙<rt>なみだ</rt></ruby>が<ruby class="v1">止<rt>と</rt></ruby>まりません。<ruby class="v2">女将<rt>おかみ</rt></ruby>は<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>という<ruby class="v1">金<rt>かね</rt></ruby>を<ruby class="v1">渡<rt>わた</rt></ruby>しながら、<br><strong>女将：</strong>「このお<ruby class="v1">金<rt>かね</rt></ruby>は<ruby class="v1">来年<rt>らいねん</rt></ruby>の<ruby class="v2">大晦日<rt>おおみそか</rt></ruby>まで<ruby class="v1">待<rt>ま</rt></ruby>ってあげる。それまでにきっちり<ruby class="v1">耳<rt>みみ</rt></ruby>を<ruby class="v1">揃<rt>そろ</rt></ruby>えて<ruby class="v1">返<rt>かえ</rt></ruby>しにおいで。その<ruby class="v1">代<rt>か</rt></ruby>わり、<ruby class="v1">二度<rt>にど</rt></ruby>と<ruby class="v2">博打<rt>ばくち</rt></ruby>には<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>すんじゃないよ。もし<ruby class="v1">約束<rt>やくそく</rt></ruby>を<ruby class="v1">破<rt>やぶ</rt></ruby>ったら、お<ruby class="v2">久<rt>ひさ</rt></ruby>は<ruby class="v1">店<rt>みせ</rt></ruby>に<ruby class="v1">出<rt>だ</rt></ruby>すからね」<br>と、きつく<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">含<rt>ふく</rt></ruby>めました。<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>はその<ruby class="v1">金<rt>かね</rt></ruby>を<ruby class="v1">懐<rt>ふところ</rt></ruby>に、<ruby class="v1">雪<rt>ゆき</rt></ruby>の<ruby class="v1">降<rt>ふ</rt></ruby>る<ruby class="v1">中<rt>なか</rt></ruby>を<ruby class="v1">家路<rt>いえじ</rt></ruby>につきます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【吾妻橋】</span>
+                    <ruby class="v1">娘<rt>むすめ</rt></ruby>の<ruby class="v1">命<rt>いのち</rt></ruby>とも<ruby class="v1">言<rt>い</rt></ruby>える<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>を<ruby class="v1">胸<rt>むね</rt></ruby>に<ruby class="v1">抱<rt>かか</rt></ruby>え、<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>はすっかり<ruby class="v1">酔<rt>よ</rt></ruby>ったような<ruby class="v1">心持<rt>こころも</rt></ruby>ちで<ruby class="v2">吾妻橋<rt>あづまばし</rt></ruby>に<ruby class="v1">差<rt>さ</rt></ruby>し<ruby class="v1">掛<rt>か</rt></ruby>かります。ふと<ruby class="v1">見<rt>み</rt></ruby>ると、<ruby class="v2">欄干<rt>らんかん</rt></ruby>から<ruby class="v1">今<rt>いま</rt></ruby>にも<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">投<rt>な</rt></ruby>げようとしている<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">男<rt>おとこ</rt></ruby>がいる。<ruby class="v1">慌<rt>あわ</rt></ruby>てて<ruby class="v1">抱<rt>だ</rt></ruby>きとめて<ruby class="v1">訳<rt>わけ</rt></ruby>を<ruby class="v1">聞<rt>き</rt></ruby>くと、これは<ruby class="v2">近江屋<rt>おうみや</rt></ruby>という<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v2">手代<rt>てだい</rt></ruby>で<ruby class="v2">文七<rt>ぶんしち</rt></ruby>という<ruby class="v1">若者<rt>わかもの</rt></ruby>。<ruby class="v1">得意先<rt>とくいさき</rt></ruby>で<ruby class="v1">受<rt>う</rt></ruby>け<ruby class="v1">取<rt>と</rt></ruby>った<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>というお<ruby class="v1">金<rt>かね</rt></ruby>を、<ruby class="v1">帰<rt>かえ</rt></ruby>り<ruby class="v1">道<rt>みち</rt></ruby>でどこかに<ruby class="v1">落<rt>お</rt></ruby>としてしまい、<ruby class="v1">主人<rt>しゅじん</rt></ruby>に<ruby class="v1">合<rt>あ</rt></ruby>わせる<ruby class="v1">顔<rt>かお</rt></ruby>がないと<ruby class="v1">死<rt>し</rt></ruby>のうとしていたのでございます。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【五十両を投げ渡す】</span>
+                    <ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>は<ruby class="v2">文七<rt>ぶんしち</rt></ruby>の<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">聞<rt>き</rt></ruby>いて、はたと<ruby class="v1">考<rt>かんが</rt></ruby>え<ruby class="v1">込<rt>こ</rt></ruby>みます。<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>も、<ruby class="v1">明日<rt>あす</rt></ruby>をも<ruby class="v1">知<rt>し</rt></ruby>れぬ<ruby class="v1">命<rt>いのち</rt></ruby>の<ruby class="v1">娘<rt>むすめ</rt></ruby>が<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">売<rt>う</rt></ruby>って<ruby class="v1">作<rt>つく</rt></ruby>った<ruby class="v1">金<rt>かね</rt></ruby>。だが、この<ruby class="v1">若者<rt>わかもの</rt></ruby>もまた、<ruby class="v1">金<rt>かね</rt></ruby>がないばかりに<ruby class="v1">死<rt>し</rt></ruby>のうとしている。<br><strong>長兵衛：</strong>「<ruby class="v1">知<rt>し</rt></ruby>らねえ、そんなこたぁ<ruby class="v1">知<rt>し</rt></ruby>らねえが……これを<ruby class="v1">持<rt>も</rt></ruby>ってけ!」<br>と、<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>は<ruby class="v1">懐<rt>ふところ</rt></ruby>の<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>を<ruby class="v2">文七<rt>ぶんしち</rt></ruby>の<ruby class="v1">胸元<rt>むなもと</rt></ruby>に<ruby class="v1">叩<rt>たた</rt></ruby>きつけるように<ruby class="v1">押<rt>お</rt></ruby>し<ruby class="v1">付<rt>つ</rt></ruby>けます。<br><strong>長兵衛：</strong>「おれの<ruby class="v1">名<rt>な</rt></ruby>なんぞ<ruby class="v1">聞<rt>き</rt></ruby>くんじゃねえ。<ruby class="v1">早<rt>はや</rt></ruby>く<ruby class="v1">帰<rt>かえ</rt></ruby>って<ruby class="v1">主人<rt>しゅじん</rt></ruby>に<ruby class="v1">詫<rt>わ</rt></ruby>びを<ruby class="v1">入<rt>い</rt></ruby>れな!」<br>そう<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">捨<rt>す</rt></ruby>てると、<ruby class="v1">振<rt>ふ</rt></ruby>り<ruby class="v1">返<rt>かえ</rt></ruby>りもせず<ruby class="v1">闇<rt>やみ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>へ<ruby class="v1">姿<rt>すがた</rt></ruby>を<ruby class="v1">消<rt>け</rt></ruby>してしまいました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【近江屋のどんでん返し】</span>
+                    <ruby class="v1">実<rt>じつ</rt></ruby>は<ruby class="v2">文七<rt>ぶんしち</rt></ruby>が「<ruby class="v1">落<rt>お</rt></ruby>とした」と<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">込<rt>こ</rt></ruby>んでいた<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>は、<ruby class="v1">得意先<rt>とくいさき</rt></ruby>に<ruby class="v1">忘<rt>わす</rt></ruby>れてきただけのもので、ちゃんと<ruby class="v2">近江屋<rt>おうみや</rt></ruby>に<ruby class="v1">届<rt>とど</rt></ruby>けられておりました。それを<ruby class="v1">知<rt>し</rt></ruby>らずに<ruby class="v1">大金<rt>たいきん</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>って<ruby class="v1">帰<rt>かえ</rt></ruby>ってきた<ruby class="v2">文七<rt>ぶんしち</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、<ruby class="v1">主人<rt>しゅじん</rt></ruby>の<ruby class="v2">近江屋<rt>おうみや</rt></ruby><ruby class="v2">卯兵衛<rt>うへえ</rt></ruby>はびっくり<ruby class="v2">仰天<rt>ぎょうてん</rt></ruby>。<br><strong>卯兵衛：</strong>「お<ruby class="v1">前<rt>まえ</rt></ruby>、その<ruby class="v1">金<rt>かね</rt></ruby>はどうしたんだ」<br>と<ruby class="v1">問<rt>と</rt></ruby>い<ruby class="v1">詰<rt>つ</rt></ruby>めると、<ruby class="v2">文七<rt>ぶんしち</rt></ruby>は<ruby class="v2">吾妻橋<rt>あづまばし</rt></ruby>での<ruby class="v2">一部始終<rt>いちぶしじゅう</rt></ruby>を<ruby class="v1">語<rt>かた</rt></ruby>ります。<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">聞<rt>き</rt></ruby>いた<ruby class="v2">卯兵衛<rt>うへえ</rt></ruby>も、その<ruby class="v1">見<rt>み</rt></ruby>ず<ruby class="v1">知<rt>し</rt></ruby>らずの<ruby class="v2">左官<rt>さかん</rt></ruby>の<ruby class="v2">心意気<rt>こころいき</rt></ruby>にすっかり<ruby class="v1">感<rt>かん</rt></ruby>じ<ruby class="v1">入<rt>い</rt></ruby>り、<br><strong>卯兵衛：</strong>「その<ruby class="v1">人<rt>ひと</rt></ruby>を<ruby class="v1">探<rt>さが</rt></ruby>し<ruby class="v1">出<rt>だ</rt></ruby>して、ちゃんとお<ruby class="v1">礼<rt>れい</rt></ruby>をしなければならない」<br>と、<ruby class="v1">方々<rt>ほうぼう</rt></ruby>に<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">尽<rt>つ</rt></ruby>くして<ruby class="v1">探<rt>さが</rt></ruby>し<ruby class="v1">始<rt>はじ</rt></ruby>めました。
+                </p>
+                <p id="line-7" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【大団円】</span>
+                    やがて<ruby class="v2">近江屋<rt>おうみや</rt></ruby>の<ruby class="v1">手<rt>て</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>が<ruby class="v2">本所<rt>ほんじょ</rt></ruby>の<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>を<ruby class="v1">探<rt>さが</rt></ruby>し<ruby class="v1">当<rt>あ</rt></ruby>てます。<ruby class="v2">卯兵衛<rt>うへえ</rt></ruby>は<ruby class="v1">五十両<rt>ごじゅうりょう</rt></ruby>を<ruby class="v1">倍<rt>ばい</rt></ruby>にして<ruby class="v1">礼金<rt>れいきん</rt></ruby>として<ruby class="v1">持<rt>も</rt></ruby>たせ、さらに<ruby class="v2">文七<rt>ぶんしち</rt></ruby>とお<ruby class="v2">久<rt>ひさ</rt></ruby>の<ruby class="v1">縁<rt>えん</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">持<rt>も</rt></ruby>って、お<ruby class="v2">久<rt>ひさ</rt></ruby>の<ruby class="v2">身請<rt>みう</rt></ruby>けの<ruby class="v1">金<rt>かね</rt></ruby>まで<ruby class="v1">用立<rt>よう</rt></ruby>ててくれました。<ruby class="v2">文七<rt>ぶんしち</rt></ruby>とお<ruby class="v2">久<rt>ひさ</rt></ruby>はめでたく<ruby class="v1">夫婦<rt>ふうふ</rt></ruby>となり、<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>もすっかり<ruby class="v1">心<rt>こころ</rt></ruby>を<ruby class="v1">入<rt>い</rt></ruby>れ<ruby class="v1">替<rt>か</rt></ruby>えて、<ruby class="v1">二度<rt>にど</rt></ruby>と<ruby class="v2">博打<rt>ばくち</rt></ruby>には<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">出<rt>だ</rt></ruby>さなかったといいます。<ruby class="v2">元結<rt>もとゆ</rt></ruby>い<ruby class="v1">問屋<rt>どんや</rt></ruby>を<ruby class="v1">任<rt>まか</rt></ruby>され、しっかり<ruby class="v1">者<rt>もの</rt></ruby>の<ruby class="v1">婿<rt>むこ</rt></ruby>と<ruby class="v1">孝行<rt>こうこう</rt></ruby>な<ruby class="v1">娘<rt>むすめ</rt></ruby>に<ruby class="v1">囲<rt>かこ</rt></ruby>まれて、<ruby class="v2">長兵衛<rt>ちょうべえ</rt></ruby>は<ruby class="v1">生涯<rt>しょうがい</rt></ruby>、あの<ruby class="v1">雪<rt>ゆき</rt></ruby>の<ruby class="v1">晩<rt>ばん</rt></ruby>の<ruby class="v1">橋<rt>はし</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>の<ruby class="v1">出来事<rt>できごと</rt></ruby>を、<ruby class="v1">何<rt>なに</rt></ruby>よりの<ruby class="v1">宝物<rt>たからもの</rt></ruby>として<ruby class="v1">語<rt>かた</rt></ruby>り<ruby class="v1">継<rt>つ</rt></ruby>いだそうでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. People are born with all sorts of natures — some, however skilled with their hands, simply cannot break free from gambling, while others are so devoted to their parents and family that they would gladly throw away everything of their own. Today's tale traces a strange thread of human kindness binding together a plasterer addicted to gambling, his devoted daughter, and a young stranger — "Bunshichi Motoyui."</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[CHOBEI THE PLASTERER]</span>In the Honjo district there lived a plasterer named Chōbei, a craftsman skilled enough to rank among the finest in Edo — but hopelessly addicted to gambling. Every penny he earned vanished straight into the gambling den, leaving his wife and children without so much as a proper meal. One year, as the New Year approached and debt collectors came pounding on the door one after another, Chōbei's only daughter, a seventeen-year-old girl named Ohisa, quietly slipped out of the house.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OHISA'S RESOLVE]</span>Ohisa could no longer bear to watch silently as her father's gambling ruined the family. She went to see the madame of a brothel called Sanozuchi in the Yoshiwara pleasure quarter.<br><strong>Ohisa:</strong> "Please, buy me. In exchange, use this money to save my father."<br>She tried to hand over fifty ryō — the price of selling herself. The madame was deeply moved by Ohisa's devotion, and immediately sent for Chōbei.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MADAME'S WARNING]</span>The madame sat Chōbei down and lectured him sternly.<br><strong>Madame:</strong> "Your daughter is willing to sell herself for her parents' sake. Do you understand what that means?"<br>Learning of his daughter's resolve, Chōbei was overcome with shame and grief, unable to stop his tears. Handing over the fifty ryō, the madame said,<br><strong>Madame:</strong> "I'll give you until next New Year's Eve to repay this in full. But in exchange, you must never touch gambling again. If you break your promise, Ohisa goes into service here for good."<br>Sternly warned, Chōbei tucked the money inside his robe and set off for home through the falling snow.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[AZUMA BRIDGE]</span>Clutching the fifty ryō — as precious as his own daughter's life — Chōbei stumbled along in a daze toward Azuma Bridge. Glancing up, he saw a young man about to throw himself from the railing into the river. Rushing to hold him back, Chōbei learned the young man's story: he was Bunshichi, a clerk at the Ōmiya shop, who had lost fifty ryō entrusted to him by a client somewhere on the way home, and, unable to face his master, had resolved to die.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[GIVING AWAY THE FIFTY RYO]</span>Chōbei fell into thought. His own fifty ryō had been raised by a daughter who might sell her very life for it. Yet here was another young man, ready to die simply for lack of money.<br><strong>Chōbei:</strong> "I don't know, I don't know anything about it... but take this!"<br>He thrust the fifty ryō into Bunshichi's chest.<br><strong>Chōbei:</strong> "Don't ask my name. Go home quickly and beg your master's forgiveness!"<br>With that, he turned and vanished into the darkness without looking back.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWIST AT OMIYA]</span>As it turned out, the fifty ryō Bunshichi thought he'd lost had merely been left behind at the client's house, and had already been safely delivered to the Ōmiya shop. When Bunshichi returned home with this mysterious windfall, his master, Ōmiya Uhei, was utterly astonished.<br><strong>Uhei:</strong> "Where on earth did this money come from?"<br>Pressed for an answer, Bunshichi told the whole story of Azuma Bridge. Deeply moved by the kindness of this unknown plasterer, Uhei declared,<br><strong>Uhei:</strong> "We must find that man and properly thank him."<br>And he set his people searching everywhere.</p>
+                <p id="line-en-7"><span class="text-xs font-bold text-stone-400 block mb-1">[HAPPY ENDING]</span>Eventually, Ōmiya's men tracked Chōbei down in Honjo. Uhei repaid the fifty ryō twice over as thanks, and further arranged a marriage between Bunshichi and Ohisa, even providing the money to buy her freedom. Bunshichi and Ohisa were happily wed, and Chōbei, having truly reformed, never touched gambling again. Entrusted with a thriving cord-and-hairtie shop, surrounded by a dependable son-in-law and devoted daughter, Chōbei is said to have spent the rest of his life telling and retelling the story of that snowy night on the bridge as the greatest treasure of his life.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Les gens naissent avec toutes sortes de tempéraments : certains, même habiles de leurs mains, ne peuvent tout simplement pas se libérer du jeu, tandis que d'autres sont si dévoués à leurs parents et à leur famille qu'ils sacrifieraient volontiers tout ce qu'ils possèdent. L'histoire d'aujourd'hui suit un étrange fil de bonté humaine qui relie un plâtrier accro au jeu, sa fille dévouée, et un jeune inconnu — « Bunshichi Motoyui ».</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[CHOBEI THE PLASTERER]</span>Dans le quartier de Honjo vivait un plâtrier nommé Chōbei, un artisan assez habile pour compter parmi les meilleurs d'Edo — mais désespérément accro au jeu. Chaque sou qu'il gagnait filait droit à la maison de jeu, laissant sa femme et ses enfants sans repas convenable. Une année, à l'approche du Nouvel An, alors que les créanciers se pressaient à sa porte les uns après les autres, la fille unique de Chōbei, une jeune fille de dix-sept ans nommée Ohisa, se glissa discrètement hors de la maison.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OHISA'S RESOLVE]</span>Ohisa ne pouvait plus supporter de regarder en silence son père ruiner la famille par le jeu. Elle alla voir la patronne d'une maison close appelée Sanozuchi, dans le quartier de plaisir de Yoshiwara.<br><strong>Ohisa :</strong> « Je vous en prie, achetez-moi. En échange, utilisez cet argent pour sauver mon père. »<br>Elle tenta de lui remettre cinquante ryō — le prix de sa propre vente. La patronne, profondément touchée par le dévouement d'Ohisa, fit aussitôt venir Chōbei.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MADAME'S WARNING]</span>La patronne fit asseoir Chōbei et le sermonna sévèrement.<br><strong>Patronne :</strong> « Ta fille est prête à se vendre pour ses parents. Comprends-tu ce que cela signifie ? »<br>En apprenant la détermination de sa fille, Chōbei fut submergé de honte et de chagrin, incapable de retenir ses larmes. En lui tendant les cinquante ryō, la patronne dit :<br><strong>Patronne :</strong> « Je te donne jusqu'à la Saint-Sylvestre prochaine pour rembourser intégralement. Mais en échange, tu ne dois plus jamais toucher au jeu. Si tu romps ta promesse, Ohisa entrera ici pour de bon. »<br>Sévèrement averti, Chōbei glissa l'argent dans son kimono et prit le chemin du retour sous la neige qui tombait.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[AZUMA BRIDGE]</span>Serrant contre lui les cinquante ryō — aussi précieux que la vie même de sa fille — Chōbei titubait, hagard, vers le pont Azuma. Levant les yeux, il vit un jeune homme sur le point de se jeter du parapet dans la rivière. Se précipitant pour le retenir, Chōbei apprit son histoire : il s'appelait Bunshichi, commis à la boutique Ōmiya, et avait perdu en chemin les cinquante ryō qu'un client lui avait confiés ; incapable d'affronter son maître, il avait décidé de mourir.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[GIVING AWAY THE FIFTY RYO]</span>Chōbei resta un instant plongé dans ses pensées. Ses propres cinquante ryō avaient été réunis par une fille prête à vendre sa vie même. Et voilà qu'un autre jeune homme était prêt à mourir, simplement faute d'argent.<br><strong>Chōbei :</strong> « Je ne sais rien, je ne sais rien de tout ça... mais prends ça ! »<br>Il enfonça les cinquante ryō contre la poitrine de Bunshichi.<br><strong>Chōbei :</strong> « Ne me demande pas mon nom. Rentre vite et demande pardon à ton maître ! »<br>Sur ces mots, il tourna les talons et disparut dans l'obscurité sans se retourner.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWIST AT OMIYA]</span>En réalité, les cinquante ryō que Bunshichi croyait avoir perdus avaient simplement été oubliés chez le client, et avaient déjà été livrés en toute sécurité à la boutique Ōmiya. Quand Bunshichi rentra avec cette somme mystérieuse, son maître, Ōmiya Uhei, fut complètement abasourdi.<br><strong>Uhei :</strong> « D'où diable vient cet argent ? »<br>Pressé de répondre, Bunshichi raconta toute l'histoire du pont Azuma. Profondément touché par la bonté de cet inconnu plâtrier, Uhei déclara :<br><strong>Uhei :</strong> « Nous devons retrouver cet homme et le remercier comme il se doit. »<br>Et il fit chercher partout.</p>
+                <p id="line-fr-7"><span class="text-xs font-bold text-stone-400 block mb-1">[HAPPY ENDING]</span>Finalement, les hommes d'Ōmiya retrouvèrent Chōbei à Honjo. Uhei rembourra les cinquante ryō au double en guise de remerciement, et arrangea en plus un mariage entre Bunshichi et Ohisa, fournissant même l'argent pour racheter sa liberté. Bunshichi et Ohisa se marièrent joyeusement, et Chōbei, véritablement transformé, ne toucha plus jamais au jeu. Confié à la tête d'une prospère boutique de cordons et nouets, entouré d'un gendre fiable et d'une fille dévouée, Chōbei aurait passé le reste de sa vie à raconter encore et encore cette nuit de neige sur le pont, comme le plus grand trésor de sa vie.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permítanme contarles una historia. La gente nace con toda clase de temperamentos: algunos, por hábiles que sean con las manos, simplemente no pueden liberarse del vicio del juego, mientras que otros son tan devotos a sus padres y su familia que estarían dispuestos a sacrificarlo todo. La historia de hoy sigue un extraño hilo de bondad humana que une a un yesero adicto al juego, a su hija devota, y a un joven desconocido — "Bunshichi Motoyui".</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[CHOBEI THE PLASTERER]</span>En el barrio de Honjo vivía un yesero llamado Chōbei, un artesano lo bastante hábil como para contarse entre los mejores de Edo — pero desesperadamente adicto al juego. Cada moneda que ganaba iba directo a la casa de apuestas, dejando a su esposa e hijos sin una comida decente. Cierto año, al acercarse el Año Nuevo, mientras los cobradores de deudas llamaban a su puerta uno tras otro, la única hija de Chōbei, una joven de diecisiete años llamada Ohisa, salió a escondidas de la casa.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OHISA'S RESOLVE]</span>Ohisa ya no podía soportar ver en silencio cómo el juego de su padre arruinaba a la familia. Fue a ver a la madama de un burdel llamado Sanozuchi, en el barrio de placer de Yoshiwara.<br><strong>Ohisa:</strong> "Por favor, cómpreme. A cambio, use este dinero para salvar a mi padre."<br>Intentó entregarle cincuenta ryō — el precio de venderse a sí misma. La madama, profundamente conmovida por la devoción de Ohisa, mandó llamar de inmediato a Chōbei.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MADAME'S WARNING]</span>La madama sentó a Chōbei y lo reprendió con severidad.<br><strong>Madama:</strong> "Tu hija está dispuesta a venderse por sus padres. ¿Entiendes lo que eso significa?"<br>Al conocer la determinación de su hija, Chōbei se llenó de vergüenza y pesar, incapaz de contener las lágrimas. Entregándole los cincuenta ryō, la madama dijo:<br><strong>Madama:</strong> "Te doy hasta la próxima Nochevieja para devolverlo todo. Pero a cambio, no debes volver a tocar el juego nunca más. Si rompes tu promesa, Ohisa se quedará aquí para siempre."<br>Severamente advertido, Chōbei guardó el dinero en su kimono y emprendió el camino a casa bajo la nieve que caía.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[AZUMA BRIDGE]</span>Apretando contra su pecho los cincuenta ryō — tan preciados como la vida misma de su hija — Chōbei caminaba aturdido hacia el puente Azuma. Al alzar la vista, vio a un joven a punto de arrojarse desde la baranda al río. Corriendo a detenerlo, Chōbei conoció su historia: se llamaba Bunshichi, dependiente de la tienda Ōmiya, y había perdido en el camino los cincuenta ryō que un cliente le había confiado; incapaz de enfrentar a su patrón, había decidido morir.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[GIVING AWAY THE FIFTY RYO]</span>Chōbei quedó sumido en sus pensamientos. Sus propios cincuenta ryō habían sido reunidos por una hija dispuesta a vender su propia vida. Y ahora otro joven estaba dispuesto a morir simplemente por falta de dinero.<br><strong>Chōbei:</strong> "No sé, no sé nada de eso... ¡pero toma esto!"<br>Empujó los cincuenta ryō contra el pecho de Bunshichi.<br><strong>Chōbei:</strong> "No me preguntes mi nombre. ¡Vuelve rápido y pide perdón a tu patrón!"<br>Dicho esto, se dio la vuelta y desapareció en la oscuridad sin mirar atrás.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TWIST AT OMIYA]</span>En realidad, los cincuenta ryō que Bunshichi creía haber perdido simplemente se habían quedado olvidados en casa del cliente, y ya habían sido entregados sin problema a la tienda Ōmiya. Cuando Bunshichi volvió con esa misteriosa suma, su patrón, Ōmiya Uhei, quedó completamente atónito.<br><strong>Uhei:</strong> "¿De dónde diablos salió este dinero?"<br>Presionado para responder, Bunshichi contó toda la historia del puente Azuma. Profundamente conmovido por la bondad de aquel yesero desconocido, Uhei declaró:<br><strong>Uhei:</strong> "Debemos encontrar a ese hombre y agradecerle como es debido."<br>Y mandó buscar por todas partes.</p>
+                <p id="line-es-7"><span class="text-xs font-bold text-stone-400 block mb-1">[HAPPY ENDING]</span>Finalmente, los hombres de Ōmiya localizaron a Chōbei en Honjo. Uhei le devolvió los cincuenta ryō multiplicados por dos como agradecimiento, y además arregló un matrimonio entre Bunshichi y Ohisa, incluso aportando el dinero para comprar su libertad. Bunshichi y Ohisa se casaron felizmente, y Chōbei, verdaderamente reformado, no volvió a tocar el juego jamás. A cargo de una próspera tienda de cordones y lazos, rodeado de un yerno confiable y una hija devota, se dice que Chōbei pasó el resto de su vida contando una y otra vez la historia de aquella noche nevada en el puente, como el mayor tesoro de su vida.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 8;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②左官長兵衛","③お久の決意","④女将の意見","⑤吾妻橋","⑥五十両を投げ渡す","⑦近江屋のどんでん返し","⑧大団円"];
+        const partNamesEn = ["① Prologue","② Chobei the plasterer","③ Ohisa's resolve","④ The madame's warning","⑤ Azuma bridge","⑥ Giving away the fifty ryo","⑦ The twist at omiya","⑧ Happy ending"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦","⑧"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p8.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

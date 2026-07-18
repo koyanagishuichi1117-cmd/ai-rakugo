@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>鰻の幇間 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 鰻の幇間 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。世間には、お座敷で旦那を褒めちぎって、それで飯を食っているという、幇間、俗に太鼓持ちという商売がございます。<break time=\"500ms\"/>とにかく人をおだてるのが上手でございましてね。<break time=\"400ms\"/>どんなに野暮な旦那でも、幇間にかかれば「さすが旦那、お目が高い」のひと言で、すっかりいい気分にさせられてしまう。<break time=\"500ms\"/>人をおだてて世を渡っている商売でございますから、自分が人に騙されるなんてことは、まずないはずなんでございますが。<break time=\"600ms\"/>今日はその幇間が、とんだ目に遭うというお話でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②男を見かける", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">一八という幇間がおりまして、これがなかなかの腕でございます。<break time=\"400ms\"/>ある日のこと、両国あたりをぶらぶら歩いておりますとね、向こうから恰幅のいい旦那風の男が歩いてまいります。<break time=\"500ms\"/>一八、ふとその顔を見て、あっと思いましてね。<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">こりゃ、去年吉原で大層お世話になった、田原町の旦那じゃないか。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">よくよく見れば、着物の柄も、歩き方も、なんだかそれらしい。<break time=\"400ms\"/>一八、これは渡りに船とばかりに、満面の笑みを浮かべて近づいてまいります。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③追従", ssml:true, text:"<speak><prosody rate=\"120%\" pitch=\"+1st\">これはこれは旦那、しばらくでございます！いやもう、お忘れでしょうが、あたくし、去年吉原でお座敷を務めさせていただきました、一八でございます！<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">ああ、そうだったかね。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">相変わらずお元気そうで、なによりでございます。旦那にはあの節、大変結構なものをご馳走になりまして……そうそう、旦那はほんとうに鰻がお好きでいらっしゃいましたね。<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">まあ、嫌いじゃないな。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+1st\">実はこの先に、なかなかの鰻屋がございましてね。旦那、ちょうどようございます、ひとつご一緒に、あたくしにご相伴させてくださいまし。<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">ああ、いいとも。<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">一八、まんまと話をまとめまして、鰻屋へ向かって二人、肩を並べて歩き出しました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④鰻屋にて", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">二人は近くの鰻屋の二階へ上がりまして、一八はもう独壇場でございます。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">旦那、ここの鰻は江戸前で天下一品でございますよ。お酒はぬる燗で参りましょう。<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">などと、注文から酌まで、何から何まで一八がテキパキと仕切りましてね。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">いや旦那、お召し上がりになる姿がまた粋でいらっしゃる。<break time=\"300ms\"/>旦那の盃の受け方は、他の旦那衆とはひと味違いますな。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">と、休む間もなく褒め言葉が飛び出してまいります。男のほうは、にこにこと聞きながら、黙って盃を重ねるばかりでございます。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤男が席を外す", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">ひとしきり鰻を平らげ、お酒もまわったころ、男がふと箸を置きましてね。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">一八、すまないが、ちょいとそこまで用足しに行ってくるよ。すぐ戻るから。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">へえ、いってらっしゃいまし。ごゆっくりどうぞ。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">男はそう言って、財布も何も持たずに、ふらりと部屋を出ていきました。<break time=\"400ms\"/>一八はそれを見送りながら、いよいよいい心持ちで、残った鰻をつまみながら、酒をちびりちびりとやっております。<break time=\"500ms\"/>ところが、いくら待っても、男は戻ってまいりません。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥勘定と真実", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">だいぶ経ってから、下の女中が、お連れさま、お会計をお願いします、と上がってまいりました。<break time=\"400ms\"/>一八、慌てて、いや、あれは連れの旦那が払うから、と言いますてね。<break time=\"400ms\"/></prosody><prosody rate=\"102%\" pitch=\"0st\">はい、それが、さきほどのお客様は、裏口から出て行かれたようで。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"-1st\">一八、はっと青くなりましてね。<break time=\"400ms\"/>よくよく思い出してみれば、あの男とは吉原で二言三言、言葉を交わしただけで、ろくに顔も覚えていなかった。<break time=\"500ms\"/>しかも聞けば、あちこちで似たような手口で人をだましては姿を消す、有名な食い逃げの常習犯だという噂もある。<break time=\"500ms\"/>一八、すっかり騙されたと気づいて、頭を抱えるばかりでございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦オチ", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"-1st\">仕方なく、一八がなけなしの財布をはたいて勘定を払い、すごすごと店を出ようといたしますとね、下駄箱の前で、はたと足が止まりました。<break time=\"500ms\"/>自分の履いてきた、まだ新しい良い下駄がない。あるのは、鼻緒の切れかかった、ボロボロの下駄が一足だけ。<break time=\"500ms\"/>一八、思わず天を仰ぎましてね。<break time=\"500ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">ああ、幇間が幇間に騙されるとは、とんだ一杯食わされたもんだ。しかもご丁寧に、下駄まで持っていかれるとは。<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">人をおだてて生きてきた男が、それ以上の上手にまんまと乗せられ、勘定はおろか足元まで巻き上げられた、というお話でございました。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In this world there's a profession called taikomochi — a party entertainer whose entire job is flattering wealthy patrons so lavishly that he earns his living, meals included, purely from buttering people up. These men are masters of praise: no matter how boorish or graceless a patron might be, a single line like 'Ah sir, what a discerning eye you have' from a taikomochi is enough to put him in the finest of moods. Since their whole livelihood comes from flattering others, you'd think a taikomochi would be the last person anyone could ever fool. But today's story is about one such flatterer who found himself in quite the predicament." },
+    { id:'p2', title:"②男を見かける", ssml:false, text:"There was a taikomochi named Ippachi, quite skilled at his trade. One day, strolling around the Ryogoku district, he spotted a well-built, prosperous-looking man walking toward him. Ippachi caught sight of the man's face and gave a start. 'Wait — isn't that the generous patron from Tawaramachi who treated me so well in the Yoshiwara last year?' The more he looked — the pattern of the kimono, the way the man walked — the more it seemed to fit. Thinking this was a stroke of luck too good to pass up, Ippachi put on his brightest smile and hurried over." },
+    { id:'p3', title:"③追従", ssml:false, text:"Ippachi: \"Well, well, if it isn't you, sir! It's been ages! I'm sure you've forgotten me, but I'm Ippachi — I had the honor of entertaining at your party in the Yoshiwara last year!\" Man: \"Ah... yes, I suppose that's right.\" Ippachi: \"You look as well as ever, sir, wonderful to see. That time, you treated me to the most splendid things... ah yes, and I recall you were quite fond of eel, weren't you?\" Man: \"Well, I don't dislike it.\" Ippachi: \"As it happens, there's a fine eel restaurant just up ahead. What perfect timing, sir — do let me join you for a bite.\" Man: \"Sure, why not.\" Ippachi, having smoothly sealed the deal, set off shoulder to shoulder with the man toward the eel restaurant." },
+    { id:'p4', title:"④鰻屋にて", ssml:false, text:"Up they went to the second floor of a nearby eel restaurant, where Ippachi took full command of the stage. 'Sir, the eel here is proper Edo-style, the finest there is!' 'Let's have the sake warmed just right!' He handled everything — ordering, pouring, all of it — with brisk efficiency. Whenever the man picked up his chopsticks: 'Ah sir, even the way you eat is so elegant.' Whenever he raised his cup: 'The way you hold your sake cup, sir, it's a cut above the other gentlemen.' The praise never stopped coming. The man just smiled along, saying little, and quietly kept refilling his cup." },
+    { id:'p5', title:"⑤男が席を外す", ssml:false, text:"Man: \"Ippachi, sorry, but I need to step out for a moment — an errand. I'll be right back.\" Ippachi: \"Of course, sir, off you go. Take your time.\" With that, the man got up and wandered out of the room, without so much as his wallet. Ippachi saw him off, feeling more pleased with himself than ever, nibbling at the last of the eel and taking little sips of sake. But no matter how long he waited, the man never came back." },
+    { id:'p6', title:"⑥勘定と真実", ssml:false, text:"After quite a while, the maid came upstairs. \"Excuse me, your bill, please.\" Ippachi, flustered, said, \"Oh, no, my companion will be paying for that.\" Maid: \"Well, actually... it seems your guest left through the back entrance a while ago.\" Ippachi went pale. Thinking back carefully, he realized he'd only exchanged a few words with that man once in the Yoshiwara — he barely even remembered his face. And now he heard rumors that a man matching that description had been going around town pulling the same trick and vanishing — a notorious dine-and-dasher. Ippachi, finally understanding he'd been completely conned, could only clutch his head in despair." },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Left with no choice, Ippachi scraped together what little money he had to pay the bill, and trudged toward the exit in defeat. But at the shoe rack, he stopped dead. His own good geta sandals, still nearly new, were gone. In their place sat a single shabby pair, the thong straps nearly torn through. Ippachi could only look up at the ceiling in disbelief. Ippachi: \"Ah, to think a flatterer would be conned by a fellow flatterer — what a beating I've taken. And to think he was thoughtful enough to take my geta too!\" A man who had made his living flattering others had, in the end, been smoothly played by someone even better at the game — left not only to foot the bill, but to walk home in someone else's broken sandals." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Il existe un métier appelé taikomochi — un amuseur de banquet dont tout le travail consiste à flatter si généreusement de riches clients qu'il en tire sa subsistance, repas compris, uniquement en les couvrant de compliments. Ces hommes sont des maîtres de la flatterie : aussi grossier ou balourd que soit un client, une seule phrase comme « Ah, monsieur, quel œil affûté vous avez » suffit à le mettre d'excellente humeur. Puisque tout leur gagne-pain repose sur l'art de flatter autrui, on pourrait croire qu'un taikomochi serait la dernière personne à se faire duper. Mais l'histoire d'aujourd'hui raconte comment l'un de ces flatteurs se retrouva dans un bien fâcheux pétrin." },
+    { id:'p2', title:"②男を見かける", ssml:false, text:"Il y avait un taikomochi nommé Ippachi, plutôt habile dans son art. Un jour, en flânant du côté de Ryogoku, il aperçut un homme bien bâti, à l'allure prospère, marchant vers lui. Ippachi regarda son visage et sursauta. « Attends — ne serait-ce pas ce généreux client de Tawaramachi qui m'avait si bien traité à Yoshiwara l'an dernier ? » Plus il l'observait — le motif du kimono, la démarche — plus cela semblait correspondre. Se disant que c'était une aubaine à ne pas laisser passer, Ippachi afficha son plus beau sourire et s'approcha vivement." },
+    { id:'p3', title:"③追従", ssml:false, text:"Ippachi : « Eh bien, eh bien, mais c'est vous, monsieur ! Cela fait une éternité ! Vous m'avez sûrement oublié, mais je suis Ippachi — j'ai eu l'honneur de vous divertir lors de votre soirée à Yoshiwara l'an dernier ! » L'homme : « Ah... oui, c'est bien possible. » Ippachi : « Vous avez toujours aussi bonne mine, monsieur, quel plaisir de vous revoir. Cette fois-là, vous m'aviez offert des mets somptueux... ah oui, et je me souviens que vous aimiez beaucoup l'anguille, n'est-ce pas ? » L'homme : « Eh bien, je ne déteste pas ça. » Ippachi : « Justement, il y a un excellent restaurant d'anguille juste devant. Quel heureux hasard, monsieur — laissez-moi vous accompagner pour en profiter. » L'homme : « Bien sûr, pourquoi pas. » Ippachi, ayant habilement conclu l'affaire, se mit en route épaule contre épaule avec l'homme vers le restaurant d'anguille." },
+    { id:'p4', title:"④鰻屋にて", ssml:false, text:"Ils montèrent au premier étage d'un restaurant d'anguille voisin, où Ippachi prit pleinement les commandes. « Monsieur, l'anguille ici est du pur style d'Edo, la meilleure qui soit ! » « Prenons le saké tiède, juste comme il faut ! » Il s'occupait de tout — commander, servir — avec une efficacité redoutable. Chaque fois que l'homme prenait ses baguettes : « Ah monsieur, même votre façon de manger est d'une élégance rare. » Chaque fois qu'il levait sa coupe : « Votre manière de tenir la coupe de saké, monsieur, surpasse de loin celle des autres messieurs. » Les compliments ne cessaient jamais. L'homme se contentait de sourire, disant peu, et remplissait tranquillement sa coupe encore et encore." },
+    { id:'p5', title:"⑤男が席を外す", ssml:false, text:"L'homme : « Ippachi, désolé, mais je dois sortir un instant — une course à faire. Je reviens tout de suite. » Ippachi : « Bien sûr, monsieur, allez-y. Prenez votre temps. » Sur ce, l'homme se leva et sortit tranquillement de la pièce, sans même emporter son porte-monnaie. Ippachi le regarda partir, plus content de lui que jamais, grignotant le reste de l'anguille et sirotant son saké à petites gorgées. Mais il eut beau attendre, l'homme ne revint jamais." },
+    { id:'p6', title:"⑥勘定と真実", ssml:false, text:"Au bout d'un bon moment, la servante monta. « Excusez-moi, l'addition, s'il vous plaît. » Ippachi, décontenancé, répondit : « Oh, non, c'est mon compagnon qui va régler ça. » La servante : « Eh bien, en fait... il semblerait que votre invité soit parti par la porte de derrière il y a un moment. » Ippachi devint blême. En y repensant bien, il réalisa qu'il n'avait échangé que quelques mots avec cet homme, une seule fois, à Yoshiwara — il se souvenait à peine de son visage. Et voilà qu'il entendait dire qu'un homme correspondant à cette description sévissait en ville avec le même stratagème, disparaissant à chaque fois — un escroc notoire qui filait sans payer. Ippachi, comprenant enfin qu'il s'était fait totalement berner, ne put que se prendre la tête entre les mains." },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Sans autre choix, Ippachi rassembla le peu d'argent qu'il lui restait pour payer l'addition, et se dirigea, penaud, vers la sortie. Mais devant le râtelier à chaussures, il s'arrêta net. Ses propres geta, encore presque neuves, avaient disparu. À leur place ne restait qu'une paire miteuse, aux lanières presque déchirées. Ippachi ne put que lever les yeux au ciel, incrédule. Ippachi : « Ah, dire qu'un flatteur se fait rouler par un autre flatteur — quelle déconvenue. Et il a même eu la délicatesse d'emporter mes geta ! » Un homme qui avait fait fortune en flattant les autres s'était finalement fait mener en bateau, avec une élégance redoutable, par quelqu'un d'encore plus habile que lui — laissé non seulement à payer l'addition, mais à rentrer chez lui dans les sandales cassées d'un autre." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Existe un oficio llamado taikomochi: un animador de banquetes cuyo trabajo consiste enteramente en halagar a clientes adinerados con tal esmero que se gana la vida, comidas incluidas, solo con adularlos. Estos hombres son maestros del elogio: por muy tosco o desatento que sea un cliente, una sola frase como «Ah, señor, qué buen ojo tiene usted» basta para ponerlo del mejor humor. Como todo su sustento depende de halagar a los demás, uno pensaría que un taikomochi sería la última persona en dejarse engañar. Pero la historia de hoy trata de uno de estos aduladores que se vio metido en un buen aprieto." },
+    { id:'p2', title:"②男を見かける", ssml:false, text:"Había un taikomochi llamado Ippachi, bastante hábil en su oficio. Un día, paseando por la zona de Ryogoku, vio a un hombre corpulento y de aspecto próspero caminando hacia él. Ippachi le miró la cara y se sobresaltó. «Un momento... ¿no es ese el generoso cliente de Tawaramachi que tan bien me trató en Yoshiwara el año pasado?» Cuanto más lo miraba —el estampado del kimono, la forma de caminar— más le parecía encajar. Pensando que era una oportunidad demasiado buena para dejarla pasar, Ippachi puso su mejor sonrisa y se acercó con paso ligero." },
+    { id:'p3', title:"③追従", ssml:false, text:"Ippachi: «¡Vaya, vaya, si es usted, señor! ¡Cuánto tiempo! Seguro que me ha olvidado, pero soy Ippachi, tuve el honor de animar su fiesta en Yoshiwara el año pasado.» Hombre: «Ah... sí, puede ser.» Ippachi: «Se le ve tan bien como siempre, señor, qué alegría verlo. Aquella vez me invitó usted a cosas espléndidas... ah, sí, y recuerdo que le encantaba la anguila, ¿verdad?» Hombre: «Bueno, no me disgusta.» Ippachi: «Precisamente hay un excelente restaurante de anguila aquí adelante. Qué buena coincidencia, señor... permítame acompañarlo a probarla.» Hombre: «Claro, por qué no.» Ippachi, tras cerrar hábilmente el trato, echó a andar hombro con hombro junto al hombre hacia el restaurante de anguila." },
+    { id:'p4', title:"④鰻屋にて", ssml:false, text:"Subieron al segundo piso de un restaurante de anguila cercano, donde Ippachi tomó por completo las riendas. «¡Señor, la anguila aquí es puro estilo de Edo, la mejor que hay!» «¡Tomemos el sake tibio, en su punto justo!» Se encargaba de todo —pedir, servir— con una eficacia incansable. Cada vez que el hombre tomaba los palillos: «Ah, señor, hasta su forma de comer es elegantísima.» Cada vez que alzaba la copa: «La forma en que sostiene la copa de sake, señor, supera con creces a la de los demás caballeros.» Los elogios no cesaban nunca. El hombre solo sonreía, hablando poco, y seguía llenando su copa en silencio." },
+    { id:'p5', title:"⑤男が席を外す", ssml:false, text:"Hombre: «Ippachi, disculpa, pero tengo que salir un momento, un recado. Vuelvo enseguida.» Ippachi: «Por supuesto, señor, vaya usted. Tómese su tiempo.» Dicho esto, el hombre se levantó y salió tranquilamente de la habitación, sin llevar siquiera su monedero. Ippachi lo despidió, más satisfecho de sí mismo que nunca, picoteando lo que quedaba de anguila y bebiendo el sake a sorbitos. Pero por mucho que esperó, el hombre nunca regresó." },
+    { id:'p6', title:"⑥勘定と真実", ssml:false, text:"Al cabo de un buen rato, subió la sirvienta. «Disculpe, la cuenta, por favor.» Ippachi, desconcertado, respondió: «Ah, no, eso lo paga mi acompañante.» Sirvienta: «Pues... en realidad, parece que su invitado salió por la puerta trasera hace un rato.» Ippachi palideció. Pensándolo bien, se dio cuenta de que solo había intercambiado unas palabras con aquel hombre una vez, en Yoshiwara; apenas recordaba su cara. Y ahora oía rumores de que un hombre con esa misma descripción andaba por la ciudad haciendo el mismo truco y desapareciendo, un conocido estafador que comía y se iba sin pagar. Ippachi, comprendiendo por fin que lo habían engañado por completo, no pudo más que llevarse las manos a la cabeza." },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Sin otra opción, Ippachi reunió el poco dinero que le quedaba para pagar la cuenta y se dirigió, cabizbajo, hacia la salida. Pero frente al zapatero se detuvo en seco. Sus propias geta, casi nuevas, habían desaparecido. En su lugar solo quedaba un par desgastado, con las correas casi deshechas. Ippachi no pudo más que mirar al cielo, incrédulo. Ippachi: «Ah, pensar que un adulador sería engañado por otro adulador... vaya paliza me han dado. ¡Y encima tuvo la delicadeza de llevarse mis geta!» Un hombre que se había ganado la vida halagando a otros terminó siendo hábilmente embaucado por alguien aún más diestro en el arte, quedándose no solo con la cuenta por pagar, sino caminando a casa con las sandalias rotas de otro." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

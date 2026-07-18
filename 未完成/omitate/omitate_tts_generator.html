@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>お見立て TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ お見立て TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>え〜、一席申し上げます。<break time='400ms'/>お見立てというのは、元来はお客が幾人もの花魁の中から、贔屓の一人を選ぶ、という意味の言葉でございましてね。<break time='500ms'/>ところがこの噺の中では、とんでもない方向に見立てなくちゃならなくなる羽目に陥る者が出てまいります。<break time='500ms'/>むかしの吉原の廓というのは、お金を積めば必ず会えるというものでもございませんで、花魁の方に、あの客だけは勘弁してほしい、という我儘が通ったりしたそうで。<break time='600ms'/>さて、今日はそんな吉原を舞台にした一席、お付き合いのほどを。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②杢兵衛登場", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>田舎から出てまいりました杢兵衛という大尽、田畑を売った金を懐にして吉原に上がり、廓一番の花魁、喜瀬川にすっかり惚れ込んでしまいました。<break time='500ms'/>ところがこの杢兵衛さん、金離れはいいものの、垢抜けない上に世辞の一つも言えない無骨者。<break time='450ms'/>喜瀬川からしてみれば、正直顔も見たくないというのが本音でございます。<break time='500ms'/>それでも杢兵衛、三日にあげず通ってまいりまして、案内役の金兵衛という若い衆に喜瀬川に会わせてくれとせがむのでございます。<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③仮病", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>今日もまた杢兵衛が暖簾をくぐってまいりました。<break time='400ms'/></prosody><prosody rate='100%' pitch='-1st'>金兵衛どん、喜瀬川はいるかい。<break time='350ms'/></prosody><prosody rate='118%' pitch='-2st'>へえ、それが実は、喜瀬川は昨日から風邪をひきましてね、床に伏せっておりますんで。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>とっさに出た嘘でございます。杢兵衛は驚いて、<break time='300ms'/></prosody><prosody rate='100%' pitch='-1st'>そいつはいけねえ、そんなに悪いのかい。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と心配顔。金兵衛、内心しめた、これで帰ってくれると思ったのも束の間、杢兵衛はそのまま帰るどころか、ますます身を乗り出してまいります。<break time='600ms'/></prosody></speak>" },
+  { id:'p4', title:"④見舞いの申し出", ssml:true, text:"<speak><prosody rate='100%' pitch='-1st'>風邪と聞いちゃ黙っちゃいられねえ。よし、おら、これから喜瀬川の見舞いに行ってやるべ。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>杢兵衛が真顔でそう言い出したから、金兵衛は真っ青になりました。喜瀬川は元気そのもの、別の座敷で他のお客と楽しくやっているのですから、見舞いになど行かれては一巻の終わりでございます。<break time='500ms'/></prosody><prosody rate='122%' pitch='+1st'>いえいえ、そりゃあいけません、うつるといけませんから。<break time='350ms'/></prosody><prosody rate='100%' pitch='-1st'>と必死で止めましたが、杢兵衛は、なあに、風邪ぐらい構うもんか。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と一向に聞く耳を持ちません。仕方なく金兵衛、<break time='300ms'/></prosody><prosody rate='122%' pitch='+1st'>実は、風邪どころではなく、大層な重い病でして。<break time='450ms'/></prosody><prosody rate='108%' pitch='0st'>とさらに嘘を重ねてしまいます。<break time='600ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤とうとう死んだことに", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>杢兵衛の心配はいよいよ募るばかり。毎日のように押しかけては、<break time='350ms'/></prosody><prosody rate='100%' pitch='-1st'>喜瀬川の具合はどうだ。<break time='350ms'/></prosody><prosody rate='108%' pitch='0st'>と尋ねてまいります。金兵衛も後には引けず、<break time='350ms'/></prosody><prosody rate='122%' pitch='+1st'>実は昨日から危篤で。今朝方、とうとう息を引き取りました。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>と、とんでもない嘘をついてしまいました。まさか死んだと言えば諦めるだろうと踏んだのですが、これがとんだ見込み違い。杢兵衛は大粒の涙をこぼしながら、<break time='400ms'/></prosody><prosody rate='95%' pitch='-2st'>そうかい、そうかい、死んじまったかい。それなら尚のこと、せめて墓に参ってやりてえ。<break time='600ms'/></prosody><prosody rate='108%' pitch='0st'>と言い出す始末でございます。<break time='700ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥墓参り", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>断るに断れず、金兵衛は杢兵衛を連れて近くの寺の墓地へ参ることになりました。もちろん喜瀬川の墓などあろうはずもございません。困り果てた金兵衛、目についた古い墓石を指さして、<break time='400ms'/></prosody><prosody rate='120%' pitch='+1st'>へえ、これがその、喜瀬川の墓でございます。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と苦し紛れの出まかせ。杢兵衛は手を合わせ、大声で泣きながら、<break time='400ms'/></prosody><prosody rate='95%' pitch='-2st'>喜瀬川、すまなかったなあ、もっと早く来てやればよかった。<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>と、見ず知らずの誰かの墓に向かって、延々と語りかけるのでございます。困った金兵衛、次から次へと別の墓を指さしては、<break time='350ms'/></prosody><prosody rate='120%' pitch='+1st'>いえ、こっちの墓でございました。いや、実はあちらで。<break time='400ms'/></prosody><prosody rate='108%' pitch='0st'>と、見立てる墓をとっかえひっかえする羽目になりました。<break time='600ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate='100%' pitch='-1st'>とうとう杢兵衛、涙を拭きながら金兵衛に尋ねます。<break time='400ms'/></prosody><prosody rate='95%' pitch='-1st'>それにしても、喜瀬川の墓はずいぶんとあちこちにあるんだなあ。<break time='500ms'/></prosody><prosody rate='105%' pitch='0st'>金兵衛、苦い顔で一言。<break time='350ms'/></prosody><prosody rate='105%' pitch='0st'>へえ、なにしろ、生きているうちから、あちこちのお客様に見立てられておりましたもので。<break time='900ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Omitate — The Selection — originally referred to a customer looking over the various courtesans and choosing his favorite. But in this tale, someone ends up having to do the choosing in a far more absurd way than he ever expected. In the old pleasure quarter of Yoshiwara, money alone couldn't buy you a meeting — a courtesan was quite entitled to declare that a certain customer simply wasn't welcome, and get away with it. So here is a tale set in that world." },
+    { id:'p2', title:"②杢兵衛登場", ssml:false, text:"There came up from the countryside a wealthy patron named Mokubei, who had sold off his farmland and arrived in Yoshiwara with his pockets stuffed with cash, falling head over heels for Kisegawa, the quarter's reigning top courtesan. The trouble was, for all his free spending, Mokubei was hopelessly unrefined, couldn't pay a compliment to save his life, and rough around every edge. Kisegawa, frankly, couldn't stand the sight of him. And yet Mokubei kept coming back every few days, pestering the young attendant Kinbei to let him see her." },
+    { id:'p3', title:"③仮病", ssml:false, text:"Today, once again, Mokubei came through the curtain. Mokubei: Say, Kinbei, is Kisegawa around? Kinbei: Well, sir, actually, Kisegawa has caught a cold since yesterday, she's laid up in bed. It was a lie Kinbei made up on the spot. Mokubei looked alarmed. Mokubei: That's terrible, is it bad? Kinbei thought to himself: perfect, now he'll leave. But no sooner had he thought it than Mokubei, far from leaving, leaned in even closer." },
+    { id:'p4', title:"④見舞いの申し出", ssml:false, text:"Mokubei: Can't just sit here once I've heard she's sick! Right, I'm going to go nurse Kisegawa myself. Mokubei said it with a perfectly straight face, and Kinbei went pale. Kisegawa was perfectly fine, off enjoying herself with another customer in a different room. If Mokubei went to visit her, it would all be over. Kinbei: Oh no, please don't, you might catch it too! He tried desperately to stop him, but Mokubei wouldn't hear a word of it. Mokubei: Bah, what's a little cold? Cornered, Kinbei blurted out yet another lie. Kinbei: Actually, sir, it's far worse than a cold. It's a serious illness." },
+    { id:'p5', title:"⑤とうとう死んだことに", ssml:false, text:"Mokubei's worry only deepened. He came pestering nearly every day. Mokubei: How's Kisegawa doing? Kinbei, unable to back down now, blurted out. Kinbei: Actually, she's been in critical condition since yesterday. And this morning, I'm afraid she passed away. An outrageous lie. He had figured that news of her death would finally make Mokubei give up. A terrible miscalculation. Mokubei burst into big fat tears. Mokubei: So, so she's really gone. All the more reason I need to visit her grave, at least." },
+    { id:'p6', title:"⑥墓参り", ssml:false, text:"Unable to refuse, Kinbei found himself leading Mokubei to the graveyard of a nearby temple. Of course, there was no grave for Kisegawa, since she wasn't dead. Desperate, Kinbei pointed at some random old tombstone that caught his eye. Kinbei: Er, here it is, this is Kisegawa's grave. A shameless improvisation. Mokubei pressed his palms together and wailed loudly. Mokubei: Kisegawa, I'm so sorry, I should have come sooner. He poured his heart out at length to a total stranger's grave. Flustered, Kinbei kept pointing at one tombstone after another. Kinbei: Oh, no, actually it was this one over here. No wait, actually, it's that one. Swapping out which grave he was passing off as hers, over and over." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Finally, wiping his tears, Mokubei turned to Kinbei with a question. Mokubei: Say, Kisegawa sure seems to have an awful lot of graves scattered all over the place. Kinbei, with a bitter look on his face, had just one thing to say. Kinbei: Well, sir, that's because, even while she was alive, she was already being selected all over the place by customer after customer." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Omitate — La Sélection — désignait à l'origine le client qui, parmi toutes les courtisanes, choisissait sa préférée. Mais dans ce récit, c'est quelqu'un d'autre qui va devoir choisir, d'une façon bien plus absurde qu'il ne l'aurait imaginé. Dans l'ancien quartier de plaisir de Yoshiwara, l'argent seul ne suffisait pas à obtenir un rendez-vous : une courtisane pouvait fort bien décréter qu'un certain client n'était pas le bienvenu, et cela passait comme une lettre à la poste. Voici donc une histoire qui se déroule dans ce monde-là." },
+    { id:'p2', title:"②杢兵衛登場", ssml:false, text:"Du fond de la campagne était arrivé un riche client du nom de Mokubei, qui avait vendu ses terres et débarquait à Yoshiwara les poches pleines, follement épris de Kisegawa, la courtisane vedette du quartier. Le problème, c'est que malgré ses largesses, Mokubei restait d'une rusticité affligeante, incapable du moindre compliment, gauche en tout. Kisegawa, franchement, ne pouvait pas le supporter. Mais Mokubei revenait tous les deux ou trois jours, harcelant le jeune commis Kinbei pour qu'il le laisse la voir." },
+    { id:'p3', title:"③仮病", ssml:false, text:"Aujourd'hui encore, Mokubei franchit le rideau de l'entrée. Mokubei : Dis-moi, Kinbei, Kisegawa est là ? Kinbei : Eh bien, monsieur, en fait, Kisegawa a pris froid depuis hier, elle est alitée. C'était un mensonge inventé sur l'instant. Mokubei parut alarmé. Mokubei : C'est terrible, c'est grave ? Kinbei se dit : parfait, il va partir. Mais à peine l'eut-il pensé que Mokubei, loin de partir, se pencha encore plus près." },
+    { id:'p4', title:"④見舞いの申し出", ssml:false, text:"Mokubei : Je ne peux pas rester les bras croisés en apprenant qu'elle est malade ! Bon, je vais aller la soigner moi-même. Il le dit avec un sérieux absolu, et Kinbei blêmit. Kisegawa se portait comme un charme, en train de s'amuser avec un autre client dans une autre pièce. Si Mokubei allait la visiter, tout serait fichu. Kinbei : Non, non, surtout pas, vous pourriez l'attraper aussi ! Il essaya désespérément de l'arrêter, mais Mokubei n'écoutait rien. Mokubei : Bah, un petit rhume, quelle importance ? Acculé, Kinbei lâcha un mensonge de plus. Kinbei : En fait, monsieur, c'est bien pire qu'un rhume. C'est une maladie grave." },
+    { id:'p5', title:"⑤とうとう死んだことに", ssml:false, text:"L'inquiétude de Mokubei ne fit que croître. Il venait harceler Kinbei presque chaque jour. Mokubei : Comment va Kisegawa ? Kinbei, ne pouvant plus reculer, lâcha. Kinbei : En fait, elle est dans un état critique depuis hier. Et ce matin, hélas, elle nous a quittés. Un mensonge énorme. Il pensait qu'annoncer sa mort ferait enfin renoncer Mokubei. Quelle erreur de calcul. Mokubei fondit en grosses larmes. Mokubei : Alors, alors elle est vraiment partie. Raison de plus pour que j'aille au moins me recueillir sur sa tombe." },
+    { id:'p6', title:"⑥墓参り", ssml:false, text:"Ne pouvant refuser, Kinbei se retrouva à conduire Mokubei au cimetière d'un temple voisin. Bien sûr, il n'y avait aucune tombe pour Kisegawa, puisqu'elle n'était pas morte. Désespéré, Kinbei désigna une vieille pierre tombale au hasard. Kinbei : Euh, voilà, c'est ici, la tombe de Kisegawa. Une improvisation sans vergogne. Mokubei joignit les mains et se mit à sangloter bruyamment. Mokubei : Kisegawa, pardonne-moi, j'aurais dû venir plus tôt. Il déversa longuement son cœur sur la tombe d'un parfait inconnu. Affolé, Kinbei désignait tombe après tombe. Kinbei : Ah non, en fait c'était celle-ci. Non attendez, en fait, c'est celle-là. Changeant sans cesse la tombe qu'il faisait passer pour la sienne." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Enfin, essuyant ses larmes, Mokubei se tourna vers Kinbei avec une question. Mokubei : Dis-moi, Kisegawa semble avoir un nombre incroyable de tombes, éparpillées un peu partout. Kinbei, la mine amère, n'eut qu'une chose à répondre. Kinbei : Eh bien, monsieur, c'est que, de son vivant déjà, elle se faisait choisir un peu partout par client après client." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Omitate — La Selección — se refería originalmente al cliente que, entre todas las cortesanas, elegía a su favorita. Pero en este relato, alguien terminará teniendo que elegir de una manera mucho más absurda de lo que jamás hubiera imaginado. En el antiguo barrio de placer de Yoshiwara, el dinero solo no bastaba para conseguir una cita: una cortesana bien podía decretar que cierto cliente no era bienvenido, y salirse con la suya. Así que aquí va un cuento ambientado en ese mundo." },
+    { id:'p2', title:"②杢兵衛登場", ssml:false, text:"Desde el campo había llegado un rico cliente llamado Mokubei, que había vendido sus tierras y se presentaba en Yoshiwara con los bolsillos llenos, perdidamente enamorado de Kisegawa, la cortesana estrella del barrio. El problema era que, por muy generoso que fuera con el dinero, Mokubei resultaba de lo más tosco, incapaz de decir un cumplido, torpe en todo. Kisegawa, francamente, no lo soportaba. Aun así, Mokubei volvía cada pocos días, insistiéndole al joven encargado Kinbei para que lo dejara verla." },
+    { id:'p3', title:"③仮病", ssml:false, text:"Hoy de nuevo Mokubei cruzó la cortina de la entrada. Mokubei: Oye, Kinbei, ¿está Kisegawa? Kinbei: Pues, verá, resulta que Kisegawa se resfrió desde ayer y está guardando cama. Era una mentira inventada al vuelo. Mokubei se alarmó. Mokubei: Eso es terrible, ¿está muy mal? Kinbei pensó: perfecto, así se irá. Pero apenas lo pensó, Mokubei, lejos de irse, se inclinó aún más hacia adelante." },
+    { id:'p4', title:"④見舞いの申し出", ssml:false, text:"Mokubei: ¡No puedo quedarme de brazos cruzados sabiendo que está enferma! Bien, iré a cuidarla yo mismo. Lo dijo con total seriedad, y Kinbei palideció. Kisegawa estaba perfectamente bien, divirtiéndose con otro cliente en otra sala; si Mokubei iba a visitarla, todo se vendría abajo. Kinbei: ¡No, no, de ninguna manera, podría contagiarse! Intentó detenerlo desesperadamente, pero Mokubei no quería escuchar nada. Mokubei: Bah, ¿qué importa un resfriado? Acorralado, Kinbei soltó otra mentira más. Kinbei: En realidad, señor, es mucho peor que un resfriado. Es una enfermedad grave." },
+    { id:'p5', title:"⑤とうとう死んだことに", ssml:false, text:"La preocupación de Mokubei no hacía sino crecer. Venía a importunar casi todos los días. Mokubei: ¿Cómo sigue Kisegawa? Kinbei, sin poder ya dar marcha atrás, soltó. Kinbei: En realidad, está en estado crítico desde ayer. Y esta mañana, lamentablemente, falleció. Una mentira descomunal. Había pensado que la noticia de su muerte por fin haría desistir a Mokubei; qué terrible error de cálculo. Mokubei rompió en grandes lágrimas. Mokubei: Entonces, entonces de verdad se ha ido. Con más razón debo visitar al menos su tumba." },
+    { id:'p6', title:"⑥墓参り", ssml:false, text:"Incapaz de negarse, Kinbei terminó llevando a Mokubei al cementerio de un templo cercano. Por supuesto, no había tumba alguna de Kisegawa, ya que no había muerto. Desesperado, Kinbei señaló una vieja lápida al azar. Kinbei: Ehh, aquí está, esta es la tumba de Kisegawa. Una improvisación descarada. Mokubei juntó las manos y rompió a llorar a gritos. Mokubei: Kisegawa, lo siento tanto, debí haber venido antes. Y se desahogó largamente ante la tumba de un completo desconocido. Nervioso, Kinbei fue señalando una lápida tras otra. Kinbei: Ah, no, en realidad era esta de aquí. No espere, en realidad es aquella. Cambiando una y otra vez cuál tumba hacía pasar por la suya." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Por fin, secándose las lágrimas, Mokubei se volvió hacia Kinbei con una pregunta. Mokubei: Oye, Kisegawa parece tener una cantidad enorme de tumbas repartidas por todas partes. Kinbei, con expresión amarga, solo tuvo una cosa que decir. Kinbei: Pues, señor, es que, ya en vida, la elegían por todas partes, cliente tras cliente." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

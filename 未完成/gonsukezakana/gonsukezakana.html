@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>権助魚 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.23 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">権助魚</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Gonsuke Zakana / Gonsuke's Fish</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②旦那の企み</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③権助への言いつけ</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④嘘を本当にしようとする</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤ばれる遣り取り</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">正直者<rt>しょうじきもの</rt></ruby>は<ruby class="v1">損<rt>そん</rt></ruby>をする、なんてことを<ruby class="v1">申<rt>もう</rt></ruby>しますが、いえいえ、<ruby class="v1">正直<rt>しょうじき</rt></ruby>に<ruby class="v1">生<rt>い</rt></ruby>きるのが一<ruby class="v1">番<rt>ばん</rt></ruby>でございます。<br>とは<ruby class="v1">言<rt>い</rt></ruby>うものの、あんまり<ruby class="v1">馬鹿正直<rt>ばかしょうじき</rt></ruby>すぎますと、かえって<ruby class="v1">話<rt>はなし</rt></ruby>がややこしくなることもございましてね。<ruby class="v1">世<rt>よ</rt></ruby>の<ruby class="v1">旦那衆<rt>だんなしゅう</rt></ruby>という<ruby class="v1">者<rt>もの</rt></ruby>は、たまに<ruby class="v2">御贔屓<rt>ごひいき</rt></ruby>のお<ruby class="v1">方<rt>かた</rt></ruby>のところへ<ruby class="v1">忍<rt>しの</rt></ruby>んで<ruby class="v1">行<rt>い</rt></ruby>きたいがために、いろいろと<ruby class="v1">知恵<rt>ちえ</rt></ruby>を<ruby class="v1">絞<rt>しぼ</rt></ruby>るものでございますが、その<ruby class="v1">道具<rt>どうぐ</rt></ruby>に<ruby class="v1">使<rt>つか</rt></ruby>われる<ruby class="v1">奉公人<rt>ほうこうにん</rt></ruby>がまた、<ruby class="v1">生<rt>う</rt></ruby>まれついての<ruby class="v1">正直者<rt>しょうじきもの</rt></ruby>だったりすると、これがとんだ<ruby class="v1">騒動<rt>そうどう</rt></ruby>になる。<br><ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、とびきり<ruby class="v1">正直<rt>しょうじき</rt></ruby>な<ruby class="v1">田舎者<rt>いなかもの</rt></ruby>の<ruby class="v2">権助<rt>ごんすけ</rt></ruby>という<ruby class="v1">奉公人<rt>ほうこうにん</rt></ruby>が、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>の<ruby class="v1">色恋沙汰<rt>いろこいざた</rt></ruby>の<ruby class="v1">尻拭<rt>しりぬぐ</rt></ruby>いをさせられて、とんだ<ruby class="v1">大騒動<rt>おおそうどう</rt></ruby>になるという、ちょいと<ruby class="v1">間<rt>ま</rt></ruby>の<ruby class="v1">抜<rt>ぬ</rt></ruby>けたお<ruby class="v1">話<rt>はなし</rt></ruby>を一<ruby class="v1">席<rt>せき</rt></ruby>。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【旦那の企み】</span>
+                    ある<ruby class="v1">商家<rt>しょうか</rt></ruby>の<ruby class="v1">旦那<rt>だんな</rt></ruby>、<ruby class="v1">実<rt>じつ</rt></ruby>は<ruby class="v1">町<rt>まち</rt></ruby>の<ruby class="v1">向<rt>む</rt></ruby>こうに<ruby class="v2">贔屓<rt>ひいき</rt></ruby>にしているお<ruby class="v1">方<rt>かた</rt></ruby>がおりまして、これがどうにも<ruby class="v1">頭<rt>あたま</rt></ruby>から<ruby class="v1">離<rt>はな</rt></ruby>れない。かといって、<ruby class="v1">女房<rt>にょうぼう</rt></ruby>に<ruby class="v1">怪<rt>あや</rt></ruby>しまれずに<ruby class="v1">家<rt>いえ</rt></ruby>を<ruby class="v1">空<rt>あ</rt></ruby>けるのは<ruby class="v1">容易<rt>ようい</rt></ruby>なことではございません。そこで<ruby class="v1">旦那<rt>だんな</rt></ruby>、ある<ruby class="v1">日<rt>ひ</rt></ruby>のこと、にこにこ<ruby class="v1">顔<rt>がお</rt></ruby>で<ruby class="v1">女房<rt>にょうぼう</rt></ruby>に<ruby class="v1">持<rt>も</rt></ruby>ちかけます。<br><strong>旦那：</strong>「おかみさん、<ruby class="v1">今日<rt>きょう</rt></ruby>はいい<ruby class="v1">天気<rt>てんき</rt></ruby>だ。たまには<ruby class="v2">権助<rt>ごんすけ</rt></ruby>を<ruby class="v1">連<rt>つ</rt></ruby>れて、<ruby class="v1">舟<rt>ふね</rt></ruby>で<ruby class="v1">釣<rt>つ</rt></ruby>りにでも<ruby class="v1">行<rt>い</rt></ruby>っておいでな」<br><ruby class="v1">実<rt>じつ</rt></ruby>はこれ、<ruby class="v1">旦那<rt>だんな</rt></ruby>の<ruby class="v2">魂胆<rt>こんたん</rt></ruby>でございまして、<ruby class="v1">女房<rt>にょうぼう</rt></ruby>を<ruby class="v1">外<rt>そと</rt></ruby>へ<ruby class="v1">出<rt>だ</rt></ruby>しておいて、その<ruby class="v1">隙<rt>すき</rt></ruby>にこっそり<ruby class="v2">贔屓<rt>ひいき</rt></ruby>のお<ruby class="v1">方<rt>かた</rt></ruby>のところへしけこもうという<ruby class="v1">寸法<rt>すんぽう</rt></ruby>。<ruby class="v1">女房<rt>にょうぼう</rt></ruby>は<ruby class="v1">何<rt>なに</rt></ruby>も<ruby class="v1">知<rt>し</rt></ruby>らず、「まあ、それは<ruby class="v1">結構<rt>けっこう</rt></ruby>ですこと」と、<ruby class="v1">支度<rt>したく</rt></ruby>を<ruby class="v1">始<rt>はじ</rt></ruby>めます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【権助への言いつけ】</span>
+                    <ruby class="v1">旦那<rt>だんな</rt></ruby>、<ruby class="v2">権助<rt>ごんすけ</rt></ruby>を<ruby class="v1">裏<rt>うら</rt></ruby>へ<ruby class="v1">呼<rt>よ</rt></ruby>びつけて、こっそり<ruby class="v1">耳打<rt>みみう</rt></ruby>ち。<br><strong>旦那：</strong>「いいか<ruby class="v2">権助<rt>ごんすけ</rt></ruby>、お<ruby class="v1">前<rt>まえ</rt></ruby>は<ruby class="v1">今日<rt>きょう</rt></ruby>、お<ruby class="v1">上<rt>かみ</rt></ruby>さんのお<ruby class="v1">供<rt>とも</rt></ruby>をして<ruby class="v1">舟<rt>ふね</rt></ruby>で<ruby class="v1">釣<rt>つ</rt></ruby>りに<ruby class="v1">行<rt>い</rt></ruby>くんだ。もし<ruby class="v1">誰<rt>だれ</rt></ruby>かに、<ruby class="v1">旦那<rt>だんな</rt></ruby>はどこへ<ruby class="v1">行<rt>い</rt></ruby>ったと<ruby class="v1">聞<rt>き</rt></ruby>かれたら、『<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>も<ruby class="v1">一緒<rt>いっしょ</rt></ruby>に、<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りに<ruby class="v1">行<rt>い</rt></ruby>きました』と、そう<ruby class="v1">言<rt>い</rt></ruby>うんだぞ。わかったな」<br><strong>権助：</strong>「へえ、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>も<ruby class="v1">御一緒<rt>ごいっしょ</rt></ruby>に<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りへ、と<ruby class="v1">申<rt>もう</rt></ruby>せばよろしいので」<br><strong>旦那：</strong>「そうだ、そう<ruby class="v1">言<rt>い</rt></ruby>っておけばいい」<br><ruby class="v2">権助<rt>ごんすけ</rt></ruby>は<ruby class="v1">根<rt>ね</rt></ruby>っからの<ruby class="v1">正直者<rt>しょうじきもの</rt></ruby>、二<ruby class="v1">言返事<rt>つへんじ</rt></ruby>で<ruby class="v1">引<rt>ひ</rt></ruby>き<ruby class="v1">受<rt>う</rt></ruby>けますが、<ruby class="v1">生<rt>う</rt></ruby>まれてこの<ruby class="v1">方<rt>かた</rt></ruby>、<ruby class="v1">人<rt>ひと</rt></ruby>を<ruby class="v1">騙<rt>だま</rt></ruby>すなどという<ruby class="v1">器用<rt>きよう</rt></ruby>な<ruby class="v1">真似<rt>まね</rt></ruby>をしたことがございません。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【嘘を本当にしようとする】</span>
+                    <ruby class="v1">女房<rt>にょうぼう</rt></ruby>と<ruby class="v2">権助<rt>ごんすけ</rt></ruby>、<ruby class="v1">舟<rt>ふね</rt></ruby>で<ruby class="v1">本当<rt>ほんとう</rt></ruby>に<ruby class="v1">出掛<rt>でか</rt></ruby>けます。ところが<ruby class="v2">権助<rt>ごんすけ</rt></ruby>、<ruby class="v1">旦那<rt>だんな</rt></ruby>の<ruby class="v1">嘘<rt>うそ</rt></ruby>を「<ruby class="v1">本当<rt>ほんとう</rt></ruby>のことにしておかなくちゃ」と<ruby class="v1">生真面目<rt>きまじめ</rt></ruby>に<ruby class="v1">考<rt>かんが</rt></ruby>え、<ruby class="v1">女房<rt>にょうぼう</rt></ruby>に<ruby class="v1">向<rt>む</rt></ruby>かってこう<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>します。<br><strong>権助：</strong>「さあ、<ruby class="v1">奥様<rt>おくさま</rt></ruby>、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>も<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りへ<ruby class="v1">行<rt>い</rt></ruby>ったと<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げにゃなりませんので、<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v1">本当<rt>ほんとう</rt></ruby>に<ruby class="v1">魚<rt>さかな</rt></ruby>を<ruby class="v1">釣<rt>つ</rt></ruby>らなくてはいけません」<br>と<ruby class="v1">言<rt>い</rt></ruby>って、<ruby class="v1">慣<rt>な</rt></ruby>れない<ruby class="v1">竿<rt>さお</rt></ruby>を<ruby class="v1">振<rt>ふ</rt></ruby>り<ruby class="v1">回<rt>まわ</rt></ruby>し、<ruby class="v1">本気<rt>ほんき</rt></ruby>で<ruby class="v1">釣<rt>つ</rt></ruby>りに<ruby class="v1">没頭<rt>ぼっとう</rt></ruby>してしまいます。<ruby class="v1">女房<rt>にょうぼう</rt></ruby>は<ruby class="v2">権助<rt>ごんすけ</rt></ruby>の<ruby class="v1">様子<rt>ようす</rt></ruby>がどうも<ruby class="v1">妙<rt>みょう</rt></ruby>だと<ruby class="v1">気付<rt>きづ</rt></ruby>き<ruby class="v1">始<rt>はじ</rt></ruby>めます。<br><strong>女房：</strong>「おや、<ruby class="v2">権助<rt>ごんすけ</rt></ruby>や、そんなに<ruby class="v1">一生懸命<rt>いっしょうけんめい</rt></ruby>にならなくてもいいんだよ」<br><strong>権助：</strong>「いえ、そういうわけには<ruby class="v1">参<rt>まい</rt></ruby>りません!」
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【ばれる遣り取り】</span>
+                    <ruby class="v1">女房<rt>にょうぼう</rt></ruby>、<ruby class="v2">権助<rt>ごんすけ</rt></ruby>の<ruby class="v1">態度<rt>たいど</rt></ruby>から<ruby class="v1">何<rt>なに</rt></ruby>かを<ruby class="v1">勘付<rt>かんづ</rt></ruby>き<ruby class="v1">始<rt>はじ</rt></ruby>め、<ruby class="v2">鎌<rt>かま</rt></ruby>をかけて<ruby class="v1">尋<rt>たず</rt></ruby>ねます。<br><strong>女房：</strong>「<ruby class="v2">権助<rt>ごんすけ</rt></ruby>や、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>は<ruby class="v1">今日<rt>きょう</rt></ruby>、どちらへおいでなのだえ」<br><ruby class="v2">権助<rt>ごんすけ</rt></ruby>、<ruby class="v1">正直<rt>しょうじき</rt></ruby>すぎるあまり、<ruby class="v1">咄嗟<rt>とっさ</rt></ruby>に<ruby class="v1">言葉<rt>ことば</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>てこず、<br><strong>権助：</strong>「へえ、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>は、あの…その、なんですが…<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りに、あ、いえ、それは<ruby class="v1">私<rt>わたくし</rt></ruby>どもで、<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>は…あの、<ruby class="v2">御贔屓<rt>ごひいき</rt></ruby>の…」<br>としどろもどろになって、かえって<ruby class="v1">墓穴<rt>ぼけつ</rt></ruby>を<ruby class="v1">掘<rt>ほ</rt></ruby>り、<ruby class="v1">隠<rt>かく</rt></ruby>し<ruby class="v1">事<rt>ごと</rt></ruby>があることも、<ruby class="v1">女<rt>おんな</rt></ruby>の<ruby class="v1">影<rt>かげ</rt></ruby>があることも、<ruby class="v1">全部<rt>ぜんぶ</rt></ruby>ばらしてしまいます。<br><strong>女房：</strong>「ほほう、<ruby class="v2">御贔屓<rt>ごひいき</rt></ruby>の、ねえ」<br><ruby class="v2">権助<rt>ごんすけ</rt></ruby>「あっ! い、いえ、<ruby class="v1">今<rt>いま</rt></ruby>のは<ruby class="v1">何<rt>なん</rt></ruby>でもございません!」と<ruby class="v1">真<rt>ま</rt></ruby>っ<ruby class="v1">青<rt>さお</rt></ruby>になりますが、<ruby class="v1">時<rt>とき</rt></ruby>すでに<ruby class="v1">遅<rt>おそ</rt></ruby>し。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">女房<rt>にょうぼう</rt></ruby>、すべてを<ruby class="v1">察<rt>さっ</rt></ruby>して、<ruby class="v1">静<rt>しず</rt></ruby>かに<ruby class="v2">権助<rt>ごんすけ</rt></ruby>に<ruby class="v1">言<rt>い</rt></ruby>います。<br><strong>女房：</strong>「なるほど、よくわかったよ。<ruby class="v2">権助<rt>ごんすけ</rt></ruby>、お<ruby class="v1">前<rt>まえ</rt></ruby>は<ruby class="v1">正直<rt>しょうじき</rt></ruby>で<ruby class="v1">結構<rt>けっこう</rt></ruby>だけどねぇ」<br><strong>権助：</strong>「へえ、あたしは<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>の<ruby class="v1">仰<rt>おっしゃ</rt></ruby>る<ruby class="v1">通<rt>とお</rt></ruby>り、ちゃんと『<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りに<ruby class="v1">行<rt>い</rt></ruby>った』と<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げましたが」<br><strong>女房：</strong>「ああ、それは<ruby class="v1">本当<rt>ほんとう</rt></ruby>のことだろうさ。<ruby class="v1">魚釣<rt>さかなつ</rt></ruby>りに<ruby class="v1">行<rt>い</rt></ruby>ったのは、あたしとお<ruby class="v1">前<rt>まえ</rt></ruby>だけ。<ruby class="v1">旦那<rt>だんな</rt></ruby>が<ruby class="v1">食<rt>く</rt></ruby>いついたのは、どうやら<ruby class="v1">別<rt>べつ</rt></ruby>の<ruby class="v1">魚<rt>さかな</rt></ruby>だったようだね」<br>と、にっこり<ruby class="v1">笑<rt>わら</rt></ruby>って<ruby class="v1">舟<rt>ふね</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>で<ruby class="v1">釣竿<rt>つりざお</rt></ruby>を<ruby class="v1">置<rt>お</rt></ruby>いたという、これがサゲでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Well now, let me tell you a story. They say honest people always lose out in the end — but no, no, living honestly is truly the best way to live. That said, when someone is honest to the point of sheer foolishness, it can twist a simple situation into an awful tangle. You see, a certain kind of gentleman likes, now and then, to sneak off to visit a lady he's fond of, and dreams up all sorts of clever schemes to manage it — but when the servant he uses as his tool happens to be honest to the bone, it all turns into an almighty mess. Today's tale is about just such a servant: an artlessly honest country fellow named Gonsuke, forced to cover up his master's little romance, with hilariously disastrous results.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MERCHANT'S SCHEME]</span>There was a certain merchant who, truth be told, had a lady he was fond of clear across town, and he simply couldn't get her out of his head. But slipping out of the house without arousing his wife's suspicion was no easy matter. So one day, putting on his sweetest smile, he made a suggestion to her. "My dear, it's such fine weather today. Why don't you take Gonsuke along and go out fishing on a boat for once?" In truth, this was all a scheme — get his wife out of the house, and in that gap, sneak off himself to see his sweetheart. His wife, suspecting nothing at all, says "Oh, how lovely," and begins getting ready to go.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[ORDERS FOR THE HONEST SERVANT]</span>The master calls Gonsuke around back and whispers to him in secret. "Now listen, Gonsuke. Today you're going along with the mistress as her escort on a fishing boat. If anyone asks where I've gone, you're to say, 'The master went fishing along with us too.' Say exactly that, understand?" "Yessir, so I'm to say the master went along fishing too, is that right?" "That's it, just say that and you'll be fine." Gonsuke, an honest man through and through, agrees without a second thought — but the truth is, in his whole life, he has never once managed the delicate art of deceiving anybody.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING TO MAKE THE LIE TRUE]</span>The mistress and Gonsuke really do set out on the boat. But Gonsuke, taking his master's lie with dead seriousness, decides that they simply must "make it true" — and turns to the mistress with this declaration: "Now then, ma'am, since we're going to have to say the master went fishing too, we really do have to catch some fish today." And with that, he starts flailing about with a fishing pole he's never used in his life, throwing himself with total earnestness into actually catching fish. The mistress begins to notice that something about Gonsuke is rather odd. "Now, now, Gonsuke, you needn't work quite so hard at it." "No ma'am, that simply won't do!"</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HONEST CONFESSION THAT RUINS EVERYTHING]</span>The mistress starts to sense something is off in Gonsuke's manner, and casts out a leading question. "Say, Gonsuke, where has the master really gone off to today?" Gonsuke, being far too honest for his own good, can't get the words out fast enough, and stammers: "Yes ma'am, the master is, um... that is, well... gone fishing, ah, no, that's us, the master is... um, off at the place of that lady he's fond of..." And in his stumbling confusion, he digs his own grave completely, giving away both the fact that there was something being hidden and the fact that there's another woman involved. "Oh ho. 'The lady he's fond of,' is it?" "Ah! N-no, that, that was nothing, I didn't say anything!" Gonsuke turns pale as a sheet — but it's already far too late.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>The mistress, having pieced it all together, says quietly to Gonsuke: "I see. Now I understand perfectly. Gonsuke, being honest is a fine thing, you know." "Yes ma'am, and just as the master told me, I properly said we'd gone fishing." "Ah, well, that much is true enough. The only ones who actually went fishing today were you and me. It seems the master's the one who took the bait — from an entirely different fish." And with a quiet smile, she sets down her fishing pole there in the boat. And that, ladies and gentlemen, is the punchline.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Eh bien, laissez-moi vous conter une histoire. On dit que les honnêtes gens sont toujours perdants — mais non, non, vivre honnêtement reste la meilleure des choses. Cela dit, quand quelqu'un est honnête au point d'en être bête, cela peut transformer une situation toute simple en un embrouillamini terrible. Voyez-vous, certains messieurs aiment, de temps à autre, aller retrouver en cachette une dame qu'ils apprécient, et inventent mille stratagèmes astucieux pour y parvenir — mais quand le serviteur dont ils se servent comme outil se trouve être honnête jusqu'à la moelle, tout tourne au désastre le plus cocasse. L'histoire d'aujourd'hui parle justement d'un tel serviteur : un paysan d'une honnêteté maladroite nommé Gonsuke, forcé de couvrir la petite idylle de son maître, avec des résultats aussi désastreux qu'hilarants.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MERCHANT'S SCHEME]</span>Il y avait un certain marchand qui, à vrai dire, avait une dame qu'il aimait bien de l'autre côté de la ville, et il n'arrivait tout simplement pas à se l'ôter de l'esprit. Mais quitter la maison sans éveiller les soupçons de sa femme n'était pas chose facile. Alors un jour, arborant son plus doux sourire, il lui fit une suggestion. « Ma chère, quel beau temps aujourd'hui. Pourquoi n'emmènerais-tu pas Gonsuke faire une sortie en barque pour pêcher, pour une fois ? » En vérité, tout cela n'était qu'un stratagème — faire sortir sa femme de la maison, et profiter de cette absence pour filer en douce voir sa bien-aimée. Sa femme, ne soupçonnant rien du tout, dit « Oh, quelle bonne idée », et commence à se préparer.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[ORDERS FOR THE HONEST SERVANT]</span>Le maître appelle Gonsuke derrière la maison et lui chuchote en secret. « Écoute bien, Gonsuke. Aujourd'hui, tu accompagnes madame en bateau pour la pêche. Si quelqu'un te demande où je suis allé, tu diras : « Le maître est venu pêcher avec nous aussi. » Dis exactement cela, compris ? » « Oui monsieur, donc je dois dire que le maître est venu pêcher avec nous aussi, c'est bien ça ? » « C'est cela, dis simplement ça et tout ira bien. » Gonsuke, honnête jusqu'à la moelle, accepte sans la moindre hésitation — mais la vérité, c'est que de toute sa vie, il n'a jamais réussi l'art délicat de tromper qui que ce soit.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING TO MAKE THE LIE TRUE]</span>La maîtresse de maison et Gonsuke partent réellement en barque. Mais Gonsuke, prenant le mensonge de son maître on ne peut plus au sérieux, décide qu'il faut absolument « le rendre vrai » — et se tourne vers elle avec cette déclaration : « Bon, madame, puisqu'il faudra dire que le maître est aussi venu pêcher, il faut vraiment que nous attrapions du poisson aujourd'hui. » Sur ce, il se met à agiter frénétiquement une canne à pêche qu'il n'a jamais utilisée de sa vie, se jetant avec un sérieux total dans la pêche véritable. La maîtresse commence à remarquer que quelque chose cloche chez Gonsuke. « Voyons, Gonsuke, tu n'as pas besoin de t'y mettre avec autant d'ardeur. » « Non madame, cela ne peut pas convenir ! »</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HONEST CONFESSION THAT RUINS EVERYTHING]</span>La maîtresse commence à sentir que quelque chose cloche dans l'attitude de Gonsuke, et lance une question insidieuse. « Dis-moi, Gonsuke, où est vraiment allé le maître aujourd'hui ? » Gonsuke, bien trop honnête pour son propre bien, ne parvient pas à trouver ses mots assez vite et bafouille : « Oui madame, le maître est, euh... c'est-à-dire, eh bien... parti pêcher, ah, non, ça c'est nous, le maître est... euh, chez cette dame qu'il apprécie... » Et dans sa confusion balbutiante, il se creuse lui-même sa tombe, révélant à la fois qu'il y avait quelque chose de caché et qu'une autre femme était impliquée. « Oh, tiens donc. « Cette dame qu'il apprécie », vraiment ? » « Ah ! N-non, ça, ce n'était rien, je n'ai rien dit ! » Gonsuke devient blanc comme un linge — mais il est déjà bien trop tard.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>La maîtresse, ayant tout reconstitué, dit calmement à Gonsuke : « Je vois. Maintenant je comprends parfaitement. Gonsuke, être honnête, c'est une belle qualité, tu sais. » « Oui madame, et exactement comme me l'a dit le maître, j'ai bien dit qu'on était allés pêcher. » « Ah, eh bien, cela au moins est bien vrai. Les seuls à être vraiment allés pêcher aujourd'hui, c'est toi et moi. On dirait que c'est le maître qui a mordu à l'hameçon — mais pour un tout autre poisson. » Et avec un sourire tranquille, elle repose sa canne à pêche là, dans la barque. Et voilà, mesdames et messieurs, la chute de l'histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Bueno, déjenme contarles una historia. Dicen que la gente honesta siempre sale perdiendo — pero no, no, vivir con honestidad sigue siendo lo mejor. Dicho esto, cuando alguien es honesto hasta el punto de la necedad, puede convertir una situación sencilla en un enredo terrible. Verán, cierto tipo de caballero gusta, de vez en cuando, de escaparse a escondidas para ver a una dama que le agrada, e inventa toda clase de artimañas para lograrlo — pero cuando el sirviente al que usa como herramienta resulta ser honesto hasta la médula, todo se convierte en un desastre de lo más cómico. La historia de hoy trata justamente de un sirviente así: un campesino de una honestidad torpe llamado Gonsuke, obligado a encubrir el pequeño romance de su amo, con resultados tan desastrosos como hilarantes.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MERCHANT'S SCHEME]</span>Había cierto comerciante que, a decir verdad, tenía una dama que le gustaba al otro lado de la ciudad, y sencillamente no podía quitársela de la cabeza. Pero salir de casa sin despertar las sospechas de su esposa no era tarea fácil. Así que un día, con su sonrisa más dulce, le hizo una sugerencia. «Querida, hace un tiempo espléndido hoy. ¿Por qué no llevas a Gonsuke y sales a pescar en un bote, para variar?» En realidad, todo esto era una artimaña: sacar a su esposa de casa y, en ese hueco, escabullirse él para ver a su amada. Su esposa, sin sospechar nada, dice «Ay, qué buena idea», y comienza a prepararse.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[ORDERS FOR THE HONEST SERVANT]</span>El amo llama a Gonsuke detrás de la casa y le susurra en secreto. «Escucha bien, Gonsuke. Hoy acompañarás a la señora en un bote de pesca. Si alguien te pregunta adónde fui, dirás: «El amo también vino a pescar con nosotros.» Di exactamente eso, ¿entendido?» «Sí, señor, entonces debo decir que el amo también vino a pescar con nosotros, ¿verdad?» «Eso es, di solo eso y todo saldrá bien.» Gonsuke, honesto hasta la médula, acepta sin pensarlo dos veces — pero la verdad es que, en toda su vida, jamás ha logrado el delicado arte de engañar a nadie.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING TO MAKE THE LIE TRUE]</span>La señora y Gonsuke salen de verdad en el bote. Pero Gonsuke, tomándose la mentira de su amo con total seriedad, decide que hay que «hacerla realidad» — y se dirige a ella con esta declaración: «Bien, señora, ya que habrá que decir que el amo también vino a pescar, hoy tenemos que pescar de verdad.» Y dicho esto, se pone a agitar frenéticamente una caña de pescar que jamás ha usado en su vida, entregándose con total seriedad a pescar de verdad. La señora empieza a notar que algo anda raro con Gonsuke. «Vamos, Gonsuke, no hace falta que te esfuerces tanto.» «No, señora, ¡eso no puede ser!»</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE HONEST CONFESSION THAT RUINS EVERYTHING]</span>La señora empieza a notar que algo no encaja en la actitud de Gonsuke, y lanza una pregunta capciosa. «Dime, Gonsuke, ¿adónde ha ido realmente el amo hoy?» Gonsuke, demasiado honesto para su propio bien, no logra encontrar las palabras a tiempo y balbucea: «Sí, señora, el amo está, eh... es decir, bueno... se fue a pescar, ah, no, eso somos nosotros, el amo está... eh, donde esa dama que le gusta...» Y en su confusión tartamudeante, cava su propia tumba por completo, revelando tanto que había algo oculto como que había otra mujer de por medio. «Vaya, vaya. ¿«Esa dama que le gusta», eh?» «¡Ah! N-no, eso, eso no fue nada, ¡no dije nada!» Gonsuke se pone pálido como un papel — pero ya es demasiado tarde.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>La señora, habiendo atado cabos, le dice tranquilamente a Gonsuke: «Ya veo. Ahora lo entiendo perfectamente. Gonsuke, ser honesto es una buena cualidad, ¿sabes?» «Sí, señora, y tal como me dijo el amo, dije correctamente que habíamos ido a pescar.» «Ah, bueno, eso sí que es verdad. Los únicos que de verdad fueron a pescar hoy fuimos tú y yo. Parece que el amo es quien mordió el anzuelo — pero de un pez muy distinto.» Y con una sonrisa tranquila, deja la caña de pescar allí, en el bote. Y ese, damas y caballeros, es el remate del cuento.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②旦那の企み","③権助への言いつけ","④嘘を本当にしようとする","⑤ばれる遣り取り","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② The merchant's scheme","③ Orders for the honest servant","④ Trying to make the lie true","⑤ The honest confession that ruins everything","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鰻の幇間 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.19 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">鰻の幇間</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Unagi no Taikomochi / The Flatterer's Eel</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②男を見かける</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③追従</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④鰻屋にて</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤男が席を外す</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥勘定と真実</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦オチ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">世間<rt>せけん</rt></ruby>には、お<ruby class="v1">座敷<rt>ざしき</rt></ruby>で<ruby class="v1">旦那<rt>だんな</rt></ruby>を<ruby class="v1">褒<rt>ほ</rt></ruby>めちぎって、それで<ruby class="v1">飯<rt>めし</rt></ruby>を<ruby class="v1">食<rt>く</rt></ruby>っているという、<ruby class="v2">幇間<rt>ほうかん</rt></ruby>、<ruby class="v1">俗<rt>ぞく</rt></ruby>に<ruby class="v1">太鼓持<rt>たいこも</rt></ruby>ちという<ruby class="v1">商売<rt>しょうばい</rt></ruby>がございます。とにかく<ruby class="v1">人<rt>ひと</rt></ruby>をおだてるのが<ruby class="v1">上手<rt>じょうず</rt></ruby>でございましてね。どんなに<ruby class="v2">野暮<rt>やぼ</rt></ruby>な<ruby class="v1">旦那<rt>だんな</rt></ruby>でも、<ruby class="v2">幇間<rt>ほうかん</rt></ruby>にかかれば「さすが<ruby class="v1">旦那<rt>だんな</rt></ruby>、お<ruby class="v1">目<rt>め</rt></ruby>が<ruby class="v1">高<rt>たか</rt></ruby>い」のひと<ruby class="v1">言<rt>こと</rt></ruby>で、すっかりいい<ruby class="v1">気分<rt>きぶん</rt></ruby>にさせられてしまう。<ruby class="v1">人<rt>ひと</rt></ruby>をおだてて<ruby class="v1">世<rt>よ</rt></ruby>を<ruby class="v1">渡<rt>わた</rt></ruby>っている<ruby class="v1">商売<rt>しょうばい</rt></ruby>でございますから、<ruby class="v1">自分<rt>じぶん</rt></ruby>が<ruby class="v1">人<rt>ひと</rt></ruby>に<ruby class="v2">騙<rt>だま</rt></ruby>されるなんてことは、まずないはずなんでございますが。<ruby class="v1">今日<rt>きょう</rt></ruby>はその<ruby class="v2">幇間<rt>ほうかん</rt></ruby>が、とんだ<ruby class="v1">目<rt>め</rt></ruby>に<ruby class="v1">遭<rt>あ</rt></ruby>うというお<ruby class="v1">話<rt>はなし</rt></ruby>でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【男を見かける】</span>
+                    <ruby class="v1">一八<rt>いっぱち</rt></ruby>という<ruby class="v2">幇間<rt>ほうかん</rt></ruby>がおりまして、これがなかなかの<ruby class="v1">腕<rt>うで</rt></ruby>でございます。ある<ruby class="v1">日<rt>ひ</rt></ruby>のこと、<ruby class="v2">両国<rt>りょうごく</rt></ruby>あたりをぶらぶら<ruby class="v1">歩<rt>ある</rt></ruby>いておりますとね、<ruby class="v1">向<rt>む</rt></ruby>こうから<ruby class="v2">恰幅<rt>かっぷく</rt></ruby>のいい<ruby class="v1">旦那風<rt>だんなふう</rt></ruby>の<ruby class="v1">男<rt>おとこ</rt></ruby>が<ruby class="v1">歩<rt>ある</rt></ruby>いてまいります。<ruby class="v1">一八<rt>いっぱち</rt></ruby>、ふとその<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、あっと<ruby class="v1">思<rt>おも</rt></ruby>いましてね。「こりゃ、<ruby class="v1">去年<rt>きょねん</rt></ruby><ruby class="v2">吉原<rt>よしわら</rt></ruby>で<ruby class="v1">大層<rt>たいそう</rt></ruby>お<ruby class="v1">世話<rt>せわ</rt></ruby>になった、<ruby class="v2">田原町<rt>たわらまち</rt></ruby>の<ruby class="v1">旦那<rt>だんな</rt></ruby>じゃないか」と。よくよく<ruby class="v1">見<rt>み</rt></ruby>れば、<ruby class="v1">着物<rt>きもの</rt></ruby>の<ruby class="v1">柄<rt>がら</rt></ruby>も、<ruby class="v1">歩<rt>ある</rt></ruby>き<ruby class="v1">方<rt>かた</rt></ruby>も、なんだかそれらしい。<ruby class="v1">一八<rt>いっぱち</rt></ruby>、これは<ruby class="v2">渡<rt>わた</rt></ruby>りに<ruby class="v1">船<rt>ふね</rt></ruby>とばかりに、<ruby class="v1">満面<rt>まんめん</rt></ruby>の<ruby class="v1">笑<rt>え</rt></ruby>みを<ruby class="v1">浮<rt>う</rt></ruby>かべて<ruby class="v1">近<rt>ちか</rt></ruby>づいてまいります。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【追従】</span>
+                    <strong><ruby class="v1">一八<rt>いっぱち</rt></ruby>：</strong>「これはこれは<ruby class="v1">旦那<rt>だんな</rt></ruby>、しばらくでございます！いやもうお<ruby class="v1">忘<rt>わす</rt></ruby>れでしょうが、あたくし、<ruby class="v1">去年<rt>きょねん</rt></ruby><ruby class="v2">吉原<rt>よしわら</rt></ruby>でお<ruby class="v1">座敷<rt>ざしき</rt></ruby>を<ruby class="v1">務<rt>つと</rt></ruby>めさせていただきました、<ruby class="v1">一八<rt>いっぱち</rt></ruby>でございます！」<br><ruby class="v1">男<rt>おとこ</rt></ruby>：「ああ、そうだったかね」<br><strong><ruby class="v1">一八<rt>いっぱち</rt></ruby>：</strong>「<ruby class="v1">相変<rt>あいか</rt></ruby>わらずお<ruby class="v1">元気<rt>げんき</rt></ruby>そうで、なによりでございます。<ruby class="v1">旦那<rt>だんな</rt></ruby>にはあの<ruby class="v1">節<rt>せつ</rt></ruby>、<ruby class="v1">大変<rt>たいへん</rt></ruby><ruby class="v1">結構<rt>けっこう</rt></ruby>なものをご<ruby class="v1">馳走<rt>ちそう</rt></ruby>になりまして……そうそう、<ruby class="v1">旦那<rt>だんな</rt></ruby>はほんとうに<ruby class="v2">鰻<rt>うなぎ</rt></ruby>がお<ruby class="v1">好<rt>す</rt></ruby>きでいらっしゃいましたね」<br><ruby class="v1">男<rt>おとこ</rt></ruby>：「まあ、<ruby class="v1">嫌<rt>きら</rt></ruby>いじゃないな」<br><strong><ruby class="v1">一八<rt>いっぱち</rt></ruby>：</strong>「<ruby class="v1">実<rt>じつ</rt></ruby>はこの<ruby class="v1">先<rt>さき</rt></ruby>に、なかなかの<ruby class="v2">鰻屋<rt>うなぎや</rt></ruby>がございましてね。<ruby class="v1">旦那<rt>だんな</rt></ruby>、ちょうどようございます、ひとつご<ruby class="v1">一緒<rt>いっしょ</rt></ruby>に、あたくしにご<ruby class="v2">相伴<rt>しょうばん</rt></ruby>させてくださいまし」<br><ruby class="v1">男<rt>おとこ</rt></ruby>：「ああ、いいとも」<br><ruby class="v1">一八<rt>いっぱち</rt></ruby>、まんまと<ruby class="v1">話<rt>はなし</rt></ruby>をまとめまして、<ruby class="v2">鰻屋<rt>うなぎや</rt></ruby>へ<ruby class="v1">向<rt>む</rt></ruby>かって<ruby class="v1">二人<rt>ふたり</rt></ruby>、<ruby class="v1">肩<rt>かた</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べて<ruby class="v1">歩<rt>ある</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>しました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【鰻屋にて】</span>
+                    <ruby class="v1">二人<rt>ふたり</rt></ruby>は<ruby class="v1">近<rt>ちか</rt></ruby>くの<ruby class="v2">鰻屋<rt>うなぎや</rt></ruby>の<ruby class="v1">二階<rt>にかい</rt></ruby>へ<ruby class="v1">上<rt>あ</rt></ruby>がりまして、<ruby class="v1">一八<rt>いっぱち</rt></ruby>はもう<ruby class="v2">独壇場<rt>どくだんじょう</rt></ruby>でございます。「<ruby class="v1">旦那<rt>だんな</rt></ruby>、ここの<ruby class="v2">鰻<rt>うなぎ</rt></ruby>は<ruby class="v2">江戸前<rt>えどまえ</rt></ruby>で<ruby class="v2">天下一品<rt>てんかいっぴん</rt></ruby>でございますよ」「お<ruby class="v1">酒<rt>さけ</rt></ruby>はぬる<ruby class="v2">燗<rt>かん</rt></ruby>で<ruby class="v1">参<rt>まい</rt></ruby>りましょう」などと、<ruby class="v1">注文<rt>ちゅうもん</rt></ruby>から<ruby class="v1">酌<rt>しゃく</rt></ruby>まで、<ruby class="v1">何<rt>なに</rt></ruby>から<ruby class="v1">何<rt>なに</rt></ruby>まで<ruby class="v1">一八<rt>いっぱち</rt></ruby>がテキパキと<ruby class="v1">仕切<rt>しき</rt></ruby>りましてね。<ruby class="v1">男<rt>おとこ</rt></ruby>が<ruby class="v1">箸<rt>はし</rt></ruby>をつければ「いや<ruby class="v1">旦那<rt>だんな</rt></ruby>、お<ruby class="v1">召<rt>め</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>がりになる<ruby class="v1">姿<rt>すがた</rt></ruby>がまた<ruby class="v1">粋<rt>いき</rt></ruby>でいらっしゃる」、<ruby class="v1">酒<rt>さけ</rt></ruby>をつげば「<ruby class="v1">旦那<rt>だんな</rt></ruby>の<ruby class="v2">盃<rt>さかずき</rt></ruby>の<ruby class="v1">受<rt>う</rt></ruby>け<ruby class="v1">方<rt>かた</rt></ruby>は、<ruby class="v1">他<rt>ほか</rt></ruby>の<ruby class="v1">旦那衆<rt>だんなしゅう</rt></ruby>とはひと<ruby class="v1">味<rt>あじ</rt></ruby><ruby class="v1">違<rt>ちが</rt></ruby>いますな」と、<ruby class="v1">休<rt>やす</rt></ruby>む<ruby class="v1">間<rt>ま</rt></ruby>もなく<ruby class="v1">褒<rt>ほ</rt></ruby>め<ruby class="v1">言葉<rt>ことば</rt></ruby>が<ruby class="v1">飛<rt>と</rt></ruby>び<ruby class="v1">出<rt>だ</rt></ruby>してまいります。<ruby class="v1">男<rt>おとこ</rt></ruby>のほうは、にこにこと<ruby class="v1">聞<rt>き</rt></ruby>きながら、<ruby class="v1">黙<rt>だま</rt></ruby>って<ruby class="v2">盃<rt>さかずき</rt></ruby>を<ruby class="v1">重<rt>かさ</rt></ruby>ねるばかりでございます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【男が席を外す】</span>
+                    ひとしきり<ruby class="v2">鰻<rt>うなぎ</rt></ruby>を<ruby class="v1">平<rt>たい</rt></ruby>らげ、お<ruby class="v1">酒<rt>さけ</rt></ruby>もまわったころ、<ruby class="v1">男<rt>おとこ</rt></ruby>がふと<ruby class="v1">箸<rt>はし</rt></ruby>を<ruby class="v1">置<rt>お</rt></ruby>きましてね。<br><ruby class="v1">男<rt>おとこ</rt></ruby>：「<ruby class="v1">一八<rt>いっぱち</rt></ruby>、すまないが、ちょいとそこまで<ruby class="v1">用足<rt>ようた</rt></ruby>しに<ruby class="v1">行<rt>い</rt></ruby>ってくるよ。すぐ<ruby class="v1">戻<rt>もど</rt></ruby>るから」<br><ruby class="v1">一八<rt>いっぱち</rt></ruby>：「へえ、いってらっしゃいまし。ごゆっくりどうぞ」<br><ruby class="v1">男<rt>おとこ</rt></ruby>はそう<ruby class="v1">言<rt>い</rt></ruby>って、<ruby class="v1">財布<rt>さいふ</rt></ruby>も<ruby class="v1">何<rt>なに</rt></ruby>も<ruby class="v1">持<rt>も</rt></ruby>たずに、ふらりと<ruby class="v1">部屋<rt>へや</rt></ruby>を<ruby class="v1">出<rt>で</rt></ruby>ていきました。<ruby class="v1">一八<rt>いっぱち</rt></ruby>はそれを<ruby class="v1">見送<rt>みおく</rt></ruby>りながら、いよいよいい<ruby class="v1">心持<rt>こころも</rt></ruby>ちで、<ruby class="v1">残<rt>のこ</rt></ruby>った<ruby class="v2">鰻<rt>うなぎ</rt></ruby>をつまみながら、<ruby class="v1">酒<rt>さけ</rt></ruby>をちびりちびりとやっております。ところが、いくら<ruby class="v1">待<rt>ま</rt></ruby>っても、<ruby class="v1">男<rt>おとこ</rt></ruby>は<ruby class="v1">戻<rt>もど</rt></ruby>ってまいりません。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【勘定と真実】</span>
+                    <ruby class="v1">大分<rt>だいぶ</rt></ruby><ruby class="v1">経<rt>た</rt></ruby>ってから、<ruby class="v1">下<rt>した</rt></ruby>の<ruby class="v1">女中<rt>じょちゅう</rt></ruby>が「お<ruby class="v1">連<rt>つ</rt></ruby>れさま、お<ruby class="v1">会計<rt>かいけい</rt></ruby>をお<ruby class="v1">願<rt>ねが</rt></ruby>いします」と<ruby class="v1">上<rt>あ</rt></ruby>がってまいりました。<ruby class="v1">一八<rt>いっぱち</rt></ruby>、<ruby class="v1">慌<rt>あわ</rt></ruby>てて「いや、あれは<ruby class="v1">連<rt>つ</rt></ruby>れの<ruby class="v1">旦那<rt>だんな</rt></ruby>が<ruby class="v1">払<rt>はら</rt></ruby>うから」と<ruby class="v1">言<rt>い</rt></ruby>いますてね。<br><ruby class="v1">女中<rt>じょちゅう</rt></ruby>：「はい、それが、さきほどのお<ruby class="v1">客様<rt>きゃくさま</rt></ruby>は、<ruby class="v1">裏口<rt>うらぐち</rt></ruby>から<ruby class="v1">出<rt>で</rt></ruby>て<ruby class="v1">行<rt>い</rt></ruby>かれたようで」<br><ruby class="v1">一八<rt>いっぱち</rt></ruby>、はっと<ruby class="v1">青<rt>あお</rt></ruby>くなりましてね。よくよく<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>してみれば、あの<ruby class="v1">男<rt>おとこ</rt></ruby>とは<ruby class="v2">吉原<rt>よしわら</rt></ruby>で<ruby class="v1">二言三言<rt>にことみこと</rt></ruby>、<ruby class="v1">言葉<rt>ことば</rt></ruby>を<ruby class="v1">交<rt>か</rt></ruby>わしただけで、ろくに<ruby class="v1">顔<rt>かお</rt></ruby>も<ruby class="v1">覚<rt>おぼ</rt></ruby>えていなかった。しかも<ruby class="v1">聞<rt>き</rt></ruby>けば、あちこちで<ruby class="v1">似<rt>に</rt></ruby>たような<ruby class="v1">手口<rt>てぐち</rt></ruby>で<ruby class="v1">人<rt>ひと</rt></ruby>をだましては<ruby class="v1">姿<rt>すがた</rt></ruby>を<ruby class="v1">消<rt>け</rt></ruby>す、<ruby class="v1">有名<rt>ゆうめい</rt></ruby>な<ruby class="v2">食<rt>く</rt></ruby>い<ruby class="v2">逃<rt>に</rt></ruby>げの<ruby class="v2">常習犯<rt>じょうしゅうはん</rt></ruby>だという<ruby class="v1">噂<rt>うわさ</rt></ruby>もある。<ruby class="v1">一八<rt>いっぱち</rt></ruby>、すっかり<ruby class="v2">騙<rt>だま</rt></ruby>されたと<ruby class="v1">気<rt>き</rt></ruby>づいて、<ruby class="v1">頭<rt>あたま</rt></ruby>を<ruby class="v1">抱<rt>かか</rt></ruby>えるばかりでございます。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【オチ】</span>
+                    <ruby class="v1">仕方<rt>しかた</rt></ruby>なく、<ruby class="v1">一八<rt>いっぱち</rt></ruby>がなけなしの<ruby class="v1">財布<rt>さいふ</rt></ruby>をはたいて<ruby class="v1">勘定<rt>かんじょう</rt></ruby>を<ruby class="v1">払<rt>はら</rt></ruby>い、すごすごと<ruby class="v1">店<rt>みせ</rt></ruby>を<ruby class="v1">出<rt>で</rt></ruby>ようといたしますとね、<ruby class="v2">下駄箱<rt>げたばこ</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で、はたと<ruby class="v1">足<rt>あし</rt></ruby>が<ruby class="v1">止<rt>と</rt></ruby>まりました。<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">履<rt>は</rt></ruby>いてきた、まだ<ruby class="v1">新<rt>あたら</rt></ruby>しい<ruby class="v1">良<rt>よ</rt></ruby>い<ruby class="v2">下駄<rt>げた</rt></ruby>がない。あるのは、<ruby class="v2">鼻緒<rt>はなお</rt></ruby>の<ruby class="v1">切<rt>き</rt></ruby>れかかった、ボロボロの<ruby class="v2">下駄<rt>げた</rt></ruby>が一<ruby class="v1">足<rt>そく</rt></ruby>だけ。<ruby class="v1">一八<rt>いっぱち</rt></ruby>、<ruby class="v1">思<rt>おも</rt></ruby>わず<ruby class="v1">天<rt>てん</rt></ruby>を<ruby class="v1">仰<rt>あお</rt></ruby>ぎましてね。<br><strong><ruby class="v1">一八<rt>いっぱち</rt></ruby>：</strong>「ああ、<ruby class="v2">幇間<rt>ほうかん</rt></ruby>が<ruby class="v2">幇間<rt>ほうかん</rt></ruby>に<ruby class="v2">騙<rt>だま</rt></ruby>されるとは、とんだ<ruby class="v1">一杯<rt>いっぱい</rt></ruby><ruby class="v1">食<rt>く</rt></ruby>わされたもんだ。しかもご<ruby class="v1">丁寧<rt>ていねい</rt></ruby>に、<ruby class="v2">下駄<rt>げた</rt></ruby>まで<ruby class="v1">持<rt>も</rt></ruby>っていかれるとは」<br><ruby class="v1">人<rt>ひと</rt></ruby>をおだてて<ruby class="v1">生<rt>い</rt></ruby>きてきた<ruby class="v1">男<rt>おとこ</rt></ruby>が、それ<ruby class="v1">以上<rt>いじょう</rt></ruby>の<ruby class="v1">上手<rt>じょうて</rt></ruby>にまんまと<ruby class="v1">乗<rt>の</rt></ruby>せられ、<ruby class="v1">勘定<rt>かんじょう</rt></ruby>はおろか<ruby class="v1">足元<rt>あしもと</rt></ruby>まで<ruby class="v1">巻<rt>ま</rt></ruby>き<ruby class="v1">上<rt>あ</rt></ruby>げられた、というお<ruby class="v1">話<rt>はなし</rt></ruby>でございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. In this world there's a profession called taikomochi — a party entertainer whose entire job is flattering wealthy patrons so lavishly that he earns his living, meals included, purely from buttering people up. These men are masters of praise: no matter how boorish or graceless a patron might be, a single line like 'Ah sir, what a discerning eye you have' from a taikomochi is enough to put him in the finest of moods. Since their whole livelihood comes from flattering others, you'd think a taikomochi would be the last person anyone could ever fool. But today's story is about one such flatterer who found himself in quite the predicament.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MARK]</span>There was a taikomochi named Ippachi, quite skilled at his trade. One day, strolling around the Ryogoku district, he spotted a well-built, prosperous-looking man walking toward him. Ippachi caught sight of the man's face and gave a start. 'Wait — isn't that the generous patron from Tawaramachi who treated me so well in the Yoshiwara last year?' The more he looked — the pattern of the kimono, the way the man walked — the more it seemed to fit. Thinking this was a stroke of luck too good to pass up, Ippachi put on his brightest smile and hurried over.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[WORKING THE CHARM]</span><strong>Ippachi:</strong> "Well, well, if it isn't you, sir! It's been ages! I'm sure you've forgotten me, but I'm Ippachi — I had the honor of entertaining at your party in the Yoshiwara last year!"<br><strong>Man:</strong> "Ah... yes, I suppose that's right."<br><strong>Ippachi:</strong> "You look as well as ever, sir, wonderful to see. That time, you treated me to the most splendid things... ah yes, and I recall you were quite fond of eel, weren't you?"<br><strong>Man:</strong> "Well, I don't dislike it."<br><strong>Ippachi:</strong> "As it happens, there's a fine eel restaurant just up ahead. What perfect timing, sir — do let me join you for a bite."<br><strong>Man:</strong> "Sure, why not."<br>Ippachi, having smoothly sealed the deal, set off shoulder to shoulder with the man toward the eel restaurant.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[AT THE EEL HOUSE]</span>Up they went to the second floor of a nearby eel restaurant, where Ippachi took full command of the stage. 'Sir, the eel here is proper Edo-style, the finest there is!' 'Let's have the sake warmed just right!' He handled everything — ordering, pouring, all of it — with brisk efficiency. Whenever the man picked up his chopsticks: 'Ah sir, even the way you eat is so elegant.' Whenever he raised his cup: 'The way you hold your sake cup, sir, it's a cut above the other gentlemen.' The praise never stopped coming. The man just smiled along, saying little, and quietly kept refilling his cup.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MAN SLIPS AWAY]</span><strong>Man:</strong> "Ippachi, sorry, but I need to step out for a moment — an errand. I'll be right back."<br><strong>Ippachi:</strong> "Of course, sir, off you go. Take your time."<br>With that, the man got up and wandered out of the room, without so much as his wallet. Ippachi saw him off, feeling more pleased with himself than ever, nibbling at the last of the eel and taking little sips of sake. But no matter how long he waited, the man never came back.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BILL AND THE TRUTH]</span>After quite a while, the maid came upstairs. "Excuse me, your bill, please." Ippachi, flustered, said, "Oh, no, my companion will be paying for that." <strong>Maid:</strong> "Well, actually... it seems your guest left through the back entrance a while ago." Ippachi went pale. Thinking back carefully, he realized he'd only exchanged a few words with that man once in the Yoshiwara — he barely even remembered his face. And now he heard rumors that a man matching that description had been going around town pulling the same trick and vanishing — a notorious dine-and-dasher. Ippachi, finally understanding he'd been completely conned, could only clutch his head in despair.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE: GETA]</span>Left with no choice, Ippachi scraped together what little money he had to pay the bill, and trudged toward the exit in defeat. But at the shoe rack, he stopped dead. His own good geta sandals, still nearly new, were gone. In their place sat a single shabby pair, the thong straps nearly torn through. Ippachi could only look up at the ceiling in disbelief.<br><strong>Ippachi:</strong> "Ah, to think a flatterer would be conned by a fellow flatterer — what a beating I've taken. And to think he was thoughtful enough to take my geta too!"<br>A man who had made his living flattering others had, in the end, been smoothly played by someone even better at the game — left not only to foot the bill, but to walk home in someone else's broken sandals.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Il existe un métier appelé taikomochi — un amuseur de banquet dont tout le travail consiste à flatter si généreusement de riches clients qu'il en tire sa subsistance, repas compris, uniquement en les couvrant de compliments. Ces hommes sont des maîtres de la flatterie : aussi grossier ou balourd que soit un client, une seule phrase comme « Ah, monsieur, quel œil affûté vous avez » suffit à le mettre d'excellente humeur. Puisque tout leur gagne-pain repose sur l'art de flatter autrui, on pourrait croire qu'un taikomochi serait la dernière personne à se faire duper. Mais l'histoire d'aujourd'hui raconte comment l'un de ces flatteurs se retrouva dans un bien fâcheux pétrin.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MARK]</span>Il y avait un taikomochi nommé Ippachi, plutôt habile dans son art. Un jour, en flânant du côté de Ryogoku, il aperçut un homme bien bâti, à l'allure prospère, marchant vers lui. Ippachi regarda son visage et sursauta. « Attends — ne serait-ce pas ce généreux client de Tawaramachi qui m'avait si bien traité à Yoshiwara l'an dernier ? » Plus il l'observait — le motif du kimono, la démarche — plus cela semblait correspondre. Se disant que c'était une aubaine à ne pas laisser passer, Ippachi afficha son plus beau sourire et s'approcha vivement.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[WORKING THE CHARM]</span><strong>Ippachi :</strong> « Eh bien, eh bien, mais c'est vous, monsieur ! Cela fait une éternité ! Vous m'avez sûrement oublié, mais je suis Ippachi — j'ai eu l'honneur de vous divertir lors de votre soirée à Yoshiwara l'an dernier ! »<br><strong>L'homme :</strong> « Ah... oui, c'est bien possible. »<br><strong>Ippachi :</strong> « Vous avez toujours aussi bonne mine, monsieur, quel plaisir de vous revoir. Cette fois-là, vous m'aviez offert des mets somptueux... ah oui, et je me souviens que vous aimiez beaucoup l'anguille, n'est-ce pas ? »<br><strong>L'homme :</strong> « Eh bien, je ne déteste pas ça. »<br><strong>Ippachi :</strong> « Justement, il y a un excellent restaurant d'anguille juste devant. Quel heureux hasard, monsieur — laissez-moi vous accompagner pour en profiter. »<br><strong>L'homme :</strong> « Bien sûr, pourquoi pas. »<br>Ippachi, ayant habilement conclu l'affaire, se mit en route épaule contre épaule avec l'homme vers le restaurant d'anguille.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[AT THE EEL HOUSE]</span>Ils montèrent au premier étage d'un restaurant d'anguille voisin, où Ippachi prit pleinement les commandes. « Monsieur, l'anguille ici est du pur style d'Edo, la meilleure qui soit ! » « Prenons le saké tiède, juste comme il faut ! » Il s'occupait de tout — commander, servir — avec une efficacité redoutable. Chaque fois que l'homme prenait ses baguettes : « Ah monsieur, même votre façon de manger est d'une élégance rare. » Chaque fois qu'il levait sa coupe : « Votre manière de tenir la coupe de saké, monsieur, surpasse de loin celle des autres messieurs. » Les compliments ne cessaient jamais. L'homme se contentait de sourire, disant peu, et remplissait tranquillement sa coupe encore et encore.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MAN SLIPS AWAY]</span><strong>L'homme :</strong> « Ippachi, désolé, mais je dois sortir un instant — une course à faire. Je reviens tout de suite. »<br><strong>Ippachi :</strong> « Bien sûr, monsieur, allez-y. Prenez votre temps. »<br>Sur ce, l'homme se leva et sortit tranquillement de la pièce, sans même emporter son porte-monnaie. Ippachi le regarda partir, plus content de lui que jamais, grignotant le reste de l'anguille et sirotant son saké à petites gorgées. Mais il eut beau attendre, l'homme ne revint jamais.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BILL AND THE TRUTH]</span>Au bout d'un bon moment, la servante monta. « Excusez-moi, l'addition, s'il vous plaît. » Ippachi, décontenancé, répondit : « Oh, non, c'est mon compagnon qui va régler ça. » <strong>La servante :</strong> « Eh bien, en fait... il semblerait que votre invité soit parti par la porte de derrière il y a un moment. » Ippachi devint blême. En y repensant bien, il réalisa qu'il n'avait échangé que quelques mots avec cet homme, une seule fois, à Yoshiwara — il se souvenait à peine de son visage. Et voilà qu'il entendait dire qu'un homme correspondant à cette description sévissait en ville avec le même stratagème, disparaissant à chaque fois — un escroc notoire qui filait sans payer. Ippachi, comprenant enfin qu'il s'était fait totalement berner, ne put que se prendre la tête entre les mains.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE: GETA]</span>Sans autre choix, Ippachi rassembla le peu d'argent qu'il lui restait pour payer l'addition, et se dirigea, penaud, vers la sortie. Mais devant le râtelier à chaussures, il s'arrêta net. Ses propres geta, encore presque neuves, avaient disparu. À leur place ne restait qu'une paire miteuse, aux lanières presque déchirées. Ippachi ne put que lever les yeux au ciel, incrédule.<br><strong>Ippachi :</strong> « Ah, dire qu'un flatteur se fait rouler par un autre flatteur — quelle déconvenue. Et il a même eu la délicatesse d'emporter mes geta ! »<br>Un homme qui avait fait fortune en flattant les autres s'était finalement fait mener en bateau, avec une élégance redoutable, par quelqu'un d'encore plus habile que lui — laissé non seulement à payer l'addition, mais à rentrer chez lui dans les sandales cassées d'un autre.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Existe un oficio llamado taikomochi: un animador de banquetes cuyo trabajo consiste enteramente en halagar a clientes adinerados con tal esmero que se gana la vida, comidas incluidas, solo con adularlos. Estos hombres son maestros del elogio: por muy tosco o desatento que sea un cliente, una sola frase como «Ah, señor, qué buen ojo tiene usted» basta para ponerlo del mejor humor. Como todo su sustento depende de halagar a los demás, uno pensaría que un taikomochi sería la última persona en dejarse engañar. Pero la historia de hoy trata de uno de estos aduladores que se vio metido en un buen aprieto.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[SPOTTING THE MARK]</span>Había un taikomochi llamado Ippachi, bastante hábil en su oficio. Un día, paseando por la zona de Ryogoku, vio a un hombre corpulento y de aspecto próspero caminando hacia él. Ippachi le miró la cara y se sobresaltó. «Un momento... ¿no es ese el generoso cliente de Tawaramachi que tan bien me trató en Yoshiwara el año pasado?» Cuanto más lo miraba —el estampado del kimono, la forma de caminar— más le parecía encajar. Pensando que era una oportunidad demasiado buena para dejarla pasar, Ippachi puso su mejor sonrisa y se acercó con paso ligero.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[WORKING THE CHARM]</span><strong>Ippachi:</strong> «¡Vaya, vaya, si es usted, señor! ¡Cuánto tiempo! Seguro que me ha olvidado, pero soy Ippachi, tuve el honor de animar su fiesta en Yoshiwara el año pasado.»<br><strong>Hombre:</strong> «Ah... sí, puede ser.»<br><strong>Ippachi:</strong> «Se le ve tan bien como siempre, señor, qué alegría verlo. Aquella vez me invitó usted a cosas espléndidas... ah, sí, y recuerdo que le encantaba la anguila, ¿verdad?»<br><strong>Hombre:</strong> «Bueno, no me disgusta.»<br><strong>Ippachi:</strong> «Precisamente hay un excelente restaurante de anguila aquí adelante. Qué buena coincidencia, señor... permítame acompañarlo a probarla.»<br><strong>Hombre:</strong> «Claro, por qué no.»<br>Ippachi, tras cerrar hábilmente el trato, echó a andar hombro con hombro junto al hombre hacia el restaurante de anguila.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[AT THE EEL HOUSE]</span>Subieron al segundo piso de un restaurante de anguila cercano, donde Ippachi tomó por completo las riendas. «¡Señor, la anguila aquí es puro estilo de Edo, la mejor que hay!» «¡Tomemos el sake tibio, en su punto justo!» Se encargaba de todo —pedir, servir— con una eficacia incansable. Cada vez que el hombre tomaba los palillos: «Ah, señor, hasta su forma de comer es elegantísima.» Cada vez que alzaba la copa: «La forma en que sostiene la copa de sake, señor, supera con creces a la de los demás caballeros.» Los elogios no cesaban nunca. El hombre solo sonreía, hablando poco, y seguía llenando su copa en silencio.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MAN SLIPS AWAY]</span><strong>Hombre:</strong> «Ippachi, disculpa, pero tengo que salir un momento, un recado. Vuelvo enseguida.»<br><strong>Ippachi:</strong> «Por supuesto, señor, vaya usted. Tómese su tiempo.»<br>Dicho esto, el hombre se levantó y salió tranquilamente de la habitación, sin llevar siquiera su monedero. Ippachi lo despidió, más satisfecho de sí mismo que nunca, picoteando lo que quedaba de anguila y bebiendo el sake a sorbitos. Pero por mucho que esperó, el hombre nunca regresó.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE BILL AND THE TRUTH]</span>Al cabo de un buen rato, subió la sirvienta. «Disculpe, la cuenta, por favor.» Ippachi, desconcertado, respondió: «Ah, no, eso lo paga mi acompañante.» <strong>Sirvienta:</strong> «Pues... en realidad, parece que su invitado salió por la puerta trasera hace un rato.» Ippachi palideció. Pensándolo bien, se dio cuenta de que solo había intercambiado unas palabras con aquel hombre una vez, en Yoshiwara; apenas recordaba su cara. Y ahora oía rumores de que un hombre con esa misma descripción andaba por la ciudad haciendo el mismo truco y desapareciendo, un conocido estafador que comía y se iba sin pagar. Ippachi, comprendiendo por fin que lo habían engañado por completo, no pudo más que llevarse las manos a la cabeza.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE: GETA]</span>Sin otra opción, Ippachi reunió el poco dinero que le quedaba para pagar la cuenta y se dirigió, cabizbajo, hacia la salida. Pero frente al zapatero se detuvo en seco. Sus propias geta, casi nuevas, habían desaparecido. En su lugar solo quedaba un par desgastado, con las correas casi deshechas. Ippachi no pudo más que mirar al cielo, incrédulo.<br><strong>Ippachi:</strong> «Ah, pensar que un adulador sería engañado por otro adulador... vaya paliza me han dado. ¡Y encima tuvo la delicadeza de llevarse mis geta!»<br>Un hombre que se había ganado la vida halagando a otros terminó siendo hábilmente embaucado por alguien aún más diestro en el arte, quedándose no solo con la cuenta por pagar, sino caminando a casa con las sandalias rotas de otro.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②男を見かける","③追従","④鰻屋にて","⑤男が席を外す","⑥勘定と真実","⑦オチ"];
+        const partNamesEn = ["① Prologue","② Spotting the mark","③ Working the charm","④ At the eel house","⑤ The man slips away","⑥ The bill and the truth","⑦ The punchline: geta"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

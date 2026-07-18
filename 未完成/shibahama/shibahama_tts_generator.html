@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>芝浜 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 芝浜 TTS ジェネレーター</h1>
+<p class="subtitle">全8パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全8パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全8パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（24ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（32ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。人間、真面目に働いていればそのうち良いことがある、なんてえことを申しますが、これがなかなか、そう簡単にはまいりません。<break time=\"500ms\"/>特に、お酒がお好きだという方は、稼いだ端から飲んでしまって、朝から晩まで女房に小言を言われるというのが相場でございます。<break time=\"500ms\"/>今日のお噺は、そんな酒好きの魚屋の亭主と、それを陰でしっかり支えるできた女房の一席、芝浜でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②芝浜で財布拾う", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">むかし、江戸は芝の浜辺近くに、魚勝という腕はいいが大の酒好きという魚屋の亭主がおりました。<break time=\"400ms\"/>ある日、女房に、たまには早起きしてお得意さんを回っておくれよと起こされ、しぶしぶ暗いうちから芝浜へと出かけます。<break time=\"500ms\"/>まだ夜も明けきらぬ浜辺で顔を洗おうとしゃがみこんだところ、足元に何やら重たい包みが転がっている。<break time=\"400ms\"/>拾い上げてみると、ずっしりとした革の財布でございます。<break time=\"300ms\"/>中を開けてみれば、じゃらじゃらと山のような小判。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p3', title:"③女房を起こす", ssml:true, text:"<speak><prosody rate=\"112%\" pitch=\"0st\">魚勝は腰を抜かさんばかりに驚いて、財布を懐に抱え込むと一目散に長屋へ駆け戻ります。<break time=\"300ms\"/></prosody><prosody rate=\"125%\" pitch=\"+1st\">おい、起きてくれ、大変だ!<break time=\"300ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と女房を叩き起こし、震える手で財布を差し出す。<break time=\"300ms\"/></prosody><prosody rate=\"122%\" pitch=\"+1st\">浜で拾ったんだ、この通りの大金だ。もう魚屋なんぞしなくたっていい、一生遊んで暮らせるぞ!<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と大はしゃぎ。女房は財布の中身を見て目を丸くしますが、ひとまず<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">今日はゆっくりお休みなさい<break time=\"300ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">となだめます。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④大盤振る舞い", ssml:true, text:"<speak><prosody rate=\"115%\" pitch=\"0st\">だが魚勝は矢も盾もたまらず、その足で長屋中の仲間を呼び集めてしまいます。<break time=\"300ms\"/></prosody><prosody rate=\"128%\" pitch=\"+1st\">今日は俺のおごりだ、遠慮はいらねえ!<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">と、酒屋から一升樽を何本も運ばせ、魚河岸の若い衆から近所の隠居まで集めての大宴会。<break time=\"300ms\"/>三味線が鳴り、都々逸が飛び交い、朝まで飲めや歌えの大騒ぎ。<break time=\"400ms\"/>魚勝はすっかり酔いつぶれ、そのまま高いびきで眠り込んでしまいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤夢だったと知らされる", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">翌朝、女房に揺り起こされた魚勝、寝ぼけ眼で<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">おい、あの財布はどこにしまった<break time=\"300ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">と聞くと、女房はきょとんとした顔で<break time=\"300ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">財布?何の話だい<break time=\"300ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">昨日拾った小判の入った財布だよ!<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"-1st\">あんた、いくら何でも寝ぼけすぎだよ。そんなもの見ちゃいないし、大体、ゆうべ長屋中呼んで飲めや歌えの大騒ぎしたのは本当のことだよ。その代、うちにはもう払う当てもないんだからね<break time=\"500ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">と涙ながらに叱られ、魚勝は真っ青になります。全部酔っ払って見た夢だったのか、と己の情けなさに言葉もありません。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥心を入れ替えて", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">このことがよほど骨身にこたえたと見えて、魚勝はその日を境にぴたりと酒を断ちます。<break time=\"400ms\"/>夜明け前から仕入れに出て、真面目一方に商いに精を出す。<break time=\"400ms\"/>もとより腕のいい男でございますから、酒を断って三年、五年と経つうちに、すっかり評判の魚屋となり、店も持てるほどに身代を築き上げました。<break time=\"400ms\"/>近所でも、魚勝さんはすっかり変わったねえ、ともっぱらの噂でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦大晦日の告白", ssml:true, text:"<speak><prosody rate=\"98%\" pitch=\"-1st\">そうして迎えた、ある年の大晦日の晩のこと。女房が改まった顔で<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">あんた、今夜は話しておかなきゃいけないことがあるんだよ<break time=\"400ms\"/></prosody><prosody rate=\"97%\" pitch=\"0st\">と切り出します。<break time=\"400ms\"/></prosody><prosody rate=\"93%\" pitch=\"-1st\">あの時の財布はね、夢なんかじゃなかったんだよ。本当にあんたが拾ってきたものだったんだ。<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">魚勝は驚いて女房の顔を見つめます。<break time=\"400ms\"/></prosody><prosody rate=\"93%\" pitch=\"-1st\">あたしはね、あんたが酔いつぶれて寝ている間に、こっそりお役人様に届け出たのさ。急に大金を手にした魚屋なんてのは、大抵ろくなことにならないってお前さんが心配で。持ち主が現れなければ、いずれこの金はうちのものになる決まりだからって、それを待って、ずっと黙って預かっていたんだよ。<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p8', title:"⑧サゲ", ssml:true, text:"<speak><prosody rate=\"92%\" pitch=\"-1st\">今日まで黙っていて、すまなかったね。でも、あんたが酒をやめて、こんなに立派になってくれたんだ。さあ、今夜くらいは、これでゆっくりお酒を飲んでおくれよ<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、女房は久しぶりに杯を差し出します。魚勝はしばらくその杯を見つめ、震える手でそっと押し戻すと申しました。<break time=\"600ms\"/></prosody><prosody rate=\"88%\" pitch=\"-2st\">よそう。せっかくのめでてえ酒だが……また夢になるといけねえ。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. They say that if a person works honestly, good things will eventually come their way — but life is rarely so simple. Especially if you're fond of drink: the money you earn slips through your fingers into the sake cup, and you spend your days being scolded by your wife. Today's tale is about just such a hard-drinking fishmonger, and the devoted wife who quietly holds the family together behind him — \"Shiba Beach.\"" },
+    { id:'p2', title:"②芝浜で財布拾う", ssml:false, text:"Long ago, near Shiba Beach in Edo, there lived a fishmonger named Uokatsu — skilled with his hands, but far too fond of drink. One morning his wife roused him early, saying, \"For once, go make your rounds to your customers.\" Grumbling, he set out for the beach while it was still dark. Crouching down at the water's edge to wash his face, he noticed something heavy lying at his feet. He picked it up — a thick leather purse. Opening it, he found it stuffed with a small mountain of gold coins." },
+    { id:'p3', title:"③女房を起こす", ssml:false, text:"Nearly fainting with shock, Uokatsu clutched the purse to his chest and ran home as fast as his legs would carry him. Uokatsu: \"Wake up, wake up — you won't believe this!\" He shook his wife awake and thrust the trembling purse into her hands. Uokatsu: \"I found it on the beach — look at all this gold! We don't need the fish shop anymore, we can live like lords for the rest of our lives!\" He danced about with joy. His wife's eyes went wide at the sight of the coins, but for now she only said, Wife: \"Get some rest today, dear.\"" },
+    { id:'p4', title:"④大盤振る舞い", ssml:false, text:"But Uokatsu couldn't sit still. He rushed out and gathered every friend in the tenement. Uokatsu: \"Drinks are on me tonight — don't hold back!\" He had barrels of sake hauled in from the liquor shop, called in young men from the fish market and elders from the neighborhood, and threw an enormous feast. Shamisen twanged, bawdy songs flew back and forth, and the drinking and singing carried on till dawn. Uokatsu himself drank until he collapsed, snoring loudly where he lay." },
+    { id:'p5', title:"⑤夢だったと知らされる", ssml:false, text:"The next morning, shaken awake by his wife, Uokatsu asked groggily, Uokatsu: \"Where did you put that purse?\" His wife blinked at him blankly. Wife: \"Purse? What are you talking about?\" Uokatsu: \"The purse full of gold coins I found yesterday!\" Wife: \"Honestly, you must still be half asleep. I never saw any such thing — and besides, you really did call the whole tenement over last night for that huge drinking party. We don't even have money to pay for it now.\" Scolded through her tears, Uokatsu turned pale as a sheet. Had it all been nothing but a drunken dream? He had no words for his own foolishness." },
+    { id:'p6', title:"⑥心を入れ替えて", ssml:false, text:"The shock seemed to cut Uokatsu to the bone. From that day on, he swore off drink completely. He was out before dawn buying stock, throwing himself wholly into honest work. Being a genuinely skilled tradesman, within three years, then five, he built himself a fine reputation and enough wealth to open his own shop. The whole neighborhood took notice, murmuring, \"That Uokatsu really has changed.\"" },
+    { id:'p7', title:"⑦大晦日の告白", ssml:false, text:"Then, on New Year's Eve some years later, his wife spoke to him with unusual seriousness. Wife: \"There's something I need to tell you tonight.\" Wife: \"That purse — it wasn't a dream. You really did find it that day.\" Uokatsu stared at her in astonishment. Wife: \"While you lay there dead drunk, I quietly turned it in to the magistrate's office. I was afraid — a fishmonger who suddenly comes into a fortune rarely comes to any good. The law says that if no owner ever claims it, the money eventually becomes ours. So I waited, and kept it hidden and safe, all this time.\"" },
+    { id:'p8', title:"⑧サゲ", ssml:false, text:"Wife: \"I'm sorry for keeping it from you so long. But look at the fine man you've become since you gave up drink. Come — tonight, at least, let's have a proper cup together.\" She held out a cup of sake, the first in years. Uokatsu gazed at it a long moment, then gently pushed it back with a trembling hand. Uokatsu: \"No... let's not. It's far too good an occasion for that. I might just wake up and find it was all a dream again.\"" }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. On dit qu'à force de travailler honnêtement, le bonheur finit par arriver — mais la vie est rarement aussi simple. Surtout quand on aime la boisson : l'argent gagné file aussitôt dans la tasse de saké, et on passe ses journées à se faire gronder par sa femme. L'histoire d'aujourd'hui parle d'un poissonnier bien trop porté sur la bouteille, et de son épouse dévouée qui, en coulisses, tient la famille à bout de bras — « La Plage de Shiba »." },
+    { id:'p2', title:"②芝浜で財布拾う", ssml:false, text:"Autrefois, près de la plage de Shiba à Edo, vivait un poissonnier nommé Uokatsu, habile de ses mains mais bien trop friand de saké. Un matin, sa femme le réveilla en lui disant : « Pour une fois, va donc faire ta tournée chez les clients. » En maugréant, il partit vers la plage alors qu'il faisait encore nuit noire. Accroupi au bord de l'eau pour se laver le visage, il remarqua quelque chose de lourd à ses pieds. Il le ramassa : une épaisse bourse de cuir. En l'ouvrant, il découvrit une véritable montagne de pièces d'or." },
+    { id:'p3', title:"③女房を起こす", ssml:false, text:"Manquant de s'évanouir de surprise, Uokatsu serra la bourse contre lui et courut chez lui à toutes jambes. Uokatsu : « Réveille-toi, réveille-toi, tu ne vas pas y croire ! » Il secoua sa femme et lui mit la bourse tremblante entre les mains. Uokatsu : « Je l'ai trouvée sur la plage, regarde tout cet or ! On n'a plus besoin de la poissonnerie, on va vivre comme des seigneurs ! » Il dansait de joie. Sa femme écarquilla les yeux devant les pièces, mais se contenta de dire : Épouse : « Repose-toi bien aujourd'hui, mon cher. »" },
+    { id:'p4', title:"④大盤振る舞い", ssml:false, text:"Mais Uokatsu ne tenait plus en place. Il courut rassembler tous les amis du quartier. Uokatsu : « Ce soir, c'est moi qui régale, ne vous privez de rien ! » Il fit livrer des tonneaux de saké depuis le marchand de vin, rassembla les jeunes du marché aux poissons et les anciens du voisinage pour un immense banquet. Le shamisen résonnait, les chansons paillardes fusaient, et l'on but et chanta jusqu'à l'aube. Uokatsu lui-même finit ivre mort, ronflant bruyamment sur place." },
+    { id:'p5', title:"⑤夢だったと知らされる", ssml:false, text:"Le lendemain matin, réveillé par sa femme, Uokatsu demanda d'une voix pâteuse : Uokatsu : « Où as-tu rangé cette bourse ? » Sa femme le regarda avec de grands yeux vides. Épouse : « Quelle bourse ? De quoi parles-tu ? » Uokatsu : « La bourse pleine de pièces d'or que j'ai trouvée hier ! » Épouse : « Franchement, tu dois encore être à moitié endormi. Je n'ai jamais rien vu de tel — et d'ailleurs, c'est bien toi qui as invité tout le quartier hier soir pour cette immense fête. On n'a même plus l'argent pour la payer. » Grondé, les larmes aux yeux, Uokatsu devint blanc comme un linge. Tout cela n'était-il qu'un rêve d'ivrogne ? Il resta sans voix devant sa propre bêtise." },
+    { id:'p6', title:"⑥心を入れ替えて", ssml:false, text:"Le choc sembla le marquer jusqu'aux os. Dès ce jour, Uokatsu renonça complètement à l'alcool. Il partait avant l'aube s'approvisionner, se consacrant entièrement à un travail honnête. Étant véritablement habile de ses mains, en trois ans, puis cinq, il se bâtit une belle réputation et assez de fortune pour ouvrir sa propre boutique. Tout le voisinage en parlait : « Ce Uokatsu a vraiment changé. »" },
+    { id:'p7', title:"⑦大晦日の告白", ssml:false, text:"Puis, un soir de Saint-Sylvestre quelques années plus tard, sa femme lui parla avec un sérieux inhabituel. Épouse : « Il faut que je te dise quelque chose ce soir. » Épouse : « Cette bourse... ce n'était pas un rêve. Tu l'avais vraiment trouvée ce jour-là. » Uokatsu la regarda, stupéfait. Épouse : « Pendant que tu dormais, ivre mort, je suis allée la remettre discrètement au bureau du magistrat. J'avais peur : un poissonnier qui devient soudain riche finit rarement bien. La loi dit que si personne ne réclame l'argent, il finit par nous revenir. Alors j'ai attendu, en le gardant caché et en sécurité, tout ce temps. »" },
+    { id:'p8', title:"⑧サゲ", ssml:false, text:"Épouse : « Pardon de te l'avoir caché si longtemps. Mais regarde l'homme formidable que tu es devenu depuis que tu as arrêté de boire. Allez, ce soir au moins, buvons une bonne coupe ensemble. » Elle lui tendit une tasse de saké, la première depuis des années. Uokatsu la regarda longuement, puis la repoussa doucement d'une main tremblante. Uokatsu : « Non... laissons cela. C'est une trop belle occasion pour ça. J'ai peur de me réveiller et de découvrir que ce n'était encore qu'un rêve. »" }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Permítanme contarles una historia. Dicen que si uno trabaja honradamente, tarde o temprano le llegan cosas buenas — pero la vida rara vez es tan sencilla. Sobre todo si a uno le gusta la bebida: el dinero ganado se escurre directo a la copa de sake, y uno pasa los días siendo regañado por su esposa. La historia de hoy trata de un pescadero demasiado aficionado a la bebida, y de su fiel esposa, que en la sombra sostiene a la familia — \"La Playa de Shiba\"." },
+    { id:'p2', title:"②芝浜で財布拾う", ssml:false, text:"Hace mucho tiempo, cerca de la playa de Shiba en Edo, vivía un pescadero llamado Uokatsu, hábil con las manos pero demasiado aficionado al sake. Una mañana su esposa lo despertó diciéndole: \"Por una vez, ve a visitar a tus clientes.\" Refunfuñando, salió hacia la playa cuando aún estaba oscuro. Agachado junto al agua para lavarse la cara, notó algo pesado a sus pies. Lo recogió: una gruesa bolsa de cuero. Al abrirla, encontró una auténtica montaña de monedas de oro." },
+    { id:'p3', title:"③女房を起こす", ssml:false, text:"Casi desmayándose de la impresión, Uokatsu apretó la bolsa contra su pecho y corrió a casa tan rápido como pudo. Uokatsu: \"¡Despierta, despierta, no vas a creerlo!\" Sacudió a su esposa y le puso la bolsa temblorosa entre las manos. Uokatsu: \"La encontré en la playa, ¡mira todo este oro! Ya no necesitamos la pescadería, ¡podemos vivir como señores el resto de nuestras vidas!\" Bailaba de alegría. Su esposa abrió mucho los ojos al ver las monedas, pero por ahora solo dijo: Esposa: \"Descansa bien hoy, querido.\"" },
+    { id:'p4', title:"④大盤振る舞い", ssml:false, text:"Pero Uokatsu no podía quedarse quieto. Salió corriendo a reunir a todos los amigos del vecindario. Uokatsu: \"¡Esta noche invito yo, no se contengan!\" Hizo traer barriles de sake de la tienda de licores, reunió a los jóvenes del mercado de pescado y a los ancianos del barrio para un enorme banquete. Sonaba el shamisen, volaban las canciones pícaras, y bebieron y cantaron hasta el amanecer. El propio Uokatsu terminó completamente borracho, roncando ruidosamente donde cayó." },
+    { id:'p5', title:"⑤夢だったと知らされる", ssml:false, text:"A la mañana siguiente, despertado por su esposa, Uokatsu preguntó con voz pastosa: Uokatsu: \"¿Dónde guardaste esa bolsa?\" Su esposa lo miró con ojos en blanco. Esposa: \"¿Qué bolsa? ¿De qué hablas?\" Uokatsu: \"¡La bolsa llena de monedas de oro que encontré ayer!\" Esposa: \"Francamente, debes seguir medio dormido. Nunca vi nada semejante — y además, fuiste tú quien anoche invitó a todo el vecindario a esa enorme fiesta. Ni siquiera tenemos dinero para pagarla.\" Regañado entre lágrimas, Uokatsu se puso pálido como un papel. ¿Había sido todo un sueño de borracho? No tenía palabras para su propia necedad." },
+    { id:'p6', title:"⑥心を入れ替えて", ssml:false, text:"El golpe pareció calarle hasta los huesos. Desde ese día, Uokatsu renunció por completo a la bebida. Salía antes del amanecer a comprar mercancía, entregándose por entero a un trabajo honrado. Siendo realmente hábil en su oficio, en tres años, y luego cinco, se labró una excelente reputación y suficiente fortuna para abrir su propia tienda. Todo el vecindario lo comentaba: \"Ese Uokatsu de verdad ha cambiado.\"" },
+    { id:'p7', title:"⑦大晦日の告白", ssml:false, text:"Entonces, una Nochevieja años más tarde, su esposa le habló con inusual seriedad. Esposa: \"Esta noche tengo que contarte algo.\" Esposa: \"Aquella bolsa... no fue un sueño. De verdad la encontraste aquel día.\" Uokatsu la miró, atónito. Esposa: \"Mientras estabas ahí tirado, borracho perdido, fui en silencio a entregarla a la oficina del magistrado. Tenía miedo: un pescadero que de pronto se hace rico rara vez termina bien. La ley dice que si nadie reclama el dinero, con el tiempo pasa a ser nuestro. Así que esperé, guardándolo a salvo y en secreto, todo este tiempo.\"" },
+    { id:'p8', title:"⑧サゲ", ssml:false, text:"Esposa: \"Perdón por habértelo ocultado tanto tiempo. Pero mira el hombre extraordinario en que te has convertido desde que dejaste la bebida. Vamos, esta noche al menos, brindemos como es debido.\" Le tendió una copa de sake, la primera en años. Uokatsu la contempló largo rato, y luego la apartó suavemente con mano temblorosa. Uokatsu: \"No... mejor no. Es una ocasión demasiado buena para eso. Podría despertarme y descubrir que, otra vez, todo fue un sueño.\"" }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 24;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

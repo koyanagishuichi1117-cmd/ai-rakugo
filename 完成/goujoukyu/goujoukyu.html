@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>強情灸 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.10 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">強情灸</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Goujou Kyuu / The Stubborn Moxa</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②我慢自慢</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③灸の一言</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④山盛りの勝負</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤やせ我慢</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥オチ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class="v1">人間<rt>にんげん</rt></ruby>てぇものは<ruby class="v2">妙<rt>みょう</rt></ruby>なもので、<ruby class="v1">痛<rt>いた</rt></ruby>いの<ruby class="v1">熱<rt>あつ</rt></ruby>いのは<ruby class="v1">大嫌<rt>だいきら</rt></ruby>いなくせに、<ruby class="v1">人前<rt>ひとまえ</rt></ruby>になるとやたら<ruby class="v1">強<rt>つよ</rt></ruby>がりたがるという、<ruby class="v1">困<rt>こま</rt></ruby>った<ruby class="v1">癖<rt>くせ</rt></ruby>がございます。「なんの、こんなもの<ruby class="v2">平気<rt>へいき</rt></ruby>の<ruby class="v2">平左<rt>へいざ</rt></ruby>」なんて<ruby class="v1">言<rt>い</rt></ruby>いながら、<ruby class="v1">内心<rt>ないしん</rt></ruby>は<ruby class="v1">涙目<rt>なみだめ</rt></ruby>だったりする。ことに<ruby class="v2">江戸<rt>えど</rt></ruby>っ<ruby class="v1">子<rt>こ</rt></ruby>と<ruby class="v1">来<rt>き</rt></ruby>た<ruby class="v1">日<rt>ひ</rt></ruby>には、この<ruby class="v2">痩<rt>や</rt></ruby>せ<ruby class="v1">我慢<rt>がまん</rt></ruby>がまた<ruby class="v2">格別<rt>かくべつ</rt></ruby>でしてね。<ruby class="v1">負<rt>ま</rt></ruby>けず<ruby class="v1">嫌<rt>ぎら</rt></ruby>いにも<ruby class="v1">程<rt>ほど</rt></ruby>がある、というくらいの<ruby class="v2">意地<rt>いじ</rt></ruby>っ<ruby class="v1">張<rt>ば</rt></ruby>りが、あちらこちらにおりました。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v1">意地<rt>いじ</rt></ruby>と<ruby class="v1">意地<rt>いじ</rt></ruby>とがぶつかり<ruby class="v1">合<rt>あ</rt></ruby>った、ちょいと<ruby class="v1">迷惑<rt>めいわく</rt></ruby>な<ruby class="v1">男<rt>おとこ</rt></ruby>たちのお<ruby class="v1">話<rt>はなし</rt></ruby>でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【我慢自慢】</span>
+                    さて、ある<ruby class="v1">町内<rt>ちょうない</rt></ruby>の<ruby class="v1">煙草屋<rt>たばこや</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で、<ruby class="v1">熊<rt>くま</rt></ruby>さんと<ruby class="v1">辰<rt>た</rt></ruby>っつぁんが<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">合<rt>あ</rt></ruby>わせましてね。<br><strong>熊さん：</strong>「よぉ<ruby class="v1">辰<rt>た</rt></ruby>っつぁん、この<ruby class="v1">寒<rt>さむ</rt></ruby>いのに<ruby class="v1">薄着<rt>うすぎ</rt></ruby>だな。」<br><strong>辰つぁん：</strong>「なんの、<ruby class="v1">俺<rt>おれ</rt></ruby>は<ruby class="v1">寒<rt>さむ</rt></ruby>さなんぞ<ruby class="v1">生<rt>う</rt></ruby>まれてこの<ruby class="v1">方<rt>かた</rt></ruby><ruby class="v1">感<rt>かん</rt></ruby>じたことがねぇ<ruby class="v2">性分<rt>しょうぶん</rt></ruby>でな。」<br><strong>熊さん：</strong>「へっ、<ruby class="v1">威張<rt>いば</rt></ruby>るない。<ruby class="v1">俺<rt>おれ</rt></ruby>なんざ<ruby class="v1">先月<rt>せんげつ</rt></ruby>、<ruby class="v1">歯医者<rt>はいしゃ</rt></ruby>で<ruby class="v2">虫歯<rt>むしば</rt></ruby>を<ruby class="v1">抜<rt>ぬ</rt></ruby>いたが、<ruby class="v1">痛<rt>いた</rt></ruby>いのなんの、これっぽっちも<ruby class="v1">感<rt>かん</rt></ruby>じやしなかったぜ。」<br><strong>辰つぁん：</strong>「<ruby class="v1">歯<rt>は</rt></ruby>ぁ〜〜<ruby class="v1">一本<rt>いっぽん</rt></ruby>ぐれえで<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">顔<rt>かお</rt></ruby>するない。<ruby class="v1">俺<rt>おれ</rt></ruby>なんぞ<ruby class="v1">去年<rt>きょねん</rt></ruby>、<ruby class="v1">屋根<rt>やね</rt></ruby>から<ruby class="v1">落<rt>お</rt></ruby>っこって<ruby class="v1">足<rt>あし</rt></ruby><ruby class="v1">挫<rt>くじ</rt></ruby>いたが、<ruby class="v1">一言<rt>ひとこと</rt></ruby>も<ruby class="v1">泣<rt>な</rt></ruby>き<ruby class="v1">言<rt>ごと</rt></ruby>は<ruby class="v1">言<rt>い</rt></ruby>わなかったぞ。」<br>と、こんな<ruby class="v1">調子<rt>ちょうし</rt></ruby>で、どっちが<ruby class="v1">我慢強<rt>がまんづよ</rt></ruby>いか、<ruby class="v1">競<rt>きそ</rt></ruby>い<ruby class="v1">合<rt>あ</rt></ruby>いが<ruby class="v1">始<rt>はじ</rt></ruby>まりました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【灸の一言】</span>
+                    そこへ<ruby class="v1">熊<rt>くま</rt></ruby>さんが<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>したように<ruby class="v1">言<rt>い</rt></ruby>いましてね。<br><strong>熊さん：</strong>「そういやぁ、<ruby class="v1">俺<rt>おれ</rt></ruby>のおふくろが<ruby class="v1">毎月<rt>まいつき</rt></ruby>、<ruby class="v2">灸<rt>きゅう</rt></ruby>を<ruby class="v1">据<rt>す</rt></ruby>えろってうるさくてな。だが<ruby class="v1">俺<rt>おれ</rt></ruby>は<ruby class="v2">灸<rt>きゅう</rt></ruby>なんざ<ruby class="v2">屁<rt>へ</rt></ruby>とも<ruby class="v1">思<rt>おも</rt></ruby>わねぇ。<ruby class="v1">据<rt>す</rt></ruby>えてる<ruby class="v1">間<rt>あいだ</rt></ruby>、<ruby class="v1">煙管<rt>きせる</rt></ruby>で一<ruby class="v1">服<rt>ぷく</rt></ruby>やりながら、<ruby class="v1">鼻歌<rt>はなうた</rt></ruby>まじりよ。」<br><strong>辰つぁん：</strong>「<ruby class="v2">灸<rt>きゅう</rt></ruby>ぐれえで<ruby class="v1">大<rt>おお</rt></ruby>きく<ruby class="v1">出<rt>で</rt></ruby>たな。<ruby class="v1">俺<rt>おれ</rt></ruby>なんざ<ruby class="v2">灸<rt>きゅう</rt></ruby>は<ruby class="v1">好<rt>す</rt></ruby>きでな、<ruby class="v1">熱<rt>あつ</rt></ruby>くなればなるほど<ruby class="v1">気持<rt>きも</rt></ruby>ちがいい。あんなもの、<ruby class="v1">蚊<rt>か</rt></ruby>に<ruby class="v1">刺<rt>さ</rt></ruby>されたほどにも<ruby class="v1">感<rt>かん</rt></ruby>じやしねぇ。」<br><strong>熊さん：</strong>「ほう、<ruby class="v1">言<rt>い</rt></ruby>うじゃねぇか。それなら<ruby class="v1">今<rt>いま</rt></ruby>ここで<ruby class="v1">試<rt>ため</rt></ruby>してみるか？」<br><strong>辰つぁん：</strong>「<ruby class="v1">上等<rt>じょうとう</rt></ruby>だ、やろうじゃねぇか。」<br>と、<ruby class="v1">売<rt>う</rt></ruby>り<ruby class="v1">言葉<rt>ことば</rt></ruby>に<ruby class="v1">買<rt>か</rt></ruby>い<ruby class="v1">言葉<rt>ことば</rt></ruby>、とんでもない<ruby class="v1">勝負<rt>しょうぶ</rt></ruby>が<ruby class="v1">始<rt>はじ</rt></ruby>まることになりました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【山盛りの勝負】</span>
+                    というわけで、どこからか<ruby class="v2">艾<rt>もぐさ</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">寄<rt>よ</rt></ruby>せまして、まずは<ruby class="v1">豆粒<rt>まめつぶ</rt></ruby>ほどの<ruby class="v2">灸<rt>きゅう</rt></ruby>を<ruby class="v1">互<rt>たが</rt></ruby>いの<ruby class="v1">腕<rt>うで</rt></ruby>に<ruby class="v1">据<rt>す</rt></ruby>えて<ruby class="v1">火<rt>ひ</rt></ruby>を<ruby class="v1">点<rt>つ</rt></ruby>けました。ジリジリと<ruby class="v1">燃<rt>も</rt></ruby>え<ruby class="v1">出<rt>だ</rt></ruby>しても、<ruby class="v1">二人<rt>ふたり</rt></ruby>とも<ruby class="v1">涼<rt>すず</rt></ruby>しい<ruby class="v1">顔<rt>かお</rt></ruby>。<ruby class="v1">近所<rt>きんじょ</rt></ruby>の<ruby class="v1">者<rt>もの</rt></ruby>たちも<ruby class="v1">面白<rt>おもしろ</rt></ruby>がって<ruby class="v1">集<rt>あつ</rt></ruby>まってきましてね、<ruby class="v1">見物<rt>けんぶつ</rt></ruby>を<ruby class="v1">相手<rt>あいて</rt></ruby>に、だんだんと<ruby class="v2">灸<rt>きゅう</rt></ruby>の<ruby class="v1">山<rt>やま</rt></ruby>が<ruby class="v1">大<rt>おお</rt></ruby>きくなっていきます。<br><strong>辰つぁん：</strong>「なんだ、そんな<ruby class="v1">小<rt>ちい</rt></ruby>さいのじゃ<ruby class="v1">物足<rt>ものた</rt></ruby>りねぇ。<ruby class="v1">俺<rt>おれ</rt></ruby>の<ruby class="v1">腕<rt>うで</rt></ruby>にゃ、こんぐらい<ruby class="v1">乗<rt>の</rt></ruby>っけてもらおうか。」<br>と<ruby class="v1">拳<rt>こぶし</rt></ruby>ほどの<ruby class="v2">艾<rt>もぐさ</rt></ruby>の<ruby class="v1">山<rt>やま</rt></ruby>を<ruby class="v1">腕<rt>うで</rt></ruby>に<ruby class="v1">積<rt>つ</rt></ruby>み<ruby class="v1">上<rt>あ</rt></ruby>げます。<br><strong>熊さん：</strong>「へっ、<ruby class="v1">負<rt>ま</rt></ruby>けちゃいられねぇ。<ruby class="v1">俺<rt>おれ</rt></ruby>にも<ruby class="v1">同<rt>おな</rt></ruby>じだけ<ruby class="v1">乗<rt>の</rt></ruby>っけてくれ。」<br>と、<ruby class="v1">互<rt>たが</rt></ruby>いに<ruby class="v1">負<rt>ま</rt></ruby>けじと<ruby class="v2">灸<rt>きゅう</rt></ruby>の<ruby class="v1">山<rt>やま</rt></ruby>はどんどん<ruby class="v1">大<rt>おお</rt></ruby>きくなり、しまいには<ruby class="v1">腕<rt>うで</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>にちょっとした<ruby class="v1">小山<rt>こやま</rt></ruby>のような<ruby class="v2">艾<rt>もぐさ</rt></ruby>が<ruby class="v1">二<rt>ふた</rt></ruby>つ、<ruby class="v1">並<rt>なら</rt></ruby>ぶことになりました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【やせ我慢】</span>
+                    <ruby class="v1">火<rt>ひ</rt></ruby>を<ruby class="v1">点<rt>つ</rt></ruby>けられた<ruby class="v2">艾<rt>もぐさ</rt></ruby>の<ruby class="v1">山<rt>やま</rt></ruby>は、ジリジリ、ジリジリと<ruby class="v1">音<rt>おと</rt></ruby>を<ruby class="v1">立<rt>た</rt></ruby>てて<ruby class="v1">燃<rt>も</rt></ruby>え<ruby class="v1">続<rt>つづ</rt></ruby>けます。<ruby class="v1">二人<rt>ふたり</rt></ruby>の<ruby class="v1">額<rt>ひたい</rt></ruby>には<ruby class="v1">玉<rt>たま</rt></ruby>のような<ruby class="v1">汗<rt>あせ</rt></ruby>が<ruby class="v1">浮<rt>う</rt></ruby>かび、<ruby class="v1">顔<rt>かお</rt></ruby>は<ruby class="v1">真<rt>ま</rt></ruby>っ<ruby class="v1">赤<rt>か</rt></ruby>になっておりますが、それでも<ruby class="v1">二人<rt>ふたり</rt></ruby>は<ruby class="v1">平気<rt>へいき</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">崩<rt>くず</rt></ruby>しません。<br><strong>熊さん：</strong>「あ〜、ちょうど<ruby class="v1">良<rt>い</rt></ruby>い<ruby class="v1">湯加減<rt>ゆかげん</rt></ruby>だ……<ruby class="v1">春<rt>はる</rt></ruby>の<ruby class="v1">陽気<rt>ようき</rt></ruby>ってのは、こう<ruby class="v1">暖<rt>あたた</rt></ruby>かいもんだねぇ。」<br><strong>辰つぁん：</strong>（<ruby class="v1">歯<rt>は</rt></ruby>を<ruby class="v1">食<rt>く</rt></ruby>いしばりながら）「お、おうよ……ぽかぽかして、<ruby class="v1">気持<rt>きも</rt></ruby>ちのいいことだ……」<br><ruby class="v1">声<rt>こえ</rt></ruby>は<ruby class="v1">震<rt>ふる</rt></ruby>え、<ruby class="v1">額<rt>ひたい</rt></ruby>の<ruby class="v1">血管<rt>けっかん</rt></ruby>が<ruby class="v1">浮<rt>う</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>すほどこらえておりますが、どちらも「<ruby class="v1">参<rt>まい</rt></ruby>った」の<ruby class="v1">一言<rt>ひとこと</rt></ruby>だけは、<ruby class="v1">意地<rt>いじ</rt></ruby>でも<ruby class="v1">口<rt>くち</rt></ruby>にしようとしません。<ruby class="v1">見物<rt>けんぶつ</rt></ruby>の<ruby class="v1">衆<rt>しゅう</rt></ruby>も、はらはらしながら<ruby class="v1">見<rt>み</rt></ruby>ておりました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【オチ】</span>
+                    とうとう<ruby class="v2">艾<rt>もぐさ</rt></ruby>の<ruby class="v1">山<rt>やま</rt></ruby>が<ruby class="v1">燃<rt>も</rt></ruby>え<ruby class="v1">尽<rt>つ</rt></ruby>き、<ruby class="v1">肌<rt>はだ</rt></ruby>に<ruby class="v1">熱<rt>ねつ</rt></ruby>が<ruby class="v1">突<rt>つ</rt></ruby>き<ruby class="v1">刺<rt>さ</rt></ruby>さったその<ruby class="v1">瞬間<rt>しゅんかん</rt></ruby>、<ruby class="v1">辰<rt>た</rt></ruby>っつぁんがとうとう<ruby class="v1">堪<rt>こら</rt></ruby>えきれず、<br><strong>辰つぁん：</strong>「た、たまらねぇ〜！<ruby class="v1">熱<rt>あつ</rt></ruby>い！<ruby class="v1">熱<rt>あつ</rt></ruby>いよう！」<br>と<ruby class="v1">飛<rt>と</rt></ruby>び<ruby class="v1">上<rt>あ</rt></ruby>がって<ruby class="v1">腕<rt>うで</rt></ruby>を<ruby class="v1">振<rt>ふ</rt></ruby>り<ruby class="v1">回<rt>まわ</rt></ruby>し、<ruby class="v1">井戸端<rt>いどばた</rt></ruby>まで<ruby class="v1">転<rt>ころ</rt></ruby>がるように<ruby class="v1">駆<rt>か</rt></ruby>けていってしまいました。<ruby class="v1">見物<rt>けんぶつ</rt></ruby>の<ruby class="v1">衆<rt>しゅう</rt></ruby>は「<ruby class="v1">熊<rt>くま</rt></ruby>さんの<ruby class="v1">勝<rt>か</rt></ruby>ちだ」と<ruby class="v1">囃<rt>はや</rt></ruby>し<ruby class="v1">立<rt>た</rt></ruby>て、<ruby class="v1">熊<rt>くま</rt></ruby>さんは<ruby class="v1">煙管<rt>きせる</rt></ruby>をくわえたまま、したり<ruby class="v1">顔<rt>がお</rt></ruby>で「なぁに、これしき」なんて<ruby class="v1">澄<rt>す</rt></ruby>まし<ruby class="v1">込<rt>こ</rt></ruby>んでおりましたが……<ruby class="v1">辰<rt>た</rt></ruby>っつぁんの<ruby class="v1">姿<rt>すがた</rt></ruby>が<ruby class="v1">路地<rt>ろじ</rt></ruby>の<ruby class="v1">角<rt>かど</rt></ruby>に<ruby class="v1">消<rt>き</rt></ruby>えたとたん、<ruby class="v1">熊<rt>くま</rt></ruby>さんもガクッと<ruby class="v1">膝<rt>ひざ</rt></ruby>から<ruby class="v1">崩<rt>くず</rt></ruby>れ<ruby class="v1">落<rt>お</rt></ruby>ちましてね。<br><strong>熊さん：</strong>「い、いてぇ〜！<ruby class="v1">痛<rt>いた</rt></ruby>いに<ruby class="v1">決<rt>き</rt></ruby>まってらぁ！なにが<ruby class="v1">湯加減<rt>ゆかげん</rt></ruby>だ、バカ<ruby class="v1">野郎<rt>やろう</rt></ruby>ぁ！」<br>と、<ruby class="v1">誰<rt>だれ</rt></ruby>もいなくなったところで、さっきまでの<ruby class="v1">澄<rt>す</rt></ruby>まし<ruby class="v1">顔<rt>がお</rt></ruby>はどこへやら、<ruby class="v1">大声<rt>おおごえ</rt></ruby>で<ruby class="v1">泣<rt>な</rt></ruby>き<ruby class="v1">喚<rt>わめ</rt></ruby>いたという。<ruby class="v1">意地<rt>いじ</rt></ruby>と<ruby class="v1">意地<rt>いじ</rt></ruby>のぶつかり<ruby class="v1">合<rt>あ</rt></ruby>い、<ruby class="v1">勝<rt>か</rt></ruby>ったのはほんの<ruby class="v1">紙一重<rt>かみひとえ</rt></ruby>、<ruby class="v1">結局<rt>けっきょく</rt></ruby>のところ、どっちも<ruby class="v1">強情<rt>ごうじょう</rt></ruby>な<ruby class="v2">痩<rt>や</rt></ruby>せ<ruby class="v1">我慢<rt>がまん</rt></ruby>だったという、お<ruby class="v1">粗末<rt>そまつ</rt></ruby>なオチでございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Now, human beings are strange creatures. We hate pain, we hate heat, and yet the moment someone's watching, we can't help but act tough. "Oh, this? Doesn't bother me one bit," we say, while secretly on the verge of tears. This is especially true of Edo natives, who take this brand of stubborn bravado to another level entirely. There's being a sore loser, and then there's being pig-headed beyond all reason — and Edo had plenty of that kind wandering about. Today's story is about two such men, whose clashing stubbornness caused no end of trouble for everyone around them.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING CONTEST]</span>One day, near the tobacco shop in a certain neighborhood, Kuma-san ran into Tatsu-tsuan.<br><strong>Kuma:</strong> "Well look at you, Tatsu, dressed so light in this cold."<br><strong>Tatsu:</strong> "Ha! I was born without ever feeling cold, that's just how I'm made."<br><strong>Kuma:</strong> "Don't get cocky. Last month I had a rotten tooth pulled at the dentist and didn't feel a lick of pain."<br><strong>Tatsu:</strong> "One tooth? Don't act so proud. Last year I fell off a roof and twisted my ankle, and I didn't utter one word of complaint."<br>And so it went, back and forth, each trying to out-tough the other.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE REMARK ABOUT MOXA]</span>Then Kuma-san, as if suddenly remembering something, spoke up.<br><strong>Kuma:</strong> "Come to think of it, my mother's always nagging me to get moxibustion treatments every month. But I don't feel a thing — I just smoke my pipe and hum a tune while it burns."<br><strong>Tatsu:</strong> "Big talk, over a little moxa. Me, I actually enjoy it — the hotter it gets, the better it feels. I don't feel it any more than a mosquito bite."<br><strong>Kuma:</strong> "Oh really? Then how about we test that right here and now?"<br><strong>Tatsu:</strong> "Fine by me, let's do it."<br>And so, one challenge answering another, an utterly ridiculous contest was set in motion.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOUNTAIN-SIZED CONTEST]</span>So, moxa was fetched from somewhere, and they started with pea-sized cones on each other's arms, lighting them up. Even as the embers began to smolder and sizzle, both men kept perfectly cool faces. Neighbors gathered around, delighted by the spectacle, and with an audience now watching, the mounds of moxa kept growing bigger and bigger.<br><strong>Tatsu:</strong> "Hah, something that small isn't even satisfying. Why don't you pile one this big on my arm?"<br>He heaped up a fist-sized mound of moxa on his arm.<br><strong>Kuma:</strong> "Ha! I won't be outdone. Put the same amount on mine."<br>And so, neither willing to lose, the mounds kept growing until eventually, two small mountains of moxa sat side by side on their arms.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FORCED BRAVADO]</span>The lit mounds of moxa kept sizzling and crackling away. Beads of sweat rose on both men's foreheads, and their faces turned beet red, yet neither would let his calm expression crack.<br><strong>Kuma:</strong> "Ahh, this is just the right warmth... spring sunshine is a lovely, cozy thing, isn't it."<br><strong>Tatsu:</strong> (gritting his teeth) "Y-yeah... nice and toasty, feels wonderful..."<br>Their voices trembled, the veins on their foreheads bulged from the strain, and yet neither would stoop to utter the words "I give up." The gathered crowd watched on, hearts in their throats.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Finally, as the mound of moxa burned all the way down and its heat pierced straight into the skin, Tatsu-tsuan couldn't take it any longer.<br><strong>Tatsu:</strong> "I-I can't stand it! Hot! It's too hot!"<br>He leapt up, flailing his arm, and went stumbling off toward the well at a dead run. The crowd cheered, "Kuma-san wins!" and Kuma-san, pipe still in his mouth, sat there looking smug, saying "Please, that was nothing." But the moment Tatsu disappeared around the corner of the alley, Kuma's knees buckled and he collapsed on the spot.<br><strong>Kuma:</strong> "Ow, OWW! Of course it hurts! What warmth, my foot! You idiot!"<br>And with no one left to see, that composed face from moments ago vanished entirely, replaced by loud howls of pain. Two stubborn men clashing head-on — and the one who 'won' did so by the barest of margins. In the end, it turned out both of them had simply been putting up the same pig-headed front. And that, ladies and gentlemen, was the rather silly punchline of this tale.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Voyez-vous, les êtres humains sont d'étranges créatures. Nous détestons la douleur, nous détestons la chaleur, et pourtant, dès qu'on nous regarde, impossible de ne pas jouer les durs. « Oh, ça ? Ça ne me fait rien du tout », dit-on, tout en ravalant ses larmes en secret. C'est particulièrement vrai chez les natifs d'Edo, qui poussaient cette bravade obstinée à un niveau supérieur. Il y a être mauvais perdant, et il y a être têtu au-delà de toute raison — et Edo en comptait un bon nombre. L'histoire d'aujourd'hui parle de deux hommes dont l'entêtement, en se heurtant, allait causer bien des ennuis à tout le monde.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING CONTEST]</span>Un jour, devant le magasin de tabac du quartier, Kuma-san tomba sur Tatsu.<br><strong>Kuma :</strong> « Eh bien, Tatsu, si légèrement vêtu par ce froid ! »<br><strong>Tatsu :</strong> « Ha ! Je suis né sans jamais ressentir le froid, je suis fait comme ça. »<br><strong>Kuma :</strong> « Ne fais pas le fier. Le mois dernier, je me suis fait arracher une dent chez le dentiste et je n'ai rien senti du tout. »<br><strong>Tatsu :</strong> « Une seule dent ? Ne te vante pas autant. L'an dernier, je suis tombé d'un toit et me suis foulé la cheville, et je n'ai pas dit un mot de plainte. »<br>Et ainsi de suite, chacun essayant de surpasser l'autre en endurance.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE REMARK ABOUT MOXA]</span>Alors Kuma-san, comme s'il venait de se souvenir de quelque chose, prit la parole.<br><strong>Kuma :</strong> « Ça me fait penser, ma mère n'arrête pas de me harceler pour que je fasse des séances de moxibustion chaque mois. Mais moi, ça ne me fait rien — je fume ma pipe en fredonnant pendant que ça brûle. »<br><strong>Tatsu :</strong> « De grandes paroles, pour un peu de moxa. Moi, j'aime carrément ça — plus ça chauffe, meilleur c'est. Je ne sens pas plus qu'une piqûre de moustique. »<br><strong>Kuma :</strong> « Ah oui ? Alors si on testait ça tout de suite ? »<br><strong>Tatsu :</strong> « Avec plaisir, allons-y. »<br>Et ainsi, un défi répondant à un autre, un concours parfaitement ridicule se mit en branle.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOUNTAIN-SIZED CONTEST]</span>On fit donc venir du moxa, et ils commencèrent par de petits cônes de la taille d'un pois sur le bras de l'autre, qu'ils allumèrent. Même quand les braises se mirent à grésiller, les deux hommes gardèrent un visage parfaitement impassible. Les voisins, ravis du spectacle, s'attroupèrent, et avec ce public, les tas de moxa ne cessaient de grossir.<br><strong>Tatsu :</strong> « Ha, un si petit tas, ça ne suffit pas. Empile-m'en un aussi gros sur le bras. »<br>Il entassa un tas de moxa gros comme un poing sur son bras.<br><strong>Kuma :</strong> « Ha ! Je ne vais pas me laisser faire. Mets-en autant sur le mien. »<br>Et ainsi, aucun des deux ne voulant céder, les tas continuèrent de grossir jusqu'à ce que deux petites montagnes de moxa se dressent côte à côte sur leurs bras.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FORCED BRAVADO]</span>Les tas de moxa allumés continuaient de grésiller et de crépiter. Des gouttes de sueur perlaient sur le front des deux hommes, leurs visages viraient à l'écarlate, mais aucun des deux ne laissait fissurer son air impassible.<br><strong>Kuma :</strong> « Ahh, c'est juste la bonne chaleur... le soleil de printemps, c'est vraiment agréable et douillet, n'est-ce pas. »<br><strong>Tatsu :</strong> (serrant les dents) « O-oui... bien chaud, ça fait un bien fou... »<br>Leurs voix tremblaient, les veines de leur front saillaient sous l'effort, mais aucun ne voulait s'abaisser à prononcer les mots « j'abandonne ». La foule rassemblée regardait, le cœur battant.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Enfin, quand le tas de moxa eut fini de se consumer et que sa chaleur transperça la peau, Tatsu ne put plus tenir.<br><strong>Tatsu :</strong> « J-je n'en peux plus ! Ça brûle ! C'est trop chaud ! »<br>Il bondit, agitant son bras, et partit en titubant vers le puits en courant. La foule s'écria : « Kuma-san a gagné ! » et Kuma-san, la pipe toujours à la bouche, affichait un air satisfait, disant « Voyons, ce n'était rien. » Mais à l'instant où Tatsu disparut au coin de la ruelle, les genoux de Kuma flanchèrent et il s'effondra sur place.<br><strong>Kuma :</strong> « Aïe, AÏE ! Bien sûr que ça fait mal ! Quelle bonne chaleur, tu parles ! Espèce d'idiot ! »<br>Et avec plus personne pour le voir, ce visage impassible de tout à l'heure disparut complètement, remplacé par des hurlements de douleur. Deux entêtés qui s'affrontaient de front — et celui qui « gagna » ne le fit que d'un cheveu. En fin de compte, tous deux n'avaient fait que jouer la même comédie de bravade obstinée. Et voilà, mesdames et messieurs, la chute plutôt sotte de cette histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Verán, los seres humanos somos criaturas extrañas. Odiamos el dolor, odiamos el calor, y sin embargo, en cuanto alguien nos mira, no podemos evitar hacernos los valientes. "¿Esto? A mí no me afecta en absoluto", decimos, mientras por dentro estamos a punto de llorar. Esto es especialmente cierto entre los nativos de Edo, que llevaban esta bravuconería testaruda a otro nivel. Una cosa es ser mal perdedor, y otra muy distinta ser terco más allá de toda razón — y en Edo abundaban de estos últimos. La historia de hoy trata de dos hombres cuya obstinación, al chocar entre sí, causó no pocos problemas a todos a su alrededor.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[BOASTING CONTEST]</span>Un día, frente a la tienda de tabaco del barrio, Kuma-san se encontró con Tatsu.<br><strong>Kuma:</strong> "Vaya, Tatsu, qué poco abrigado vas con este frío."<br><strong>Tatsu:</strong> "¡Ja! Nací sin sentir jamás el frío, así soy yo."<br><strong>Kuma:</strong> "No te las des de valiente. El mes pasado me sacaron una muela en el dentista y no sentí absolutamente nada."<br><strong>Tatsu:</strong> "¿Un solo diente? No presumas tanto. El año pasado me caí de un tejado y me torcí el tobillo, y no solté ni una queja."<br>Y así seguían, cada uno tratando de superar al otro en aguante.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE REMARK ABOUT MOXA]</span>Entonces Kuma-san, como si de repente recordara algo, habló.<br><strong>Kuma:</strong> "Pensándolo bien, mi madre no deja de insistir en que me haga moxibustión cada mes. Pero a mí no me hace nada — me fumo la pipa tarareando mientras arde."<br><strong>Tatsu:</strong> "Qué valiente, por un poco de moxa. A mí, la verdad, me gusta — cuanto más caliente, mejor se siente. No lo noto más que la picadura de un mosquito."<br><strong>Kuma:</strong> "¿Ah, sí? Entonces, ¿qué tal si lo probamos aquí mismo?"<br><strong>Tatsu:</strong> "Encantado, hagámoslo."<br>Y así, un desafío respondiendo a otro, se puso en marcha un concurso absolutamente ridículo.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOUNTAIN-SIZED CONTEST]</span>Así que trajeron moxa de algún lado, y empezaron con conos del tamaño de un guisante en el brazo del otro, encendiéndolos. Aunque las brasas comenzaron a chisporrotear, ambos mantuvieron el rostro totalmente impasible. Los vecinos, encantados con el espectáculo, se fueron reuniendo, y con público presente, los montones de moxa no dejaban de crecer.<br><strong>Tatsu:</strong> "Já, un montoncito así no satisface a nadie. Apílame uno de este tamaño en el brazo."<br>Y amontonó una pila de moxa del tamaño de un puño sobre su brazo.<br><strong>Kuma:</strong> "¡Já! No pienso quedarme atrás. Pon la misma cantidad en el mío."<br>Y así, sin que ninguno quisiera ceder, los montones siguieron creciendo hasta que dos pequeñas montañas de moxa quedaron una junto a la otra sobre sus brazos.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FORCED BRAVADO]</span>Los montones de moxa encendidos seguían chisporroteando y crepitando. Gotas de sudor brotaban en la frente de ambos hombres, sus rostros se ponían como la grana, pero ninguno dejaba que se le quebrara la expresión serena.<br><strong>Kuma:</strong> "Ahh, esta es la temperatura justa... el sol de primavera es algo cálido y agradable, ¿verdad?"<br><strong>Tatsu:</strong> (apretando los dientes) "S-sí... calentito, se siente maravilloso..."<br>Sus voces temblaban, las venas de sus frentes sobresalían por el esfuerzo, pero ninguno se rebajaría a pronunciar las palabras "me rindo". La multitud reunida observaba, con el corazón en un puño.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Por fin, cuando el montón de moxa terminó de consumirse y su calor atravesó la piel, Tatsu no pudo aguantar más.<br><strong>Tatsu:</strong> "¡N-no lo soporto! ¡Quema! ¡Quema demasiado!"<br>Saltó, agitando el brazo, y salió corriendo tambaleante hacia el pozo. La multitud gritó: "¡Kuma-san gana!", y Kuma-san, todavía con la pipa en la boca, se quedó ahí con aire satisfecho, diciendo "Por favor, eso no fue nada." Pero en cuanto Tatsu desapareció por la esquina del callejón, las rodillas de Kuma cedieron y se desplomó en el sitio.<br><strong>Kuma:</strong> "¡Ay, AY! ¡Claro que duele! ¡Qué temperatura agradable ni qué nada! ¡Idiota!"<br>Y sin nadie ya para verlo, aquel rostro sereno de hace un momento desapareció por completo, reemplazado por alaridos de dolor. Dos hombres tercos chocando de frente — y el que "ganó" lo hizo por el más mínimo margen. Al final, resultó que ambos habían estado fingiendo la misma testarudez. Y ese, señoras y señores, fue el final bastante tonto de esta historia.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②我慢自慢","③灸の一言","④山盛りの勝負","⑤やせ我慢","⑥オチ"];
+        const partNamesEn = ["① Prologue","② Boasting contest","③ The remark about moxa","④ The mountain-sized contest","⑤ Forced bravado","⑥ Punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

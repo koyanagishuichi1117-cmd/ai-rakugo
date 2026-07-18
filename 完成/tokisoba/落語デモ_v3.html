@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時そば - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        /* スクロールバー太め */
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム：コントロール -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+
+            <!-- 演目タイトル -->
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.1</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">時そば</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Toki-Soba / Time Noodles</p>
+            </div>
+
+            <!-- 音声プレイヤー -->
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">ja_p1〜p7.mp3 読み込み中</p>
+                </div>
+
+                <!-- パートドット -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <!-- プログレスバー -->
+                <div class="audio-bar">
+                    <div class="audio-progress" id="progress-bar"></div>
+                </div>
+
+                <!-- 再生コントロール -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <!-- パート個別 -->
+                <div class="grid grid-cols-4 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②登場</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③山場</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④気づき</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤失敗</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥オチ</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <!-- スピード調整スライダー -->
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider"
+                        min="0.5" max="2.0" step="0.1" value="1.0"
+                        oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400">
+                        <span id="speed-slow">0.5x（ゆっくり）</span>
+                        <span id="speed-fast">2.0x（速い）</span>
+                    </div>
+                </div>
+
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <!-- 言語選択 -->
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <!-- ルビ設定（日本語のみ） -->
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。よく<ruby class="v1">昔<rt>むかし</rt></ruby>は、<ruby class="v1">冬場<rt>ふゆば</rt></ruby>はおそばなんてえのをね、<ruby class="v1">江戸<rt>えどっこ</rt></ruby>っ<ruby class="v1">子<rt>こ</rt></ruby>は<ruby class="v1">食<rt>た</rt></ruby>べたんだそうですよ。<ruby class="v2">二八<rt>にはち</rt></ruby>そばなんてことをいいまして、そのお<ruby class="v2">代<rt>だい</rt></ruby>が<ruby class="v2">二八<rt>にはち</rt></ruby>の<ruby class="v1">十六文<rt>じゅうろくもん</rt></ruby>。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【男・登場】</span>
+                    <strong><ruby class="v1">男<rt>おとこ</rt></ruby>：</strong>「おう、そば<ruby class="v1">屋<rt>や</rt></ruby>さん！いやぁ<ruby class="v1">寒<rt>さむ</rt></ruby>いねえ<ruby class="v1">今日<rt>きょう</rt></ruby>は。」<br>
+                    <strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>：</strong>「へえ、<ruby class="v1">今晩<rt>こんばん</rt></ruby>は<ruby class="v1">随分<rt>ずいぶん</rt></ruby><ruby class="v1">冷<rt>ひ</rt></ruby>えますなあ。」<br>
+                    <strong><ruby class="v1">男<rt>おとこ</rt></ruby>：</strong>「<ruby class="v1">何<rt>なに</rt></ruby>できんの？<ruby class="v2">花巻<rt>はなまき</rt></ruby>に、<ruby class="v2">しっぽく<rt>しっぽく</rt></ruby>？じゃあな、<ruby class="v2">しっぽく<rt>しっぽく</rt></ruby><ruby class="v1">一<rt>ひと</rt></ruby>つ、<ruby class="v1">熱<rt>あつ</rt></ruby>くこさえてもらおうかな。おめえんとこのこのね、<ruby class="v2">行灯<rt>あんどん</rt></ruby>、<ruby class="v1">変<rt>か</rt></ruby>わってんね、<ruby class="v2">看板<rt>かんばん</rt></ruby>。<ruby class="v1">丸<rt>まる</rt></ruby>に<ruby class="v1">矢<rt>や</rt></ruby>が<ruby class="v1">当<rt>あ</rt></ruby>たって……<strong><ruby class="v2">当<rt>あ</rt></ruby>たり<ruby class="v2">屋<rt>や</rt></ruby>！</strong>いいね、<ruby class="v2">当<rt>あ</rt></ruby>たり<ruby class="v2">屋<rt>や</rt></ruby>か。この<ruby class="v2">界隈<rt>かいわい</rt></ruby>ずいぶん<ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>も<ruby class="v1">出<rt>で</rt></ruby>るけどねえ、おめえんとこだけだよ、この<ruby class="v2">割<rt>わり</rt></ruby>り<ruby class="v1">箸<rt>ばし</rt></ruby><ruby class="v1">使<rt>つか</rt></ruby>ってんのは！いい<ruby class="v2">つゆ<rt>つゆ</rt></ruby><ruby class="v1">加減<rt>かげん</rt></ruby>だ、まったくなあ！」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【勘定ごまかし ★山場★】</span>
+                    <strong><ruby class="v1">男<rt>おとこ</rt></ruby>：</strong>「あー、うまかった。そうかい、<ruby class="v2">勘定<rt>かんじょう</rt></ruby>いくらだい？」<br>
+                    <strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>：</strong>「へぇ、<ruby class="v1">十六文<rt>じゅうろくもん</rt></ruby>になりますが。」<br>
+                    <strong><ruby class="v1">男<rt>おとこ</rt></ruby>：</strong>「そうかい！<ruby class="v1">銭<rt>ぜに</rt></ruby>ぁこまけぇんだ。<ruby class="v1">手<rt>て</rt></ruby>ぇ<ruby class="v1">出<rt>だ</rt></ruby>してくんねぇか？いくよ！ひぃ、ふう、みい、よう、いつ、むう、なな、やあ……<strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>さん、<ruby class="v1">今<rt>いま</rt></ruby><ruby class="v2">何時<rt>なんどき</rt></ruby>でぇ？</strong>」<br>
+                    <strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>：</strong>「へぇ、ここのつでぇ。」<br>
+                    <strong><ruby class="v1">男<rt>おとこ</rt></ruby>：</strong>「とぉ、<ruby class="v1">十一<rt>じゅういち</rt></ruby>、<ruby class="v1">十二<rt>じゅうに</rt></ruby>、<ruby class="v1">十三<rt>じゅうさん</rt></ruby>、<ruby class="v1">十四<rt>じゅうし</rt></ruby>、<ruby class="v1">十五<rt>じゅうご</rt></ruby>、<strong><ruby class="v1">十六<rt>じゅうろく</rt></ruby>！</strong>あばよ！」
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【与太郎・気づき】</span>
+                    <strong><ruby class="v2">与太郎<rt>よたろう</rt></ruby>：</strong>「なんだよ、あの<ruby class="v1">野郎<rt>やろう</rt></ruby>は……<ruby class="v1">散々<rt>さんざん</rt></ruby>、<ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>のこと<ruby class="v1">褒<rt>ほ</rt></ruby>めちぎってよぉ。あんなこと<ruby class="v1">言<rt>い</rt></ruby>ってたら……まちげぇちまうよなぁ？ひぃ、ふう、みい、よう、いつ、むう、なな、やあ……<ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>さん、<ruby class="v1">今<rt>いま</rt></ruby><ruby class="v2">何時<rt>なんどき</rt></ruby>でぇ？へぇ、ここのつでぇ……とぉ……<strong>やりやがったなあの<ruby class="v1">野郎<rt>やろう</rt></ruby>！</strong><ruby class="v1">途中<rt>とちゅう</rt></ruby>で<ruby class="v1">時<rt>とき</rt></ruby>ぃ<ruby class="v1">聞<rt>き</rt></ruby>いて、<ruby class="v1">一文<rt>いちもん</rt></ruby>かすめやがったんだ！<ruby class="v1">面白<rt>おもしろ</rt></ruby>ぇこと<ruby class="v1">思<rt>おも</rt></ruby>いつくもんだねぇ。<ruby class="v1">俺<rt>おれ</rt></ruby>も……やってみようかな。」
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【与太郎・失敗】</span>
+                    よせばいいのに<ruby class="v1">翌日<rt>よくじつ</rt></ruby>、<ruby class="v1">細<rt>こま</rt></ruby>かい<ruby class="v1">銭<rt>ぜに</rt></ruby>をこしらえて……<br>
+                    <strong><ruby class="v2">与太郎<rt>よたろう</rt></ruby>：</strong>「お、この<ruby class="v1">店<rt>みせ</rt></ruby>の<ruby class="v2">看板<rt>かんばん</rt></ruby>は……<ruby class="v1">矢<rt>や</rt></ruby>が<ruby class="v1">的<rt>まと</rt></ruby>に……<ruby class="v1">当<rt>あ</rt></ruby>たって……<strong>ない……。</strong>この<ruby class="v2">汁<rt>しる</rt></ruby>は……<ruby class="v2">出汁<rt>だし</rt></ruby>がきいてなくて……<ruby class="v1">塩<rt>しお</rt></ruby>っからい。<ruby class="v2">麺<rt>めん</rt></ruby>は<ruby class="v1">太<rt>ふと</rt></ruby>くて……<ruby class="v1">柔<rt>やわ</rt></ruby>けぇ。まあいい、<ruby class="v1">太<rt>ふと</rt></ruby>いほうが<ruby class="v1">食<rt>く</rt></ruby>いでがあらあ。<ruby class="v2">竹輪<rt>ちくわ</rt></ruby>も<ruby class="v1">厚<rt>あつ</rt></ruby>くて……<strong>これは<ruby class="v2">ちくわぶ<rt>ちくわぶ</rt></ruby>だ！</strong>まあ……いい。<ruby class="v2">勘定<rt>かんじょう</rt></ruby>しながら<ruby class="v1">渡<rt>わた</rt></ruby>すぜ。<ruby class="v1">手<rt>て</rt></ruby>ぇ<ruby class="v1">出<rt>だ</rt></ruby>してくんねえ。」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【オチ】</span>
+                    <strong><ruby class="v2">与太郎<rt>よたろう</rt></ruby>：</strong>「ほらいくよ！ひぃ、ふう、みい、よう、いつ、むう、なな、やあ……<strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>さん、いまなんどきでぇ？</strong>」<br>
+                    <strong><ruby class="v2">蕎麦屋<rt>そばや</rt></ruby>：</strong>「へぇ……<strong><ruby class="v2">四<rt>よっ</rt></ruby>つでございます。</strong>」
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <strong><ruby class="v2">与太郎<rt>よたろう</rt></ruby>：</strong>「<ruby class="v2">四<rt>よっ</rt></ruby>つ……かよぉぉぉ……いつ……むう……なな……やあ……」<br>
+                    <ruby class="v1">時<rt>とき</rt></ruby>そばでございます。どうもありがとうございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me spin you a tale. Back in old Edo, a bowl of soba noodles went for exactly sixteen mon — small change, sure, but just enough room for a sharp tongue and a sharper mind to pull a fast one.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SMOOTH TALKER]</span><strong>Man:</strong> "Hey, noodle man! Cold night, huh?"<br><strong>Vendor:</strong> "Sure is, sir. Bitter cold tonight."<br><strong>Man:</strong> "Whatcha got? Shippoku? Perfect — gimme one, piping hot! Love that lantern — an arrow nailing a bullseye — 'The Sure Shot'! Ha! And chopsticks — real wooden ones! Nobody else does that. Best broth I've had all week — absolutely top-notch!"</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CON ★ KEY SCENE ★]</span><strong>Man:</strong> "Ahh, that hit the spot. So, how much do I owe ya?"<br><strong>Vendor:</strong> "That'll be sixteen mon, sir."<br><strong>Man:</strong> "Here, hold out your hand... One, two, three, four, five, six, seven, eight... <strong>Hey — what time is it?!</strong>"<br><strong>Vendor:</strong> "It's nine o'clock, sir."<br><strong>Man:</strong> "Ten, eleven, twelve, thirteen, fourteen, fifteen, <strong>sixteen!</strong> See ya!"</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[YOTARO FIGURES IT OUT]</span><strong>Yotaro:</strong> "What was that guy's deal... One, two, three, four, five, six, seven, eight — 'What time is it?' — Nine! Ten... <strong>That sneaky little—!</strong> He counted to eight, asked the time, got nine, then kept going from ten — skipped one whole coin! Ha! Maybe I should try that trick too."</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YOTARO'S DISASTER]</span>Against all better judgment, the next night he scraped together some coins...<br><strong>Yotaro:</strong> "This place's sign — arrow aiming at the bullseye — and it... <strong>misses.</strong> This broth tastes like saltwater. Noodles thick and soggy. And this 'fishcake' — wait, is this just dough?! <strong>That's fishcake dough!</strong> Whatever. Hold out your hand..."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span><strong>Yotaro:</strong> "One, two, three, four, five, six, seven, eight... <strong>Hey — what time is it?!</strong>"<br><strong>Vendor:</strong> "It's... <strong>four in the morning.</strong>"</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[CURTAIN]</span><strong>Yotaro:</strong> "F-FOUR?! ...Five, six, seven, eight..."<br>And that, ladies and gentlemen, is "Time Noodles." Thank you so much!</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Permettez-moi de vous conter une histoire. Dans l'ancien Edo, un bol de soba coûtait seize mon — une misère, mais juste assez pour qu'un homme à la langue bien pendue y trouve une faille.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[L'HOMME HABILE]</span><strong>L'homme :</strong> "Hé, l'ami ! Sacrée soirée froide !"<br><strong>Le marchand :</strong> "En effet, monsieur."<br><strong>L'homme :</strong> "Qu'est-ce que vous proposez ? Du shippoku ? Parfait ! J'adore votre lanterne — 'Le Tir Parfait' ! Et des vraies baguettes en bois — personne d'autre ne fait ça ! Le meilleur bouillon de la semaine — remarquable !"</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[L'ARNAQUE ★ SCÈNE CLÉ ★]</span><strong>L'homme :</strong> "Ahhh, c'était délicieux. Combien je vous dois ?"<br><strong>Le marchand :</strong> "Ce sera seize mon, monsieur."<br><strong>L'homme :</strong> "Tendez la main... Un, deux, trois, quatre, cinq, six, sept, huit... <strong>Au fait — quelle heure est-il ?</strong>"<br><strong>Le marchand :</strong> "Il est neuf heures, monsieur."<br><strong>L'homme :</strong> "Dix, onze, douze, treize, quatorze, quinze, <strong>seize !</strong> Bonsoir !"</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[YOTARO COMPREND]</span><strong>Yotaro :</strong> "C'était quoi son manège... Un, deux, trois, quatre, cinq, six, sept, huit — 'Quelle heure ?' — Neuf ! Dix... <strong>Le petit malin !</strong> Il comptait jusqu'à huit, demandait l'heure, obtenait neuf, repartait de dix — un sou de moins ! ...Et si j'essayais ça aussi ?"</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[LE DÉSASTRE DE YOTARO]</span>Malgré tout bon sens, le lendemain soir...<br><strong>Yotaro :</strong> "L'enseigne — la flèche visant la cible — elle... <strong>rate.</strong> Ce bouillon, c'est de l'eau salée. Les nouilles épaisses et molles. Et ce 'fishcake' — c'est juste de la pâte ?! <strong>C'est de la pâte à fishcake !</strong> Peu importe. Tendez la main..."</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[LA CHUTE]</span><strong>Yotaro :</strong> "Un, deux, trois, quatre, cinq, six, sept, huit... <strong>Quelle heure est-il ?!</strong>"<br><strong>Le marchand :</strong> "Il est... <strong>quatre heures du matin.</strong>"</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[RIDEAU]</span><strong>Yotaro :</strong> "Q-QUATRE HEURES ?! ...Cinq, six, sept, huit..."<br>Voilà, mesdames et messieurs — « Les Nouilles du Temps ». Merci infiniment !</p>
+            </div>
+
+            <!-- 中文（簡体） -->
+            <div id="script-zh-cn" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-zh-cn-0"><span class="text-xs font-bold text-stone-400 block mb-1">【序幕】</span>让我来讲一个故事。在古老的江户，一碗荞麦面只需十六文钱——看似微不足道，却足够让一个伶牙俐齿的人打点小算盘。</p>
+                <p id="line-zh-cn-1"><span class="text-xs font-bold text-stone-400 block mb-1">【机智男子登场】</span><strong>男：</strong>"嘿，卖面的！今晚真冷啊！"<br><strong>摊主：</strong>"是啊，今晚格外冷。"<br><strong>男：</strong>"有什么？什锦荞麦面？那来一碗，要热的！喜欢你们家的灯笼——箭射中靶心——'必中屋'！哈！还有这竹筷子，方圆内就你们家用真木筷！汤底一流，实在太棒了！"</p>
+                <p id="line-zh-cn-2"><span class="text-xs font-bold text-stone-400 block mb-1">【骗局 ★核心场景★】</span><strong>男：</strong>"啊，真好吃。多少钱？"<br><strong>摊主：</strong>"十六文。"<br><strong>男：</strong>"来，伸出手……一、二、三、四、五、六、七、八……<strong>对了，现在几更天？</strong>"<br><strong>摊主：</strong>"九更。"<br><strong>男：</strong>"十、十一、十二、十三、十四、十五、<strong>十六！</strong>再见！"</p>
+                <p id="line-zh-cn-3"><span class="text-xs font-bold text-stone-400 block mb-1">【与太郎恍然大悟】</span><strong>与太郎：</strong>"那家伙在搞什么……一、二、三、四、五、六、七、八——'几更？'——九！十……<strong>这个狡猾的家伙！</strong>他数到八，问时间，得到'九'，再从十开始——少付了一文！哈！……我也试试吧。"</p>
+                <p id="line-zh-cn-4"><span class="text-xs font-bold text-stone-400 block mb-1">【与太郎的失败】</span>尽管如此，第二天晚上他还是带着零钱出门了……<br><strong>与太郎：</strong>"这家的招牌——箭射靶心——<strong>没中。</strong>这汤像盐水。面又粗又软。这'鱼糕'——等等，只是面团吗？！<strong>这是假鱼糕！</strong>算了。伸出手……"</p>
+                <p id="line-zh-cn-5"><span class="text-xs font-bold text-stone-400 block mb-1">【结局】</span><strong>与太郎：</strong>"一、二、三、四、五、六、七、八……<strong>现在几更天？！</strong>"<br><strong>摊主：</strong>"现在……<strong>四更。</strong>"</p>
+                <p id="line-zh-cn-6"><span class="text-xs font-bold text-stone-400 block mb-1">【谢幕】</span><strong>与太郎：</strong>"四、四更？！……五、六、七、八……"<br>以上就是《时荞麦》。非常感谢各位！</p>
+            </div>
+
+            <!-- 中文（繁体） -->
+            <div id="script-zh-tw" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-zh-tw-0"><span class="text-xs font-bold text-stone-400 block mb-1">【序幕】</span>讓我來說個故事。在古老的江戶，一碗蕎麥麵只要十六文錢——看似微不足道，卻足夠讓一個伶牙俐齒的人打點小算盤。</p>
+                <p id="line-zh-tw-1"><span class="text-xs font-bold text-stone-400 block mb-1">【機智男子登場】</span><strong>男：</strong>「嘿，賣麵的！今晚真冷啊！」<br><strong>攤主：</strong>「是啊，今晚格外冷。」<br><strong>男：</strong>「有什麼？什錦蕎麥麵？那來一碗，要熱的！喜歡你們家的燈籠——箭射中靶心——『必中屋』！哈！還有這竹筷子，方圓內就你們家用真木筷！湯底一流，實在太棒了！」</p>
+                <p id="line-zh-tw-2"><span class="text-xs font-bold text-stone-400 block mb-1">【騙局 ★核心場景★】</span><strong>男：</strong>「啊，真好吃。多少錢？」<br><strong>攤主：</strong>「十六文。」<br><strong>男：</strong>「來，伸出手……一、二、三、四、五、六、七、八……<strong>對了，現在幾更天？</strong>」<br><strong>攤主：</strong>「九更。」<br><strong>男：</strong>「十、十一、十二、十三、十四、十五、<strong>十六！</strong>再見！」</p>
+                <p id="line-zh-tw-3"><span class="text-xs font-bold text-stone-400 block mb-1">【與太郎恍然大悟】</span><strong>與太郎：</strong>「那傢伙在搞什麼……一、二、三、四、五、六、七、八——『幾更？』——九！十……<strong>這個狡猾的傢伙！</strong>他數到八，問時間，得到『九』，再從十開始——少付了一文！哈！……我也試試吧。」</p>
+                <p id="line-zh-tw-4"><span class="text-xs font-bold text-stone-400 block mb-1">【與太郎的失敗】</span>儘管如此，第二天晚上他還是帶著零錢出門了……<br><strong>與太郎：</strong>「這家的招牌——箭射靶心——<strong>沒中。</strong>這湯像鹽水。麵又粗又軟。這『魚糕』——等等，只是麵糰嗎？！<strong>這是假魚糕！</strong>算了。伸出手……」</p>
+                <p id="line-zh-tw-5"><span class="text-xs font-bold text-stone-400 block mb-1">【結局】</span><strong>與太郎：</strong>「一、二、三、四、五、六、七、八……<strong>現在幾更天？！</strong>」<br><strong>攤主：</strong>「現在……<strong>四更。</strong>」</p>
+                <p id="line-zh-tw-6"><span class="text-xs font-bold text-stone-400 block mb-1">【謝幕】</span><strong>與太郎：</strong>「四、四更？！……五、六、七、八……」<br>以上就是《時蕎麥》。非常感謝各位！</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PRÓLOGO]</span>Déjenme contarles una historia. En el antiguo Edo, un tazón de fideos soba costaba exactamente dieciséis mon — una miseria, pero suficiente para que un pícaro con labia encontrara la manera de escatimarlos.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[EL LISTILLO]</span><strong>Hombre:</strong> "¡Oye, fideos! ¡Qué frío hace esta noche!"<br><strong>Vendedor:</strong> "Sí señor, un frío que pela."<br><strong>Hombre:</strong> "¿Qué tienes? ¿Shippoku? ¡Perfecto, uno bien caliente! Me encanta tu farol — una flecha dando en la diana — ¡'El Tiro Seguro'! ¡Ja! ¡Y palillos de verdad! Nadie más los usa por aquí. ¡El mejor caldo de la semana, sin duda!"</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[LA ESTAFA ★ ESCENA CLAVE ★]</span><strong>Hombre:</strong> "¡Mmm, estaba buenísimo! ¿Cuánto te debo?"<br><strong>Vendedor:</strong> "Dieciséis mon, señor."<br><strong>Hombre:</strong> "Toma, dame la mano... Uno, dos, tres, cuatro, cinco, seis, siete, ocho... <strong>¡Oye, ¿qué hora es?!</strong>"<br><strong>Vendedor:</strong> "Las nueve, señor."<br><strong>Hombre:</strong> "Diez, once, doce, trece, catorce, quince, <strong>¡dieciséis!</strong> ¡Hasta luego!"</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[YOTARO LO ENTIENDE]</span><strong>Yotaro:</strong> "¿Qué hacía ese tipo...? Uno, dos, tres, cuatro, cinco, seis, siete, ocho — '¿Qué hora es?' — ¡Nueve! Diez... <strong>¡El muy pillo!</strong> Contó hasta ocho, preguntó la hora, obtuvo nueve, y siguió desde diez — ¡se ahorró una moneda! Ja... ¿Y si yo también lo intento?"</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[EL DESASTRE DE YOTARO]</span>A pesar de todo, la noche siguiente salió con unas monedas...<br><strong>Yotaro:</strong> "El farol de este sitio — la flecha apunta a la diana — y... <strong>falla.</strong> Este caldo sabe a agua salada. Los fideos gruesos y blandos. ¿Y esto es 'kamaboko'? ¡Si es solo masa! <strong>¡Esto no es kamaboko!</strong> Da igual. Dame la mano..."</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[EL REMATE]</span><strong>Yotaro:</strong> "Uno, dos, tres, cuatro, cinco, seis, siete, ocho... <strong>¡Oye, ¿qué hora es?!</strong>"<br><strong>Vendedor:</strong> "Son... <strong>las cuatro de la madrugada.</strong>"</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[TELÓN]</span><strong>Yotaro:</strong> "¿L-las cuatro?! ...Cinco, seis, siete, ocho..."<br>¡Y esto ha sido «Los Fideos del Tiempo»! ¡Muchas gracias!</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②登場","③山場","④気づき","⑤失敗","⑥オチ","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The smooth talker","③ The con key scene","④ Yotaro figures it out","⑤ Yotaros disaster","⑥ The punchline","⑦ Curtain"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:"※ Les sous-titres se surlignent au rythme de l'audio.",
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

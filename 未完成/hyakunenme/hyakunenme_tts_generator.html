@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>百年目 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 百年目 TTS ジェネレーター</h1>
+<p class="subtitle">全8パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全8パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全8パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（24ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（32ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"102%\" pitch=\"0st\">え〜、一席申し上げますが。むかしの大きな商家には、番頭と申しまして、主人に代わって店中を取り仕切る、大変重い役目の人がおりました。<break time=\"500ms\"/>この番頭という人種、とかく堅物で通っているもので、若い者が少しでも羽目を外そうものなら、これはもう大変なお叱りでございます。<break time=\"500ms\"/>ですが、これも世の常、どんなに厳しく見える人にも、裏の顔というものがあるようで。<break time=\"600ms\"/>今日はそんな、ある大店の堅物番頭が、とんだところで化けの皮を剥がれてしまうという、人情噺を一つ、じっくりと聞いていただきましょう。</prosody></speak>" },
+  { id:'p2', title:"②堅物の番頭", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">さる日本橋の大店、屋号を近江屋と申しまして、手広く商いをしております大きな店に、治兵衛という番頭がおりました。<break time=\"400ms\"/>この治兵衛さん、仕事にかけては実に見事なもので、帳簿の付け方から客あしらいまで、どれをとっても非の打ちどころがない。ですがその分、融通というものが一切利かず、店の若い衆が少しでも遊び心を見せようものなら、<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"-3st\">これ、何を締まりのないことをしている。商人たる者が、遊びなぞにうつつを抜かして、それで身上が立つと思うか<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、それはもう雷のようなお叱りが飛んでくる。<break time=\"400ms\"/>店の若い衆たちは、陰では治兵衛さんのことを、鬼の治兵衛、などと呼んで、恐れつつも煙たがっておりました。<break time=\"500ms\"/>本人もそれを承知の上で、己の規律こそが店を守るのだと、いよいよ胸を張っている、そういう人でございました。</prosody></speak>" },
+  { id:'p3', title:"③こっそり抜け出す", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"0st\">ところがこの治兵衛さん、年に一度だけ、誰にも知られずにこっそりと羽を伸ばす日があったそうで。<break time=\"400ms\"/>桜の咲くこの頃、主人から用事を言いつかったと称して店を出ると、人目につかない路地に入って、羽織を脱ぎ替え、頭巾をすっぽりとかぶって顔を隠す。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">ふふ、これで誰にも治兵衛とは分かるまい。一年に一度くらい、この治兵衛にも息抜きがあってもいいだろうよ<break time=\"450ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、まるで別人のような足取りで、向かった先は向島の花見の宴でございます。<break time=\"400ms\"/>店では鬼とまで恐れられるあの治兵衛さんが、年に一度だけ、誰もが知らない別の顔を見せに行くという、なんとも人間味のあるお話でございます。</prosody></speak>" },
+  { id:'p4', title:"④花見の宴", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">向島の土手には満開の桜が咲き誇り、幔幕を張った宴席では三味線の音も賑やかに、芸者衆を呼んでの大変な賑わいでございます。<break time=\"450ms\"/>治兵衛さんもすっかり酒が回って、日頃のしかめっ面はどこへやら、頬を紅くして大きな声で笑っております。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+2st\">いよっ、これはめでたい、めでたい！芸者さん、もう一曲お願いしますよ！<break time=\"400ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">と、扇子を片手に立ち上がり、見よう見まねで踊り出す始末。周りの芸者衆も、<break time=\"300ms\"/></prosody><prosody rate=\"112%\" pitch=\"+2st\">あら旦那、お上手だこと<break time=\"350ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">とはやし立てる。ふだんの堅苦しい治兵衛さんを知る者が見たら、まず別人と思うに違いございません。<break time=\"500ms\"/>この日ばかりは、堅物番頭もただの一人の人間として、春の一日を心ゆくまで楽しんでおりました。</prosody></speak>" },
+  { id:'p5', title:"⑤旦那様との遭遇", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"0st\">ところがその踊りの輪から少し離れた床几に、こちらもお忍びで来ていたらしい近江屋の旦那自身が、静かに盃を傾けながら、この様子をじっと見ておりました。<break time=\"500ms\"/>踊りに夢中になっていた治兵衛さん、ふと視線を感じてそちらを見やった瞬間、血の気がさあっと引いていくのが自分でも分かりました。<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-3st\">だ、旦那様——！なんということだ、よりにもよってこんなところを見られるとは<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">扇子を持った手がぴたりと止まり、顔から笑みが消え、頭巾を深くかぶり直して、そそくさとその場を後にする。<break time=\"450ms\"/>ですが遅い。旦那の方もしっかりと、あの扇子さばき、あの後ろ姿を見て、誰だか気付いていたのでございます。<break time=\"500ms\"/>帰り道、治兵衛さんは生きた心地もせず、一体どんな顔をして明日から店に出ればいいのか、思案にくれておりました。</prosody></speak>" },
+  { id:'p6', title:"⑥眠れぬ夜", ssml:true, text:"<speak><prosody rate=\"95%\" pitch=\"-1st\">その夜、治兵衛さんはまんじりともせず、布団の中で何度も寝返りを打っておりました。<break time=\"500ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">長年、店の者にあれほど厳しく言ってきたこの治兵衛が、よりにもよって花見の席で芸者と踊り狂っているところを、よりにもよって旦那様に見られてしまった。これはもう、言い逃れのしようがない<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">天井を見つめながら、治兵衛さんは覚悟を決めます。<break time=\"400ms\"/></prosody><prosody rate=\"88%\" pitch=\"-2st\">口では立派なことを言っておきながら、自分はこの体たらく。明日、旦那様にお叱りを受けるのは当然、いや、それどころか暇を出されても文句は言えまい<break time=\"500ms\"/></prosody><prosody rate=\"93%\" pitch=\"-1st\">夜が白々と明ける頃、治兵衛さんは静かに起き上がると、机に向かい、震える手で辞表をしたためると、それを懐に忍ばせて、重い足取りで店へと向かったのでございます。</prosody></speak>" },
+  { id:'p7', title:"⑦旦那の呼び出し", ssml:true, text:"<speak><prosody rate=\"98%\" pitch=\"-1st\">店に着くと、いつものように帳場に座るものの、治兵衛さんの顔には生気がございません。昼を過ぎた頃、丁稚が呼びに参ります。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">番頭さん、旦那様が奥座敷へお越しくださいとのことです<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">いよいよ来たか、と治兵衛さんは懐の辞表をそっと確かめ、覚悟を決めて奥座敷へと向かいます。<break time=\"400ms\"/>襖を開けると、旦那は静かに茶を飲んでおりました。<break time=\"400ms\"/></prosody><prosody rate=\"93%\" pitch=\"-2st\">お呼びでございましょうか<break time=\"350ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">と、畳に手をついて深々と頭を下げる治兵衛さん。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">治兵衛、まあそう硬くなるな。今日は説教をしようというんじゃない<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">その声は、治兵衛さんが覚悟していたような厳しいものではなく、むしろどこか穏やかで、労わるような響きを持っておりました。</prosody></speak>" },
+  { id:'p8', title:"⑧藤棚の教え", ssml:true, text:"<speak><prosody rate=\"92%\" pitch=\"-1st\">旦那は茶を一口すすると、庭先の藤棚にちらりと目をやりながら、ゆっくりと語り出しました。<break time=\"500ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">治兵衛、あの藤棚を見てご覧。あの木の棚が頑丈で曲がりもしなければ、あの藤のつるはどうなると思う<break time=\"500ms\"/></prosody><prosody rate=\"93%\" pitch=\"-1st\">はあ……それは、その、枯れてしまいましょうか<break time=\"400ms\"/></prosody><prosody rate=\"88%\" pitch=\"-1st\">その通りだ。棚にほんの少し、しなりというものがあるからこそ、あの藤は絡みつき、風に揺られながらも毎年あんなに見事な花を咲かせる。人も同じことだよ、治兵衛<break time=\"600ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">わしは昨日、向島でお前を見かけたよ。扇子を持って、それは楽しそうに踊っていたな<break time=\"500ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">申し訳ございません。この通り、いかようにも処分をお申し付けください<break time=\"450ms\"/></prosody><prosody rate=\"88%\" pitch=\"-1st\">馬鹿を言うな。わしはむしろ、あの日のお前を見て安心したのだ。一年中、一日たりとも気を緩めない男というのは、いつかぽっきりと折れてしまうものだ。お前にも人並みに息抜きをする心があると分かって、これほど頼もしいことはない<break time=\"600ms\"/></prosody><prosody rate=\"90%\" pitch=\"-2st\">旦那様……この御恩、終生忘れませぬ<break time=\"600ms\"/></prosody><prosody rate=\"95%\" pitch=\"0st\">窓の外では、藤の花が風に揺れながら、静かに薫っておりました。この日を境に、治兵衛さんの厳しさは変わらぬながらも、その目にはどこか温かみが加わったといわれております。<break time=\"600ms\"/>堅すぎる木は折れる、しなう心があってこそ、人は美しく咲き続けられる——そんな教えを胸に、この噺はおしまいとさせていただきます。</prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. In the great merchant houses of old, there was a role called banto - a head clerk who ran the whole shop in the master's stead, a position of tremendous responsibility. Men in this role tended, more often than not, to be famously rigid and humorless: let a young employee slip up even slightly, and a fearsome scolding was sure to follow. But that's the way of the world - even the sternest-looking person usually has another side hidden away. Today, let's settle in and listen closely to a heartfelt tale of just such a stern head clerk at a great trading house, and the day fate peeled back his stiff facade in the most unexpected way." },
+    { id:'p2', title:"②堅物の番頭", ssml:false, text:"At a certain great trading house in the Nihonbashi district, called the Omiya, which conducted business on a grand scale, there worked a head clerk named Jihei. When it came to his job, Jihei was truly exceptional - from bookkeeping to handling customers, there wasn't a flaw to be found in his work. But precisely because of that, he allowed for absolutely no give. The moment any young employee showed even a hint of playfulness, a thunderous scolding would come crashing down. Jihei: \"Now then, what is this slovenly behavior? Does a man of commerce truly believe he can build his fortune while chasing after idle amusements?\" Behind his back, the shop's young workers called him \"Jihei the Demon,\" fearing him even as they found him exhausting to be around. Jihei himself knew full well what they called him, and only puffed his chest out further, believing that his own iron discipline was exactly what kept the shop standing strong." },
+    { id:'p3', title:"③こっそり抜け出す", ssml:false, text:"And yet, this same Jihei apparently had one day each year when he secretly let his hair down, unknown to anyone. Around this time, when the cherry blossoms bloom, he would leave the shop claiming an errand for the master, duck into an unnoticed alley, change out of his formal coat, and pull a hood snugly down to hide his face. Jihei (to himself): \"Heh. Not a soul will recognize me now. Surely even I am allowed one day of relief a year.\" And with a spring in his step, quite unlike his usual self, he made his way to a cherry-blossom viewing party over in Mukojima. That this same Jihei, feared throughout the shop as a demon, showed a completely different, unknown face just once a year - there was something wonderfully human about it." },
+    { id:'p4', title:"④花見の宴", ssml:false, text:"Along the embankment at Mukojima, the cherry trees were in full, glorious bloom. Under a curtained party pavilion, shamisen music rang out merrily, geisha entertainers had been called in, and the whole scene was one of tremendous festivity. Jihei, thoroughly warmed by sake, had lost every trace of his usual scowl, his cheeks flushed as he laughed loudly. Jihei: \"Ha! What a splendid day, splendid! Miss geisha, one more song, if you please!\" He rose to his feet, fan in hand, and began dancing along in clumsy imitation. The geisha around him cheered him on. Geisha: \"My, my, sir, you're quite the dancer!\" Anyone who knew the stiff, humorless Jihei of the shop would surely have taken him for a completely different man. On this one day, the rigid head clerk was simply a human being, savoring a spring day to the very fullest." },
+    { id:'p5', title:"⑤旦那様との遭遇", ssml:false, text:"But at a bench set slightly apart from the dancing, the master of the Omiya himself - who had apparently also come in disguise - sat quietly sipping from a sake cup, watching the whole scene unfold. Jihei, lost in his dancing, suddenly felt a gaze upon him, glanced over, and in that instant felt the blood drain entirely from his face. Jihei (inwardly): \"M-master! Of all things - to be seen like this, of all places!\" His fan-holding hand froze mid-motion, the smile vanished from his face, and he pulled his hood down low and hurried away from the scene. But it was too late. The master had gotten a good enough look at that fan work, that retreating back, to know exactly who it was. On the way home, Jihei felt barely alive, lost in anxious thought over what face he could possibly show at the shop come morning." },
+    { id:'p6', title:"⑥眠れぬ夜", ssml:false, text:"That night, Jihei could not sleep a wink, tossing and turning endlessly beneath his blankets. Jihei (to himself): \"All these years I have scolded the shop's employees so severely, and yet of all people, I - I was seen by the master himself, dancing like a madman with a geisha at a cherry-blossom party. There is no excuse I could possibly offer now.\" Staring up at the ceiling, Jihei resolved himself to what must come. Jihei (to himself): \"I preached such fine words with my mouth, while behaving like this myself. Tomorrow, a scolding from the master is only natural - no, more than that, I could hardly complain even if I were dismissed outright.\" As the night began to pale toward dawn, Jihei quietly rose, sat at his writing desk, and with trembling hands composed a letter of resignation. Tucking it into his robe, he made his way to the shop with heavy, dragging steps." },
+    { id:'p7', title:"⑦旦那の呼び出し", ssml:false, text:"Back at the shop, Jihei took his usual seat at the counting desk, though there was no life left in his face. Past noon, an apprentice came to fetch him. Apprentice: \"Head Clerk, the master asks that you come to the inner parlor.\" So it has finally come, Jihei thought, quietly checking the resignation letter tucked in his robe, and steeling himself, he made his way to the inner parlor. Sliding open the door, he found the master quietly sipping tea. Jihei: \"You called for me?\" He pressed his hands to the tatami and bowed deeply. Master: \"Jihei, now, don't be so stiff. I haven't called you here to lecture you today.\" The voice was nothing like the harsh tone Jihei had braced himself for - it carried, instead, a gentleness, almost a note of concern." },
+    { id:'p8', title:"⑧藤棚の教え", ssml:false, text:"The master took a sip of tea, glanced briefly toward the wisteria trellis in the garden, and began speaking slowly. Master: \"Jihei, look at that wisteria trellis. If that wooden frame were so sturdy it never gave an inch, what do you suppose would happen to the wisteria vines?\" Jihei: \"Ah... I suppose... they would wither, sir?\" Master: \"Exactly right. It's precisely because the frame has a little give, a little flexibility, that the wisteria can twine around it, and even as it sways in the wind, it blooms so magnificently every single year. People are just the same, Jihei.\" Jihei: \"...\" Master: \"I saw you yesterday, at Mukojima. Fan in hand, dancing away, looking like you were having the time of your life.\" Jihei pressed his forehead to the tatami. Jihei: \"I am deeply sorry. Please, deal with me however you see fit.\" Master: \"Don't be absurd. If anything, seeing you that day put my mind at ease. A man who never once lets himself relax, not for a single day of the year, is bound to snap eventually. Knowing that you, too, have an ordinary human heart capable of a little relief - nothing could reassure me more.\" Jihei lifted his face, tears welling in his eyes. Jihei: \"Master... I shall never forget this kindness, for as long as I live.\" Outside the window, the wisteria blossoms swayed gently in the breeze, their fragrance drifting quietly through the air. From that day on, they say, Jihei's strictness never wavered - and yet somehow, his eyes carried a new warmth. A tree too rigid will eventually break; only a heart with a little give can go on blooming beautifully. With that teaching in mind, we bring this tale to its close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Dans les grandes maisons de commerce d'autrefois, il existait une fonction appelee banto - un premier commis qui dirigeait toute la boutique a la place du maitre, une position d'une immense responsabilite. Les hommes occupant ce role avaient tendance, le plus souvent, a etre reputes rigides et sans humour : qu'un jeune employe commette la moindre erreur, et une severe reprimande suivait a coup sur. Mais c'est ainsi que va le monde - meme la personne la plus severe en apparence cache generalement une autre facette. Aujourd'hui, installons-nous et ecoutons attentivement l'histoire touchante d'un tel premier commis severe dans une grande maison de commerce, et du jour ou le destin devoila sa facade rigide de la maniere la plus inattendue." },
+    { id:'p2', title:"②堅物の番頭", ssml:false, text:"Dans une grande maison de commerce du quartier de Nihonbashi, appelee l'Omiya, qui menait ses affaires a grande echelle, travaillait un premier commis nomme Jihei. En ce qui concernait son travail, Jihei etait veritablement exceptionnel - de la tenue des comptes a l'accueil des clients, on ne trouvait pas la moindre faille dans son travail. Mais precisement a cause de cela, il n'accordait absolument aucune souplesse. Des qu'un jeune employe montrait ne serait-ce qu'une once de legerete, une reprimande tonitruante s'abattait aussitot. Jihei : « Alors, qu'est-ce que ce comportement relache ? Un homme de commerce croit-il vraiment pouvoir batir sa fortune en courant apres des amusements futiles ? » Derriere son dos, les jeunes employes de la boutique l'appelaient « Jihei le Demon », le craignant tout en le trouvant epuisant a cotoyer. Jihei lui-meme savait parfaitement comment on le surnommait, et n'en bombait le torse que davantage, convaincu que sa propre discipline de fer etait exactement ce qui maintenait la boutique solide." },
+    { id:'p3', title:"③こっそり抜け出す", ssml:false, text:"Et pourtant, ce meme Jihei avait apparemment un jour par an ou il se laissait secretement aller, sans que personne ne le sache. A cette epoque de l'annee, quand les cerisiers fleurissent, il quittait la boutique en pretextant une course pour le maitre, se glissait dans une ruelle discrete, changeait de manteau, et rabattait une capuche pour cacher son visage. Jihei (a lui-meme) : « Heh. Pas une ame ne me reconnaitra maintenant. Meme moi, j'ai bien droit a un jour de repit par an, non ? » Et d'un pas leger, bien different de son allure habituelle, il se dirigea vers une fete de contemplation des cerisiers a Mukojima. Que ce meme Jihei, craint dans toute la boutique comme un demon, montre un tout autre visage inconnu de tous, ne serait-ce qu'une fois par an - il y avait la quelque chose de merveilleusement humain." },
+    { id:'p4', title:"④花見の宴", ssml:false, text:"Le long de la digue de Mukojima, les cerisiers etaient en pleine et magnifique floraison. Sous un pavillon de fete drape de rideaux, la musique du shamisen resonnait joyeusement, des geishas avaient ete appelees, et toute la scene etait d'une extraordinaire animation. Jihei, bien echauffe par le sake, avait perdu toute trace de son air renfrogne habituel, les joues rougies alors qu'il riait fort. Jihei : « Ha ! Quelle magnifique journee, magnifique ! Mademoiselle geisha, encore une chanson, je vous prie ! » Il se leva, eventail en main, et se mit a danser en imitation maladroite. Les geishas autour de lui l'encourageaient. Geisha : « Ma foi, monsieur, vous dansez fort bien ! » Quiconque connaissait le Jihei rigide et sans humour de la boutique l'aurait certainement pris pour un tout autre homme. En ce seul jour, le premier commis rigide n'etait plus qu'un etre humain, savourant pleinement une journee de printemps." },
+    { id:'p5', title:"⑤旦那様との遭遇", ssml:false, text:"Mais sur un banc un peu a l'ecart de la danse, le maitre de l'Omiya lui-meme - apparemment venu lui aussi deguise - etait assis tranquillement, sirotant une coupe de sake, observant toute la scene se derouler. Jihei, perdu dans sa danse, sentit soudain un regard pese sur lui, jeta un coup d'oeil, et a cet instant sentit tout le sang se retirer de son visage. Jihei (interieurement) : « M-monsieur ! De toutes les choses - etre vu ainsi, de tous les endroits ! » Sa main tenant l'eventail se figea en plein mouvement, le sourire disparut de son visage, et il rabaissa sa capuche et s'eloigna precipitamment de la scene. Mais c'etait trop tard. Le maitre avait deja bien vu ce jeu d'eventail, ce dos qui s'eloignait, pour savoir exactement de qui il s'agissait. Sur le chemin du retour, Jihei se sentait a peine vivant, perdu dans des pensees anxieuses sur quel visage il pourrait bien montrer a la boutique des le lendemain." },
+    { id:'p6', title:"⑥眠れぬ夜", ssml:false, text:"Cette nuit-la, Jihei ne put fermer l'oeil, se retournant sans cesse sous ses couvertures. Jihei (a lui-meme) : « Toutes ces annees, j'ai reprimande si severement les employes de la boutique, et pourtant, entre tous, c'est moi - moi que le maitre lui-meme a vu, dansant comme un fou avec une geisha lors d'une fete des cerisiers. Il n'existe aucune excuse que je pourrais offrir maintenant. » Fixant le plafond, Jihei se resigna a ce qui devait venir. Jihei (a lui-meme) : « J'ai preche de si belles paroles de ma bouche, tout en me comportant ainsi moi-meme. Demain, une reprimande du maitre est tout naturel - non, plus que cela, je ne pourrais meme pas me plaindre si l'on me renvoyait purement et simplement. » Alors que la nuit commencait a paler vers l'aube, Jihei se leva doucement, s'assit a son bureau, et de mains tremblantes, redigea une lettre de demission. La glissant dans sa robe, il se dirigea vers la boutique d'un pas lourd et trainant." },
+    { id:'p7', title:"⑦旦那の呼び出し", ssml:false, text:"De retour a la boutique, Jihei prit sa place habituelle au bureau des comptes, bien qu'il n'y eut plus aucune vie dans son visage. Passe midi, un apprenti vint le chercher. Apprenti : « Monsieur le premier commis, le maitre demande que vous veniez au salon interieur. » Ca y est, ca vient enfin, pensa Jihei, verifiant discretement la lettre de demission glissee dans sa robe, et se raffermissant, il se dirigea vers le salon interieur. En faisant coulisser la porte, il trouva le maitre en train de siroter tranquillement du the. Jihei : « Vous m'avez fait appeler ? » Il pressa ses mains sur le tatami et s'inclina profondement. Le maitre : « Jihei, allons, ne sois pas si raide. Je ne t'ai pas fait venir aujourd'hui pour te faire la lecon. » Cette voix n'avait rien du ton severe auquel Jihei s'etait prepare - elle portait, au contraire, une douceur, presque une note de sollicitude." },
+    { id:'p8', title:"⑧藤棚の教え", ssml:false, text:"Le maitre prit une gorgee de the, jeta un bref coup d'oeil vers la treille de glycine dans le jardin, et se mit a parler lentement. Le maitre : « Jihei, regarde cette treille de glycine. Si ce cadre de bois etait si robuste qu'il ne cedait jamais d'un pouce, que crois-tu qu'il adviendrait des lianes de glycine ? » Jihei : « Ah... je suppose... qu'elles finiraient par se fletrir, monsieur ? » Le maitre : « Exactement. C'est precisement parce que le cadre a un peu de souplesse, un peu de flexibilite, que la glycine peut s'y enrouler, et meme en se balancant au vent, elle fleurit si magnifiquement chaque annee. Les hommes sont exactement pareils, Jihei. » Jihei : « ... » Le maitre : « Je t'ai vu hier, a Mukojima. Eventail en main, dansant, l'air de passer le plus beau moment de ta vie. » Jihei pressa son front contre le tatami. Jihei : « Je suis profondement desole. Je vous en prie, disposez de moi comme bon vous semble. » Le maitre : « Ne dis pas de sottises. Au contraire, te voir ce jour-la m'a rassure. Un homme qui ne se detend jamais, pas meme un seul jour de l'annee, finit toujours par se briser. Savoir que toi aussi, tu as un coeur humain ordinaire capable d'un peu de repit - rien ne pourrait me rassurer davantage. » Jihei leva le visage, les yeux embues de larmes. Jihei : « Maitre... je n'oublierai jamais cette bonte, tant que je vivrai. » Dehors la fenetre, les fleurs de glycine se balancaient doucement dans la brise, leur parfum flottant tranquillement dans l'air. A partir de ce jour, dit-on, la severite de Jihei ne faiblit jamais - et pourtant, ses yeux portaient desormais une nouvelle chaleur. Un arbre trop rigide finit par se briser ; seul un coeur avec un peu de souplesse peut continuer de fleurir avec beaute. Avec cet enseignement en tete, nous menons ce conte a sa conclusion." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Permitanme contarles una historia. En las grandes casas comerciales de antano, existia un puesto llamado banto: un empleado principal que dirigia toda la tienda en lugar del amo, una posicion de enorme responsabilidad. Los hombres en este puesto solian, casi siempre, ser famosos por su rigidez y falta de humor: si un empleado joven cometia el mas minimo desliz, una severa reprimenda era segura. Pero asi es el mundo: incluso la persona de aspecto mas severo suele esconder otra faceta. Hoy, acomodemonos y escuchemos con atencion la conmovedora historia de un empleado principal asi de severo en una gran casa comercial, y el dia en que el destino desvelo su fachada rigida de la manera mas inesperada." },
+    { id:'p2', title:"②堅物の番頭", ssml:false, text:"En una gran casa comercial del distrito de Nihonbashi, llamada la Omiya, que llevaba sus negocios a gran escala, trabajaba un empleado principal llamado Jihei. En cuanto a su trabajo, Jihei era verdaderamente excepcional: desde la contabilidad hasta el trato con los clientes, no se le podia encontrar ni un solo defecto. Pero precisamente por eso, no permitia absolutamente ninguna flexibilidad. En cuanto un empleado joven mostraba el mas minimo indicio de ligereza, caia sobre el una reprimenda atronadora. Jihei: \"Vamos, ¿que es este comportamiento tan descuidado? ¿Acaso un hombre de negocios cree de verdad que puede construir su fortuna persiguiendo diversiones ociosas?\" A sus espaldas, los jovenes empleados de la tienda lo llamaban \"Jihei el Demonio\", temiendole aunque tambien lo encontraban agotador. El propio Jihei sabia perfectamente como lo apodaban, y solo sacaba mas pecho, convencido de que su propia disciplina de hierro era exactamente lo que mantenia la tienda en pie." },
+    { id:'p3', title:"③こっそり抜け出す", ssml:false, text:"Y sin embargo, este mismo Jihei aparentemente tenia un dia al ano en el que se soltaba en secreto, sin que nadie lo supiera. Por esta epoca, cuando florecen los cerezos, salia de la tienda con la excusa de un mandado para el amo, se metia en un callejon discreto, se cambiaba de abrigo y se calaba una capucha para ocultar el rostro. Jihei (para si mismo): \"Je, je. Nadie me reconocera ahora. Hasta yo merezco un dia de descanso al ano, ¿no?\" Y con un paso ligero, muy distinto de su porte habitual, se dirigio a una fiesta para contemplar los cerezos en flor en Mukojima. Que este mismo Jihei, temido en toda la tienda como un demonio, mostrara un rostro completamente distinto y desconocido para todos, aunque fuera solo una vez al ano, tenia algo maravillosamente humano." },
+    { id:'p4', title:"④花見の宴", ssml:false, text:"A lo largo del terraplen de Mukojima, los cerezos estaban en plena y gloriosa floracion. Bajo un pabellon de fiesta cubierto de cortinas, la musica del shamisen sonaba alegremente, se habia llamado a geishas, y toda la escena era de una tremenda animacion. Jihei, bien entonado por el sake, habia perdido todo rastro de su ceno fruncido habitual, con las mejillas sonrojadas mientras reia a carcajadas. Jihei: \"¡Ja! Que dia tan espléndido, espléndido! ¡Senorita geisha, una cancion mas, por favor!\" Se puso de pie, abanico en mano, y comenzo a bailar en torpe imitacion. Las geishas a su alrededor lo animaban. Geisha: \"Vaya, senor, ¡que bien baila usted!\" Cualquiera que conociera al rigido y humorless Jihei de la tienda sin duda lo habria tomado por un hombre completamente distinto. Solo por ese dia, el rigido empleado principal era simplemente un ser humano, disfrutando al maximo de un dia de primavera." },
+    { id:'p5', title:"⑤旦那様との遭遇", ssml:false, text:"Pero en un banco un poco apartado del baile, el propio amo de la Omiya, quien al parecer tambien habia venido de incognito, estaba sentado tranquilamente bebiendo sake, observando toda la escena. Jihei, absorto en su baile, sintio de repente una mirada sobre el, miro hacia alli, y en ese instante sintio como toda la sangre se le iba del rostro. Jihei (para si): \"¡A-amo! De todas las cosas, ¡que me vean asi, precisamente aqui!\" La mano que sostenia el abanico se detuvo a media accion, la sonrisa desaparecio de su rostro, y se calo la capucha bien abajo y se alejo apresuradamente de la escena. Pero ya era tarde. El amo ya habia visto bien ese manejo del abanico, esa espalda que se alejaba, como para saber exactamente quien era. De camino a casa, Jihei apenas se sentia vivo, perdido en pensamientos angustiados sobre que cara podria mostrar en la tienda a partir de manana." },
+    { id:'p6', title:"⑥眠れぬ夜", ssml:false, text:"Esa noche, Jihei no pudo pegar ojo, dando vueltas sin cesar bajo las mantas. Jihei (para si): \"Todos estos anos he regañado con tanta severidad a los empleados de la tienda, y sin embargo, entre todos, fui yo, yo a quien vio el propio amo, bailando como un loco con una geisha en una fiesta de cerezos. No existe excusa alguna que pueda ofrecer ahora.\" Mirando fijamente el techo, Jihei se resigno a lo que debia venir. Jihei (para si): \"Predique palabras tan nobles con mi boca, mientras yo mismo me comportaba asi. Manana, una reprimenda del amo es lo mas natural, no, mas que eso, no podria quejarme ni siquiera si me despidieran de inmediato.\" Cuando la noche empezaba a palidecer hacia el amanecer, Jihei se levanto en silencio, se sento a su escritorio y, con manos temblorosas, redacto una carta de renuncia. Guardandola en su tunica, se dirigio a la tienda con pasos pesados y arrastrados." },
+    { id:'p7', title:"⑦旦那の呼び出し", ssml:false, text:"De vuelta en la tienda, Jihei ocupo su asiento habitual en el mostrador de cuentas, aunque no le quedaba vida alguna en el rostro. Pasado el mediodia, un aprendiz fue a buscarlo. Aprendiz: \"Senor empleado principal, el amo pide que venga usted a la sala interior.\" Por fin llego, penso Jihei, comprobando discretamente la carta de renuncia guardada en su tunica, y, armandose de valor, se dirigio a la sala interior. Al abrir la puerta corrediza, encontro al amo bebiendo te tranquilamente. Jihei: \"¿Me mando llamar?\" Poso las manos en el tatami e hizo una profunda reverencia. Amo: \"Jihei, vamos, no te pongas asi de tieso. No te he llamado hoy para sermonearte.\" Aquella voz no tenia nada del tono severo para el que Jihei se habia preparado; llevaba, en cambio, una suavidad, casi una nota de preocupacion." },
+    { id:'p8', title:"⑧藤棚の教え", ssml:false, text:"El amo tomo un sorbo de te, miro brevemente hacia el emparrado de glicina en el jardin, y comenzo a hablar lentamente. Amo: \"Jihei, mira ese emparrado de glicina. Si ese marco de madera fuera tan robusto que nunca cediera ni un poco, ¿que crees que le pasaria a las enredaderas de glicina?\" Jihei: \"Ah... supongo... ¿que se marchitarian, senor?\" Amo: \"Exactamente. Es precisamente porque el marco tiene un poco de flexibilidad, un poco de holgura, que la glicina puede enroscarse en el, y aunque se balancee con el viento, florece tan magnificamente cada ano. Las personas son exactamente iguales, Jihei.\" Jihei: \"...\" Amo: \"Te vi ayer, en Mukojima. Abanico en mano, bailando, con cara de estar pasando el mejor momento de tu vida.\" Jihei presiono la frente contra el tatami. Jihei: \"Lo siento profundamente. Por favor, haga conmigo lo que considere apropiado.\" Amo: \"No digas tonterias. Al contrario, verte ese dia me tranquilizo. Un hombre que nunca se relaja, ni un solo dia del ano, termina por quebrarse tarde o temprano. Saber que tu tambien tienes un corazon humano corriente, capaz de un poco de descanso, no hay nada que me tranquilice mas.\" Jihei levanto el rostro, con lagrimas asomando en los ojos. Jihei: \"Amo... jamas olvidare esta bondad, mientras viva.\" Fuera de la ventana, las flores de glicina se mecian suavemente con la brisa, su fragancia flotando tranquilamente en el aire. Desde ese dia, se dice, la severidad de Jihei nunca flaqueo, y sin embargo, sus ojos llevaban desde entonces una nueva calidez. Un arbol demasiado rigido termina por quebrarse; solo un corazon con algo de holgura puede seguir floreciendo con belleza. Con esta ensenanza en mente, llevamos este relato a su conclusion." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 24;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

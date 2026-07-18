@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寿限無 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.4 🔥エース</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">寿限無</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Jugemu / The Long Name</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②和尚さんへ相談</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③候補が次々と</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④全部つなげろ</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤大きくなって</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。むかしから、<ruby class="v1">子供<rt>こども</rt></ruby>の<ruby class="v1">名前<rt>なまえ</rt></ruby>てぇものは、<ruby class="v1">親<rt>おや</rt></ruby>にとっちゃあ<ruby class="v2">一大事<rt>いちだいじ</rt></ruby>でございましてね。「どうか<ruby class="v1">立派<rt>りっぱ</rt></ruby>に<ruby class="v1">育<rt>そだ</rt></ruby>ってくれますように」なんてぇ、あれもいい、これもいいと<ruby class="v1">欲張<rt>よくば</rt></ruby>るのが<ruby class="v1">親心<rt>おやごころ</rt></ruby>ってやつで。今日はそんな、<ruby class="v1">名前<rt>なまえ</rt></ruby>にまつわる<ruby class="v1">馬鹿馬鹿<rt>ばかばか</rt></ruby>しいお<ruby class="v1">話<rt>はなし</rt></ruby>を一つ、お<ruby class="v1">付<rt>つ</rt></ruby>き<ruby class="v1">合<rt>あ</rt></ruby>いくださいまし。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【和尚さんへ相談】</span>
+                    さる<ruby class="v1">長屋<rt>ながや</rt></ruby>に、<ruby class="v1">待<rt>ま</rt></ruby>ちに<ruby class="v1">待<rt>ま</rt></ruby>った<ruby class="v1">男<rt>おとこ</rt></ruby>の<ruby class="v1">子<rt>こ</rt></ruby>が<ruby class="v1">生<rt>う</rt></ruby>まれましてね。<ruby class="v1">父親<rt>ちちおや</rt></ruby>は<ruby class="v1">嬉<rt>うれ</rt></ruby>しくて<ruby class="v1">嬉<rt>うれ</rt></ruby>しくて、いい<ruby class="v1">名前<rt>なまえ</rt></ruby>を付けてやろうと、<ruby class="v1">近所<rt>きんじょ</rt></ruby>の<ruby class="v2">和尚<rt>おしょう</rt></ruby>さんのところへ<ruby class="v1">飛<rt>と</rt></ruby>んでいきました。<br>
+<strong>父親：</strong>「和尚さん、和尚さん、ゆんべ<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が<ruby class="v1">男<rt>おとこ</rt></ruby>の<ruby class="v1">子<rt>こ</rt></ruby>を<ruby class="v1">産<rt>う</rt></ruby>みましてね、<ruby class="v1">何<rt>なに</rt></ruby>か<ruby class="v1">縁起<rt>えんぎ</rt></ruby>のいい<ruby class="v1">名前<rt>なまえ</rt></ruby>を付けてやりたいんで、一つ<ruby class="v1">考<rt>かんが</rt></ruby>えちゃもらえませんか」<br>
+<ruby class="v2">和尚<rt>おしょう</rt></ruby>：「そりゃあおめでたい。よし、それなら<ruby class="v1">一緒<rt>いっしょ</rt></ruby>に<ruby class="v1">考<rt>かんが</rt></ruby>えてやろう」<br>
+てんで、二人して<ruby class="v1">頭<rt>あたま</rt></ruby>をひねり<ruby class="v1">始<rt>はじ</rt></ruby>めました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【候補が次々と】</span>
+                    <ruby class="v2">和尚<rt>おしょう</rt></ruby>：「まず<ruby class="v2">寿限無<rt>じゅげむ</rt></ruby>、というのはどうだ。<ruby class="v1">寿命<rt>じゅみょう</rt></ruby>に<ruby class="v1">限<rt>かぎ</rt></ruby>りが<ruby class="v1">無<rt>な</rt></ruby>い、つまり<ruby class="v1">長生<rt>ながい</rt></ruby>きするというめでたい<ruby class="v1">意味<rt>いみ</rt></ruby>だ」<br>
+<strong>父親：</strong>「そりゃあいい、それにしましょう」<br>
+<ruby class="v2">和尚<rt>おしょう</rt></ruby>：「いや待て、<ruby class="v2">五劫<rt>ごこう</rt></ruby>の<ruby class="v1">擦<rt>す</rt></ruby>り<ruby class="v1">切<rt>き</rt></ruby>れ、というのもある。<ruby class="v2">天女<rt>てんにょ</rt></ruby>が<ruby class="v1">三千年<rt>さんぜんねん</rt></ruby>に一<ruby class="v1">度<rt>ど</rt></ruby>、<ruby class="v1">羽衣<rt>はごろも</rt></ruby>で<ruby class="v1">岩<rt>いわ</rt></ruby>をなでて、その<ruby class="v1">岩<rt>いわ</rt></ruby>が<ruby class="v1">擦<rt>す</rt></ruby>り<ruby class="v1">切<rt>き</rt></ruby>れてなくなるほどの、<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">遠<rt>とお</rt></ruby>くなるような<ruby class="v1">長<rt>なが</rt></ruby>い<ruby class="v1">年月<rt>としつき</rt></ruby>という<ruby class="v1">意味<rt>いみ</rt></ruby>だ」<br>
+<strong>父親：</strong>「おお、それもめでたい、それも<ruby class="v1">付<rt>つ</rt></ruby>けましょう」<br>
+<ruby class="v2">和尚<rt>おしょう</rt></ruby>：「まだあるぞ。<ruby class="v2">海砂利水魚<rt>かいじゃりすいぎょ</rt></ruby>、<ruby class="v2">水行末<rt>すいぎょうまつ</rt></ruby><ruby class="v2">雲来末<rt>うんらいまつ</rt></ruby><ruby class="v2">風来末<rt>ふうらいまつ</rt></ruby>、これは<ruby class="v1">水<rt>みず</rt></ruby>や<ruby class="v1">雲<rt>くも</rt></ruby>や<ruby class="v1">風<rt>かぜ</rt></ruby>のように<ruby class="v1">尽<rt>つ</rt></ruby>きることのない、という<ruby class="v1">意味<rt>いみ</rt></ruby>合いだ」<br>
+<strong>父親：</strong>「そりゃもう、どれも<ruby class="v1">捨<rt>す</rt></ruby>てがたい、みんなめでたい、みんな<ruby class="v1">気<rt>き</rt></ruby>に<ruby class="v1">入<rt>い</rt></ruby>りました」
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【全部つなげろ】</span>
+                    <ruby class="v2">和尚<rt>おしょう</rt></ruby>：「こら、そんなに<ruby class="v1">全部<rt>ぜんぶ</rt></ruby>気に入ってちゃ、<ruby class="v1">一<rt>ひと</rt></ruby>つに<ruby class="v1">絞<rt>しぼ</rt></ruby>れんだろう」<br>
+<strong>父親：</strong>「いえいえ、どれも<ruby class="v1">捨<rt>す</rt></ruby>てるにゃ<ruby class="v1">惜<rt>お</rt></ruby>しい。<ruby class="v1">和尚<rt>おしょう</rt></ruby>さん、いっそのこと、<ruby class="v1">全部<rt>ぜんぶ</rt></ruby><ruby class="v1">繋<rt>つな</rt></ruby>げて<ruby class="v1">名前<rt>なまえ</rt></ruby>にしちまってもいいですか」<br>
+<ruby class="v2">和尚<rt>おしょう</rt></ruby>：「な、なに？全部繋げるだと？いくらなんでもそれは<ruby class="v1">長<rt>なが</rt></ruby>すぎるぞ」<br>
+<strong>父親：</strong>「なぁに、<ruby class="v1">長<rt>なが</rt></ruby>くたって<ruby class="v1">構<rt>かま</rt></ruby>いません、めでたい<ruby class="v1">言葉<rt>ことば</rt></ruby>ばかりなら<ruby class="v1">息子<rt>むすこ</rt></ruby>にとっちゃ<ruby class="v1">得<rt>とく</rt></ruby>ってもんです」<br>
+てなわけで、とうとう<ruby class="v1">役所<rt>やくしょ</rt></ruby>に<ruby class="v1">届<rt>とど</rt></ruby>け<ruby class="v1">出<rt>で</rt></ruby>た<ruby class="v1">名前<rt>なまえ</rt></ruby>というのが、「<ruby class="v2">寿限無<rt>じゅげむ</rt></ruby><ruby class="v2">寿限無<rt>じゅげむ</rt></ruby>、<ruby class="v2">五劫<rt>ごこう</rt></ruby>の<ruby class="v1">擦<rt>す</rt></ruby>り<ruby class="v1">切<rt>き</rt></ruby>れ、<ruby class="v2">海砂利水魚<rt>かいじゃりすいぎょ</rt></ruby>の、<ruby class="v2">水行末<rt>すいぎょうまつ</rt></ruby><ruby class="v2">雲来末<rt>うんらいまつ</rt></ruby><ruby class="v2">風来末<rt>ふうらいまつ</rt></ruby>、<ruby class="v2">食<rt>く</rt></ruby>う<ruby class="v1">寝<rt>ね</rt></ruby>る<ruby class="v1">処<rt>ところ</rt></ruby>に<ruby class="v1">住<rt>す</rt></ruby>む<ruby class="v1">処<rt>ところ</rt></ruby>、<ruby class="v2">藪柑子<rt>やぶらこうじ</rt></ruby>の<ruby class="v2">藪柑子<rt>やぶらこうじ</rt></ruby>、<ruby class="v2">パイポパイポ<rt>ぱいぽぱいぽ</rt></ruby>、<ruby class="v2">パイポのシューリンガン<rt>ぱいぽのしゅーりんがん</rt></ruby>、<ruby class="v2">シューリンガンのグーリンダイ<rt>しゅーりんがんのぐーりんだい</rt></ruby>、<ruby class="v2">グーリンダイのポンポコピーのポンポコナーの<rt>ぐーりんだいのぽんぽこぴーのぽんぽこなーの</rt></ruby>、<ruby class="v2">長久命<rt>ちょうきゅうめい</rt></ruby>の<ruby class="v2">長助<rt>ちょうすけ</rt></ruby>」という、<ruby class="v1">大変<rt>たいへん</rt></ruby>な<ruby class="v1">長<rt>なが</rt></ruby>い<ruby class="v1">名前<rt>なまえ</rt></ruby>になったのでございます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【大きくなって】</span>
+                    さて、その<ruby class="v2">寿限無<rt>じゅげむ</rt></ruby>くんも<ruby class="v1">大<rt>おお</rt></ruby>きくなりまして、<ruby class="v1">近所<rt>きんじょ</rt></ruby>の<ruby class="v1">子供<rt>こども</rt></ruby>たちと<ruby class="v1">遊<rt>あそ</rt></ruby>ぶようになりました。ところがこの<ruby class="v1">名前<rt>なまえ</rt></ruby>が<ruby class="v1">長<rt>なが</rt></ruby>いもんだから、<ruby class="v1">呼<rt>よ</rt></ruby>ぶのも<ruby class="v1">一苦労<rt>ひとくろう</rt></ruby>で。ある<ruby class="v1">日<rt>ひ</rt></ruby>のこと、<ruby class="v1">寿限無<rt>じゅげむ</rt></ruby>くんが<ruby class="v1">友達<rt>ともだち</rt></ruby>の<ruby class="v1">頭<rt>あたま</rt></ruby>を、<ruby class="v1">棒<rt>ぼう</rt></ruby>っきれでポカーンと<ruby class="v1">殴<rt>なぐ</rt></ruby>っちまいましてね、その<ruby class="v1">友達<rt>ともだち</rt></ruby>、たんこぶをこさえて<ruby class="v1">大泣<rt>おおな</rt></ruby>き。<ruby class="v1">泣<rt>な</rt></ruby>かされた<ruby class="v1">子<rt>こ</rt></ruby>の<ruby class="v1">親<rt>おや</rt></ruby>が、<ruby class="v1">寿限無<rt>じゅげむ</rt></ruby>くんの<ruby class="v1">家<rt>いえ</rt></ruby>まで<ruby class="v1">怒鳴<rt>どな</rt></ruby>り<ruby class="v1">込<rt>こ</rt></ruby>んで<ruby class="v1">来<rt>き</rt></ruby>たまではよかったんですが。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <strong>相手の親：</strong>「おい、寿限無寿限無、五劫の擦り切れ、海砂利水魚の、水行末雲来末風来末、食う寝る処に住む処、藪柑子の藪柑子、パイポパイポ、パイポのシューリンガン、シューリンガンのグーリンダイ、グーリンダイのポンポコピーのポンポコナーの、長久命の長助のバカ野郎！<ruby class="v1">うちの<rt>うちの</rt></ruby>子<ruby class="v1">供<rt>ども</rt></ruby>を、なんてぇことしてくれたんだ！」<br>
+<strong>寿限無の親：</strong>「まあまあ、そう<ruby class="v1">怒<rt>おこ</rt></ruby>らずに。<ruby class="v1">一体<rt>いったい</rt></ruby>うちの<ruby class="v2">寿限無<rt>じゅげむ</rt></ruby><ruby class="v2">寿限無<rt>じゅげむ</rt></ruby>、<ruby class="v2">五劫<rt>ごこう</rt></ruby>の<ruby class="v1">擦<rt>す</rt></ruby>り<ruby class="v1">切<rt>き</rt></ruby>れ、<ruby class="v2">海砂利水魚<rt>かいじゃりすいぎょ</rt></ruby>の、<ruby class="v2">水行末<rt>すいぎょうまつ</rt></ruby><ruby class="v2">雲来末<rt>うんらいまつ</rt></ruby><ruby class="v2">風来末<rt>ふうらいまつ</rt></ruby>、<ruby class="v2">食<rt>く</rt></ruby>う<ruby class="v1">寝<rt>ね</rt></ruby>る<ruby class="v1">処<rt>ところ</rt></ruby>に<ruby class="v1">住<rt>す</rt></ruby>む<ruby class="v1">処<rt>ところ</rt></ruby>、<ruby class="v2">藪柑子<rt>やぶらこうじ</rt></ruby>の<ruby class="v2">藪柑子<rt>やぶらこうじ</rt></ruby>、<ruby class="v2">パイポパイポ<rt>ぱいぽぱいぽ</rt></ruby>、<ruby class="v2">パイポのシューリンガン<rt>ぱいぽのしゅーりんがん</rt></ruby>、<ruby class="v2">シューリンガンのグーリンダイ<rt>しゅーりんがんのぐーりんだい</rt></ruby>、<ruby class="v2">グーリンダイのポンポコピーのポンポコナーの<rt>ぐーりんだいのぽんぽこぴーのぽんぽこなーの</rt></ruby>、<ruby class="v2">長久命<rt>ちょうきゅうめい</rt></ruby>の<ruby class="v2">長助<rt>ちょうすけ</rt></ruby>が、<ruby class="v1">何<rt>なに</rt></ruby>をしたんです？」<br>
+<strong>相手の親：</strong>「それが、寿限無寿限無、五劫の擦り切れ、海砂利水魚の、水行末雲来末風来末、食う寝る処に住む処、藪柑子の藪柑子、パイポパイポ、パイポのシューリンガン、シューリンガンのグーリンダイ、グーリンダイのポンポコピーのポンポコナーの、長久命の長助が、うちの<ruby class="v1">子<rt>こ</rt></ruby>の<ruby class="v1">頭<rt>あたま</rt></ruby>を<ruby class="v1">棒<rt>ぼう</rt></ruby>で<ruby class="v1">殴<rt>なぐ</rt></ruby>りやがって、たんこぶが……」<br>
+と、そこまで<ruby class="v1">名前<rt>なまえ</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">続<rt>つづ</rt></ruby>けているうちに、あんまり<ruby class="v1">時間<rt>じかん</rt></ruby>がかかったもんですから。<br>
+<strong>相手の親：</strong>「あれ？そういやたんこぶ、もう<ruby class="v1">引<rt>ひ</rt></ruby>っ<ruby class="v1">込<rt>こ</rt></ruby>んじまったな」<br>
+<ruby class="v1">名前<rt>なまえ</rt></ruby>が<ruby class="v1">長<rt>なが</rt></ruby>すぎたおかげで、たんこぶの<ruby class="v1">方<rt>ほう</rt></ruby>がすっかり<ruby class="v1">治<rt>なお</rt></ruby>っちまった、というのがこのお<ruby class="v1">噺<rt>はなし</rt></ruby>の<ruby class="v1">落<rt>お</rt></ruby>ちでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Since ancient times, a child's name has been a matter of the utmost importance to a parent. "May this child grow up strong and fine" — that greedy hope, wanting every good blessing at once, is simply what it means to be a parent. Today I'd like to share with you a delightfully silly tale about just such a name.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE PRIEST]</span>In a certain tenement, a long-awaited baby boy was born. The overjoyed father, wanting to give his son a fine name, rushed off to the neighborhood priest. "Priest, priest, my wife gave birth to a boy last night, and I want to give him a name with good fortune in it — could you think of one for me?" The priest replied, "Well, congratulations! All right, let's think it over together." And so the two of them put their heads together.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDIDATES PILE UP]</span>"First, how about Jugemu — 'life without limit,' meaning he'll live a long, blessed life?" "That's wonderful, let's use that one." "Wait, there's also 'gokou no surikire' — the impossibly long span of time it would take for a heavenly maiden, once every three thousand years, to wear an entire boulder down to nothing with the brush of her feathered robe." "Oh, that's auspicious too, let's add that one as well." "There's more still — kaijarisuigyo, suigyoumatsu unraimatsu fuuraimatsu, meaning something as endless as water, clouds, and wind." "Well, none of them can be given up — they're all wonderful, I love every single one."</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[JUST STRING THEM TOGETHER]</span>"Now hold on — if you like all of them that much, you'll never narrow it down to one." "No, no, it would be a shame to throw any of them away. Priest, what if we just string them all together into one name?" "Wh-what? String them all together? That's far too long, no matter how you look at it!" "Oh, it's fine if it's long — as long as it's all auspicious words, it can only be good luck for my son." And so, the name he finally registered at the town office was the enormous mouthful: "Jugemu Jugemu, Gokou-no-surikire, Kaijarisuigyo-no, Suigyoumatsu Unraimatsu Fuuraimatsu, Kuunerutokoro-ni-sumutokoro, Yaburakouji-no-Yaburakouji, Paipo-Paipo, Paipo-no-Shuuringan, Shuuringan-no-Guurindai, Guurindai-no-Ponpokopii-no-Ponpokonaa-no, Choukyuumei-no-Chousuke" — an absurdly, tremendously long name.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS LATER]</span>Now, little Jugemu grew up and started playing with the neighborhood children. But because his name was so absurdly long, even calling him over was a chore in itself. One day, Jugemu whacked a friend on the head with a stick, and the poor friend got a bump and burst into tears. So far so good — the crying boy's father stormed over to Jugemu's house to complain.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>"Hey, you — [full impossibly long name] you idiot! What have you done to my boy!" "Now, now, don't be so angry. Just what exactly did our [full impossibly long name] do?" "Well, your [full impossibly long name] hit my son on the head with a stick, and now he's got a bump—" But saying that entire name took so long that by the time he finished, "Huh? Come to think of it, that bump's already gone down." And so, thanks to the name being so ridiculously long, the bump had time to heal completely before anyone could even finish complaining about it — and that's the punchline of this tale.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Depuis toujours, le nom d'un enfant est une affaire de la plus haute importance pour ses parents. « Puisse-t-il grandir fort et bien » — cet espoir un peu gourmand, vouloir toutes les bénédictions à la fois, voilà bien ce que c'est qu'être parent. Aujourd'hui, je vais vous conter une histoire bien cocasse à propos d'un nom pas comme les autres.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE PRIEST]</span>Dans un certain quartier, un garçon tant attendu venait de naître. Le père, fou de joie, voulant donner à son fils un beau nom, courut aussitôt chez le bonze du voisinage. « Bonze, bonze, ma femme a accouché d'un garçon cette nuit, et je voudrais lui donner un nom porte-bonheur — pourriez-vous m'en trouver un ? » Le bonze répondit : « Eh bien, félicitations ! D'accord, réfléchissons-y ensemble. » Et les voilà tous deux à se creuser la tête.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDIDATES PILE UP]</span>« D'abord, que dis-tu de Jugemu — 'vie sans limite', pour qu'il vive longtemps et soit béni ? » « C'est magnifique, prenons celui-là. » « Attends, il y a aussi 'gokou no surikire' — le temps incroyablement long qu'il faudrait à une fée céleste, une fois tous les trois mille ans, pour user un rocher entier jusqu'à rien avec le frôlement de sa robe de plumes. » « Oh, c'est aussi de bon augure, ajoutons celui-là également. » « Il y en a encore — kaijarisuigyo, suigyoumatsu unraimatsu fuuraimatsu, qui signifie quelque chose d'aussi inépuisable que l'eau, les nuages et le vent. » « Eh bien, aucun ne peut être abandonné — ils sont tous merveilleux, je les aime tous. »</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[JUST STRING THEM TOGETHER]</span>« Attends un peu — si tu les aimes tous à ce point, tu n'arriveras jamais à en choisir un seul. » « Non, non, ce serait dommage d'en jeter un seul. Bonze, et si on les enchaînait tous en un seul nom ? » « Qu-quoi ? Tout enchaîner ? C'est bien trop long, quoi qu'on en dise ! » « Bah, ce n'est pas grave si c'est long — tant que ce sont tous des mots de bon augure, ça ne peut être que porte-bonheur pour mon fils. » Et c'est ainsi que le nom finalement déposé à la mairie fut cette bouchée interminable : « Jugemu Jugemu, Gokou-no-surikire, Kaijarisuigyo-no, Suigyoumatsu Unraimatsu Fuuraimatsu, Kuunerutokoro-ni-sumutokoro, Yaburakouji-no-Yaburakouji, Paipo-Paipo, Paipo-no-Shuuringan, Shuuringan-no-Guurindai, Guurindai-no-Ponpokopii-no-Ponpokonaa-no, Choukyuumei-no-Chousuke » — un nom absurdement, terriblement long.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS LATER]</span>Or, le petit Jugemu grandit et se mit à jouer avec les enfants du voisinage. Mais comme son nom était d'une longueur absurde, même l'appeler devenait déjà toute une affaire. Un jour, Jugemu frappa un ami sur la tête avec un bâton, et le pauvre ami se retrouva avec une bosse et fondit en larmes. Jusque-là tout allait bien — le père du garçon qui pleurait débarqua chez Jugemu pour se plaindre.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>« Hé, toi, [nom entier impossiblement long], espèce d'idiot ! Qu'as-tu fait à mon garçon ! » « Allons, allons, ne te fâche pas comme ça. Qu'a donc fait exactement notre [nom entier impossiblement long] ? » « Eh bien, ton [nom entier impossiblement long] a frappé mon fils à la tête avec un bâton, et maintenant il a une bosse... » Mais dire ce nom en entier prit tellement de temps qu'au moment où il eut fini : « Tiens ? Maintenant que j'y pense, cette bosse a déjà désenflé. » Et voilà, grâce à ce nom ridiculement long, la bosse eut le temps de guérir complètement avant même qu'on ait fini de s'en plaindre — voilà la chute de cette histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Desde la antigüedad, el nombre de un niño ha sido un asunto de suma importancia para los padres. «Que crezca fuerte y bien» — ese deseo un tanto ambicioso de querer todas las bendiciones a la vez, no es sino lo que significa ser padre. Hoy quiero compartirles un cuento de lo más disparatado sobre un nombre así.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE PRIEST]</span>En cierto vecindario había nacido un niño largamente esperado. El padre, loco de alegría, queriendo darle a su hijo un buen nombre, corrió hacia el sacerdote del barrio. «Sacerdote, sacerdote, mi esposa dio a luz a un varón anoche, y quiero darle un nombre de buena fortuna, ¿podría pensar uno para mí?» El sacerdote respondió: «Vaya, felicidades. Está bien, pensémoslo juntos.» Y ambos se pusieron a cavilar.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDIDATES PILE UP]</span>«Primero, ¿qué tal Jugemu, 'vida sin límite', para que viva una vida larga y bendecida?» «Eso es maravilloso, usemos ese.» «Espera, también está 'gokou no surikire', el tiempo increíblemente largo que le tomaría a una doncella celestial, una vez cada tres mil años, desgastar una roca entera hasta la nada con el roce de su manto de plumas.» «Oh, eso también es auspicioso, añadamos ese también.» «Todavía hay más: kaijarisuigyo, suigyoumatsu unraimatsu fuuraimatsu, que significa algo tan inagotable como el agua, las nubes y el viento.» «Bueno, ninguno se puede desechar, todos son maravillosos, me encantan todos.»</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[JUST STRING THEM TOGETHER]</span>«Espera un momento, si te gustan todos tanto, nunca lo vas a reducir a uno solo.» «No, no, sería una lástima desechar cualquiera de ellos. Sacerdote, ¿y si simplemente los unimos todos en un solo nombre?» «¿Q-qué? ¿Unirlos todos? ¡Eso es demasiado largo, se mire como se mire!» «Bueno, no importa que sea largo, mientras sean todas palabras de buena fortuna, solo puede traerle suerte a mi hijo.» Y así, el nombre que finalmente registró en la oficina municipal fue este enorme bocado: «Jugemu Jugemu, Gokou-no-surikire, Kaijarisuigyo-no, Suigyoumatsu Unraimatsu Fuuraimatsu, Kuunerutokoro-ni-sumutokoro, Yaburakouji-no-Yaburakouji, Paipo-Paipo, Paipo-no-Shuuringan, Shuuringan-no-Guurindai, Guurindai-no-Ponpokopii-no-Ponpokonaa-no, Choukyuumei-no-Chousuke» — un nombre absurda y tremendamente largo.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS LATER]</span>Pues bien, el pequeño Jugemu creció y empezó a jugar con los niños del vecindario. Pero como su nombre era absurdamente largo, hasta llamarlo ya era todo un esfuerzo. Un día, Jugemu golpeó a un amigo en la cabeza con un palo, y el pobre amigo se hizo un chichón y rompió a llorar. Hasta ahí todo bien: el padre del niño que lloraba fue hasta la casa de Jugemu hecho una furia para quejarse.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>«¡Oye, tú, [nombre entero imposiblemente largo], idiota! ¡Qué le has hecho a mi hijo!» «Vamos, vamos, no te enojes así. ¿Qué fue exactamente lo que hizo nuestro [nombre entero imposiblemente largo]?» «Pues bien, tu [nombre entero imposiblemente largo] le pegó a mi hijo en la cabeza con un palo, y ahora tiene un chichón...» Pero decir ese nombre completo tomó tanto tiempo que para cuando terminó: «¿Eh? Ahora que lo pienso, ese chichón ya se bajó.» Y así, gracias a que el nombre era ridículamente largo, el chichón tuvo tiempo de sanar por completo antes de que nadie terminara siquiera de quejarse — y esa es la gracia de este cuento.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②和尚さんへ相談","③候補が次々と","④全部つなげろ","⑤大きくなって","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② Asking the priest","③ Candidates pile up","④ Just string them together","⑤ Years later","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

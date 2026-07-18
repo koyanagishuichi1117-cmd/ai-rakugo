@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>湯屋番 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 湯屋番 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">え〜、一席申し上げますが。江戸の昔から、大店の若旦那というのは、生まれついての箱入り育ちでございますから、世間知らずで、おまけに怠け者ときている。<break time=\"500ms\"/>親のすねをかじるだけかじって、働くということをまるで知らない。<break time=\"400ms\"/>そんな若旦那が、とうとう親に愛想を尽かされる、というのはよくあるお話でして。<break time=\"500ms\"/>今日はそんな若旦那が、初めて奉公に出されるというお話でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②勘当", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">さるお店の若旦那、これがまあ大変な道楽者でございましてね。吉原通いはもちろんのこと、家の金は湯水のように使ってしまう。とうとう親旦那の堪忍袋の緒が切れましてね。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"-1st\">お前のような怠け者は、うちの敷居をまたがせるわけにはいかない。今日限り勘当だ、出て行け！<break time=\"500ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">そんな、お父つぁん、勘弁しておくんなさいよ。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"-1st\">くどい！<break time=\"500ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">とうとう若旦那、着の身着のままで放り出されてしまいました。行くあてもなくしょんぼりしておりますところへ、日ごろから世話をやいてくれる出入りの職人が通りかかりましてね。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③銭湯の仕事", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">若旦那、そんなところでどうなすった。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">実は勘当されちまってね、行くところがないんだ。<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">そりゃあ困ったな……よし、あたしの知り合いに銭湯の親方がいるんだ。ちょうど番台に人手が足りないっていうから、口をきいてやろう。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">番台ってのは何をするんだい。<break time=\"400ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">なあに、湯銭を受け取って、下足を預かるだけの簡単な仕事だ。お前さんでも務まるだろう。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">というわけで、若旦那はその日から銭湯の番台に座ることになりました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④暇な番台", ssml:true, text:"<speak><prosody rate=\"104%\" pitch=\"0st\">ところがこの若旦那、生まれてこのかた働いたことがございませんから、番台に座っているだけでも一苦労。<break time=\"400ms\"/>とはいえ、昼下がりのこと、客足もぱったり途絶えまして、湯屋の中はしんと静まり返っております。<break time=\"500ms\"/>若旦那、あくびを一つしながら、ぼんやりと表を眺めておりましたが、そのうち手持ち無沙汰にたまりかねて、一人で妙なことをつぶやき始めましてね。<break time=\"500ms\"/></prosody><prosody rate=\"112%\" pitch=\"+1st\">ああ、退屈だなあ。……そうだ、こういう時にこそ、いい女のお客がひょいと入ってきて、あたしにひと目惚れするなんてこたぁ、ないもんかねえ。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤妄想の恋物語", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">若旦那、誰も見ていないのをいいことに、一人芝居を始めましてね。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+1st\">え〜、御新造さんが暖簾をくぐって入っておいでになる。まあ、あちらの番台さんは、なんてご様子のいい方でしょう、ってんで、あたしの顔をちらちらご覧になる。<break time=\"400ms\"/>あたしは知らん顔で、毎度ありがとう存じます、なんて澄まして見せる。<break time=\"400ms\"/>すると御新造さんが、湯銭を出しながら、そっと文を一枚、忍ばせて寄こすんだ。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">若旦那は自分の声色を変えて、女の役までやり始めます。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+2st\">あなた様のことが忘れられません、今宵こっそりお店の裏でお待ちしております……なんて、書いてあるに違いない。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥妄想が膨らむ", ssml:true, text:"<speak><prosody rate=\"106%\" pitch=\"0st\">若旦那、もはや自分の世界に入り込んでしまいましてね、身振り手振りまでつけて、ますます調子に乗ってまいります。<break time=\"400ms\"/></prosody><prosody rate=\"122%\" pitch=\"+1st\">ところがそこへ、御新造さんの旦那が焼き餅を焼いて、刀を振り回して怒鳴り込んでくる。おのれ番台め、人の女房に何をした、ってんで斬りかかってくるが、あたしはひらりとかわして、まあまあ、旦那、お鎮まりなすって、と、これがまた粋な啖呵の切りようで……<break time=\"500ms\"/></prosody><prosody rate=\"125%\" pitch=\"+2st\">するってぇと旦那も感服して、いや、恐れ入った、お前のような男に女房を任せよう、なんてんで、あたしは晴れて御新造さんと夫婦になり、この銭湯の主人におさまって、左団扇の大旦那様と……<break time=\"800ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦オチ", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">若旦那がすっかり夢見心地で、うっとりと目を閉じたその時、<break time=\"500ms\"/></prosody><prosody rate=\"130%\" pitch=\"-1st\">おい、番台さん！三助さん、いくらだい？<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">突然の大声に、若旦那、飛び上がらんばかりに驚きましてね。目の前には、ずぶ濡れの、いかつい職人風の客が、仁王立ちで湯銭を差し出しております。若旦那、慌てて我に返りましてね。<break time=\"400ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">あ、へ、へえ！ま、毎度ありがとう存じます……いえその、湯銭は、大人おひとり八文で……<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"-1st\">何をぼんやりしてるんだ、しっかりしろい。<break time=\"500ms\"/></prosody><prosody rate=\"102%\" pitch=\"0st\">若旦那、赤くなりながら小さくなって、こう申しました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"0st\">へえ、どうも相済みません。……あたしはまだ、お湯もかぶらないうちから、すっかりのぼせちまったようで。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Since the old days of Edo, the pampered young heir of a wealthy merchant house — the wakadanna — has always grown up sheltered and coddled, utterly ignorant of the world, and lazy on top of it all. He does nothing but sponge off his parents, never learning what it means to actually work. Sooner or later, such a young man is bound to exhaust his parents' patience completely — it's a familiar tale. Today's story is about just such a young man, sent out to work for the very first time in his life." },
+    { id:'p2', title:"②勘当", ssml:false, text:"There was a young heir at a certain merchant house who was quite the wastrel — frequenting the Yoshiwara pleasure quarters, of course, and spending the family's money like water. Finally, his father's patience snapped completely. Father: \"A lazy good-for-nothing like you has no business setting foot in this house any longer. As of today, you're disowned — get out!\" Son: \"Please, Father, have mercy on me!\" Father: \"Enough!\" And so the young man was thrown out with nothing but the clothes on his back. As he wandered aimlessly, utterly dejected, a craftsman who often did work for the family happened to pass by." },
+    { id:'p3', title:"③銭湯の仕事", ssml:false, text:"Craftsman: \"Young master, what are you doing standing around here?\" Son: \"Truth is, I've been disowned. I've got nowhere to go.\" Craftsman: \"Well, that's a fix... Tell you what, I know the master of a public bathhouse. They're short-handed at the front counter, so let me put in a word for you.\" Son: \"What exactly does the counter man do?\" Craftsman: \"Nothing much — just collect the bath fee and look after people's shoes. Simple work, even you could manage it.\" And so, from that day on, the young man found himself seated at the front counter of a public bathhouse." },
+    { id:'p4', title:"④暇な番台", ssml:false, text:"But this young man had never worked a day in his life, so even sitting at the counter was quite a struggle. Still, one slow afternoon, customers stopped coming entirely, and the bathhouse fell into complete silence. The young man yawned and stared blankly out at the street, until finally, unable to bear the boredom any longer, he began muttering strange things to himself. Young Man: \"Ah, how dull this is... Say, wouldn't this be exactly the moment for some beautiful lady customer to wander in and fall head over heels for me at first sight?\"" },
+    { id:'p5', title:"⑤妄想の恋物語", ssml:false, text:"Taking advantage of the fact that no one was watching, the young man launched into a one-man play. Young Man: \"Ahh — a fine lady comes in through the curtain. 'My, what a fine-looking man that counter attendant is,' she says, stealing glances at my face. I play it cool, all business: 'Thank you for your patronage, as always.' Then, as she hands over her bath fee, she secretly slips me a folded letter.\" Getting carried away, the young man even changed his voice to play the woman's part. Young Man (in a woman's voice): \"I cannot stop thinking of you. Tonight, I'll be waiting secretly behind the shop... it must say something like that.\"" },
+    { id:'p6', title:"⑥妄想が膨らむ", ssml:false, text:"By now, the young man had completely lost himself in his own fantasy world, throwing in dramatic gestures as he got more and more carried away. Young Man: \"But then, the lady's husband, consumed with jealousy, comes storming in swinging a sword! 'You there, counter man — what have you done with my wife!' he shouts, slashing at me, but I dodge nimbly aside and say, 'Now, now, sir, do calm yourself' — and let me tell you, that's a fine, sharp line delivered with real style...\" Young Man: \"And then the husband, deeply impressed, says, 'No, I'm truly humbled — a man like you deserves to have my wife.' And so I happily marry the lady, take over as master of this very bathhouse, and live the easy life of a fine gentleman of leisure...\"" },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Just as the young man, utterly lost in his dream, closed his eyes in blissful reverie — Customer: \"Hey, counter man! Bath boy! How much do I owe you?\" At the sudden shout, the young man nearly jumped out of his skin. Standing before him was a dripping-wet, burly craftsman-type customer, holding out his bath fee like a fierce temple guardian statue. Flustered, the young man snapped back to reality. Young Man: \"Ah — y-yes! Th-thank you for your patronage, as always... I mean, the bath fee is eight mon per adult...\" Customer: \"What are you standing around daydreaming for? Get it together!\" Blushing and shrinking down in his seat, the young man could only stammer: Young Man: \"I'm terribly sorry... it seems I got completely carried away — flushed hot in the head — and I haven't even taken a bath yet.\"" }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Depuis l'ancien temps d'Edo, l'héritier gâté d'une riche maison de commerce — le wakadanna — a toujours grandi choyé et couvé, complètement ignorant du monde, et paresseux par-dessus le marché. Il ne fait rien d'autre que vivre aux crochets de ses parents, sans jamais apprendre ce que signifie réellement travailler. Tôt ou tard, un tel jeune homme finit immanquablement par épuiser toute la patience de ses parents — c'est une histoire bien connue. L'histoire d'aujourd'hui parle justement d'un tel jeune homme, envoyé travailler pour la toute première fois de sa vie." },
+    { id:'p2', title:"②勘当", ssml:false, text:"Il y avait chez une certaine maison de commerce un jeune héritier qui était un véritable dépensier — fréquentant bien sûr le quartier des plaisirs de Yoshiwara, et dépensant l'argent familial comme de l'eau. Finalement, la patience de son père craqua complètement. Le père : « Un bon à rien paresseux comme toi n'a plus sa place dans cette maison. À partir d'aujourd'hui, tu es renié — dehors ! » Le fils : « Je vous en prie, père, ayez pitié de moi ! » Le père : « Assez ! » Et c'est ainsi que le jeune homme fut jeté dehors avec pour seul bien les vêtements qu'il portait. Alors qu'il errait sans but, complètement abattu, un artisan qui travaillait souvent pour la famille passa par là." },
+    { id:'p3', title:"③銭湯の仕事", ssml:false, text:"L'artisan : « Jeune maître, que faites-vous planté là ? » Le fils : « À vrai dire, j'ai été renié. Je n'ai nulle part où aller. » L'artisan : « Ça alors, c'est bien embêtant... Tenez, je connais le patron d'un bain public. Ils manquent de personnel au comptoir d'entrée, je vais glisser un mot pour vous. » Le fils : « Que fait exactement l'homme du comptoir ? » L'artisan : « Pas grand-chose — juste encaisser le prix du bain et garder les chaussures des clients. Un travail simple, même vous pourriez y arriver. » Et c'est ainsi que, dès ce jour-là, le jeune homme se retrouva assis au comptoir d'entrée d'un bain public." },
+    { id:'p4', title:"④暇な番台", ssml:false, text:"Mais ce jeune homme n'avait jamais travaillé un seul jour de sa vie, alors même rester assis au comptoir était toute une épreuve. Pourtant, un après-midi tranquille, les clients cessèrent complètement de venir, et le bain public sombra dans un silence total. Le jeune homme bâilla et contempla la rue d'un air absent, jusqu'à ce que, n'en pouvant plus de s'ennuyer, il se mette à marmonner des choses étranges tout seul. Le jeune homme : « Ah, que c'est ennuyeux... Tiens, ne serait-ce pas justement le moment idéal pour qu'une belle cliente entre par hasard et tombe éperdument amoureuse de moi au premier regard ? »" },
+    { id:'p5', title:"⑤妄想の恋物語", ssml:false, text:"Profitant du fait que personne ne le regardait, le jeune homme se lança dans une pièce de théâtre à lui tout seul. Le jeune homme : « Ahh — une belle dame entre en franchissant le rideau. 'Tiens, quel bel homme, ce préposé au comptoir,' dit-elle, en me lançant des regards furtifs. Moi, je reste imperturbable, tout professionnel : 'Merci de votre fidélité, comme toujours.' Puis, en me tendant le prix du bain, elle glisse discrètement une lettre pliée. » Emporté par son élan, le jeune homme changea même de voix pour jouer le rôle de la femme. Le jeune homme (d'une voix de femme) : « Je ne peux cesser de penser à vous. Ce soir, je vous attendrai en secret derrière la boutique... ça doit dire quelque chose comme ça. »" },
+    { id:'p6', title:"⑥妄想が膨らむ", ssml:false, text:"À présent, le jeune homme s'était complètement perdu dans son propre monde imaginaire, ajoutant des gestes théâtraux à mesure qu'il s'emballait de plus en plus. Le jeune homme : « Mais voilà que le mari de la dame, rongé par la jalousie, débarque en brandissant une épée ! 'Toi, l'homme du comptoir, qu'as-tu fait de ma femme !' hurle-t-il en me pourfendant, mais j'esquive avec agilité et je dis : 'Allons, allons, monsieur, calmez-vous' — et laissez-moi vous dire que c'est une réplique cinglante, lancée avec un vrai panache... » Le jeune homme : « Et alors le mari, profondément impressionné, dit : 'Non, je m'incline, un homme comme vous mérite ma femme.' Et me voilà donc heureux de l'épouser, de reprendre les rênes de ce bain public, et de mener la belle vie d'un gentilhomme oisif... »" },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Juste au moment où le jeune homme, complètement perdu dans son rêve, fermait les yeux dans une rêverie béate — Le client : « Hé, l'homme du comptoir ! Garçon de bain ! Combien je vous dois ? » Au cri soudain, le jeune homme faillit bondir hors de sa peau. Devant lui se tenait un client trempé, un artisan costaud, tendant le prix du bain comme une statue de gardien de temple. Décontenancé, le jeune homme reprit brusquement ses esprits. Le jeune homme : « Ah — o-oui ! M-merci de votre fidélité, comme toujours... enfin je veux dire, le prix du bain est de huit mon par adulte... » Le client : « Qu'est-ce que tu fabriques planté là à rêvasser ? Reprends-toi ! » Rougissant et se faisant tout petit, le jeune homme ne put que bredouiller : Le jeune homme : « Je suis vraiment désolé... il semblerait que je me sois complètement emballé — la tête toute chaude — et je n'ai même pas encore pris mon bain. »" }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. Desde los tiempos antiguos de Edo, el heredero consentido de una rica casa comercial —el wakadanna— siempre creció protegido y mimado, completamente ignorante del mundo, y encima perezoso. No hace más que vivir a costa de sus padres, sin aprender jamás lo que significa trabajar de verdad. Tarde o temprano, un joven así termina agotando por completo la paciencia de sus padres; es una historia bien conocida. La historia de hoy trata justamente de un joven así, enviado a trabajar por primera vez en su vida." },
+    { id:'p2', title:"②勘当", ssml:false, text:"Había en cierta casa comercial un joven heredero que era todo un derrochador: frecuentaba, claro está, el barrio de placer de Yoshiwara, y gastaba el dinero familiar como agua. Al final, la paciencia de su padre se agotó por completo. Padre: «Un holgazán inútil como tú ya no tiene lugar en esta casa. A partir de hoy quedas desheredado, ¡fuera de aquí!» Hijo: «¡Por favor, padre, tenga compasión!» Padre: «¡Basta!» Y así fue como el joven fue echado a la calle con solo la ropa que llevaba puesta. Mientras vagaba sin rumbo, completamente abatido, pasó por ahí un artesano que solía trabajar para la familia." },
+    { id:'p3', title:"③銭湯の仕事", ssml:false, text:"Artesano: «Joven amo, ¿qué hace ahí parado?» Hijo: «La verdad es que me han desheredado. No tengo adónde ir.» Artesano: «Vaya, qué apuro... Mire, conozco al dueño de una casa de baños públicos. Andan cortos de personal en el mostrador de entrada, así que le pondré una palabra a su favor.» Hijo: «¿Y qué hace exactamente el del mostrador?» Artesano: «No gran cosa: solo cobrar la tarifa del baño y guardar los zapatos de la gente. Un trabajo sencillo, hasta usted podría hacerlo.» Y así fue como, desde aquel día, el joven se encontró sentado en el mostrador de entrada de una casa de baños públicos." },
+    { id:'p4', title:"④暇な番台", ssml:false, text:"Pero este joven nunca había trabajado ni un solo día en su vida, así que hasta quedarse sentado en el mostrador le costaba lo suyo. Aun así, una tarde tranquila, los clientes dejaron de venir por completo, y la casa de baños quedó sumida en un silencio absoluto. El joven bostezó y contempló la calle con la mirada perdida, hasta que, sin poder soportar más el aburrimiento, empezó a murmurar cosas extrañas para sí mismo. Joven: «Ah, qué aburrimiento... Oye, ¿no sería este el momento perfecto para que entrara alguna hermosa clienta y se enamorara de mí a primera vista?»" },
+    { id:'p5', title:"⑤妄想の恋物語", ssml:false, text:"Aprovechando que nadie lo observaba, el joven se lanzó a representar una obra de teatro para sí mismo. Joven: «Ahh... una hermosa dama entra cruzando la cortina. 'Vaya, qué hombre tan apuesto es ese del mostrador,' dice, lanzándome miradas furtivas. Yo me hago el indiferente, muy profesional: 'Gracias por su preferencia, como siempre.' Entonces, mientras me entrega la tarifa del baño, desliza discretamente una carta doblada.» Dejándose llevar, el joven incluso cambió de voz para interpretar el papel de la mujer. Joven (con voz de mujer): «No puedo dejar de pensar en usted. Esta noche lo esperaré en secreto detrás de la tienda... seguro que dice algo así.»" },
+    { id:'p6', title:"⑥妄想が膨らむ", ssml:false, text:"Para entonces, el joven se había perdido por completo en su propio mundo de fantasía, añadiendo gestos teatrales mientras se dejaba llevar cada vez más. Joven: «Pero entonces, el marido de la dama, consumido por los celos, irrumpe blandiendo una espada. '¡Tú, el del mostrador, qué le has hecho a mi esposa!', grita mientras me ataca, pero yo esquivo con agilidad y digo: 'Vamos, vamos, señor, cálmese' — y déjenme decirles que esa es una réplica cortante, dicha con verdadero estilo...» Joven: «Y entonces el marido, profundamente impresionado, dice: 'No, me rindo, un hombre como usted merece a mi esposa.' Y así me caso felizmente con la dama, tomo las riendas de esta misma casa de baños, y llevo la buena vida de todo un caballero de ocio...»" },
+    { id:'p7', title:"⑦オチ", ssml:false, text:"Justo cuando el joven, completamente perdido en su sueño, cerraba los ojos en un embeleso dichoso — Cliente: «¡Oye, el del mostrador! ¡Muchacho del baño! ¿Cuánto te debo?» Ante el grito repentino, el joven casi salta fuera de su piel. Frente a él había un cliente empapado, un artesano fornido, con la tarifa del baño extendida como una estatua guardiana de templo. Desconcertado, el joven volvió bruscamente en sí. Joven: «Ah... ¡s-sí! M-muchas gracias por su preferencia, como siempre... digo, la tarifa del baño es de ocho mon por adulto...» Cliente: «¿Qué haces ahí parado, soñando despierto? ¡Espabila!» Sonrojado y encogido en su asiento, el joven solo pudo balbucear: Joven: «Discúlpeme muchísimo... parece que me dejé llevar por completo, se me subió el calor a la cabeza, y eso que ni siquiera me he metido al baño todavía.»" }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

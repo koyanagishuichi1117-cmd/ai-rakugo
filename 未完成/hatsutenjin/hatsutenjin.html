@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初天神 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.5 🔥エース</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">初天神</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Hatsutenjin / First Visit to Tenjin</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②お参りに行こう</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③飴玉と団子</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④凧をねだる</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤父ちゃん夢中</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">子供<rt>こども</rt></ruby>というのは<ruby class="v1">正直<rt>しょうじき</rt></ruby>なもので、<ruby class="v1">親<rt>おや</rt></ruby>の<ruby class="v1">弱<rt>よわ</rt></ruby>みをちゃんと<ruby class="v1">心得<rt>こころえ</rt></ruby>ておりましてね。「ダメ」と<ruby class="v1">言<rt>い</rt></ruby>われてもしつこく<ruby class="v1">粘<rt>ねば</rt></ruby>れば、そのうち<ruby class="v1">親<rt>おや</rt></ruby>が<ruby class="v1">根負<rt>こんま</rt></ruby>けするというのを、ちゃんと<ruby class="v1">知<rt>し</rt></ruby>ってるんですな。今日は、そんな<ruby class="v1">親子<rt>おやこ</rt></ruby>の<ruby class="v1">駆<rt>か</rt></ruby>け<ruby class="v1">引<rt>ひ</rt></ruby>きが<ruby class="v1">見物<rt>みもの</rt></ruby>の、<ruby class="v2">初天神<rt>はつてんじん</rt></ruby>という<ruby class="v1">噺<rt>はなし</rt></ruby>を一つ。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【お参りに行こう】</span>
+                    <ruby class="v1">正月<rt>しょうがつ</rt></ruby>二十五<ruby class="v1">日<rt>にち</rt></ruby>は、その<ruby class="v1">年<rt>とし</rt></ruby><ruby class="v1">最初<rt>さいしょ</rt></ruby>の<ruby class="v2">天神<rt>てんじん</rt></ruby>さまのご<ruby class="v1">縁日<rt>えんにち</rt></ruby>、いわゆる<ruby class="v2">初天神<rt>はつてんじん</rt></ruby>でございます。<ruby class="v1">町中<rt>まちじゅう</rt></ruby>が<ruby class="v1">賑<rt>にぎ</rt></ruby>やかになるってんで、<ruby class="v1">息子<rt>むすこ</rt></ruby>の<ruby class="v1">金坊<rt>きんぼう</rt></ruby>が<ruby class="v1">父親<rt>ちちおや</rt></ruby>にせがみます。<br>
+<strong>金坊：</strong>「ねぇ<ruby class="v1">父<rt>とう</rt></ruby>ちゃん、<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v2">天神<rt>てんじん</rt></ruby>さまのお<ruby class="v1">祭<rt>まつ</rt></ruby>りだろ、僕も<ruby class="v1">連<rt>つ</rt></ruby>れてってよ！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「よせよせ、お<ruby class="v1">前<rt>まえ</rt></ruby>を<ruby class="v1">連<rt>つ</rt></ruby>れてくと、<ruby class="v1">露店<rt>ろてん</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で<ruby class="v1">何<rt>なに</rt></ruby>か<ruby class="v1">買<rt>か</rt></ruby>え<ruby class="v1">買<rt>か</rt></ruby>え<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>すに<ruby class="v1">決<rt>き</rt></ruby>まってらい」<br>
+<strong>金坊：</strong>「そんなこと<ruby class="v1">言<rt>い</rt></ruby>わない、<ruby class="v1">言<rt>い</rt></ruby>わないから！ねぇ、お<ruby class="v1">願<rt>ねが</rt></ruby>い、<ruby class="v1">連<rt>つ</rt></ruby>れてって、<ruby class="v1">連<rt>つ</rt></ruby>れてって！」<br>
+と、こう<ruby class="v1">足<rt>あし</rt></ruby>に<ruby class="v1">絡<rt>から</rt></ruby>み<ruby class="v1">付<rt>つ</rt></ruby>いて<ruby class="v1">離<rt>はな</rt></ruby>れません。<ruby class="v1">父親<rt>ちちおや</rt></ruby>も<ruby class="v1">根<rt>こん</rt></ruby>が<ruby class="v1">甘<rt>あま</rt></ruby>いもんですから、とうとう「<ruby class="v1">仕方<rt>しかた</rt></ruby>ないな」と<ruby class="v1">連<rt>つ</rt></ruby>れて<ruby class="v1">出<rt>で</rt></ruby>る<ruby class="v1">羽目<rt>はめ</rt></ruby>になりました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【飴玉と団子】</span>
+                    <ruby class="v1">境内<rt>けいだい</rt></ruby>に<ruby class="v1">着<rt>つ</rt></ruby>くなり、金坊はさっそく<ruby class="v2">飴細工<rt>あめざいく</rt></ruby>の<ruby class="v1">屋台<rt>やたい</rt></ruby>を<ruby class="v1">見付<rt>みつ</rt></ruby>けました。<br>
+<strong>金坊：</strong>「わあ、りんご<ruby class="v1">飴<rt>あめ</rt></ruby>だ！<ruby class="v1">父<rt>とう</rt></ruby>ちゃん、あれ<ruby class="v1">買<rt>か</rt></ruby>って！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「ほら<ruby class="v1">見<rt>み</rt></ruby>ろ、<ruby class="v1">言<rt>い</rt></ruby>わないこっちゃない。<ruby class="v1">来<rt>き</rt></ruby>て<ruby class="v1">早々<rt>そうそう</rt></ruby>それか」<br>
+<strong>金坊：</strong>「だって<ruby class="v1">美味<rt>おい</rt></ruby>しそうなんだもん！ねぇねぇ！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>は<ruby class="v1">仕方<rt>しかた</rt></ruby>なく<ruby class="v1">財布<rt>さいふ</rt></ruby>を<ruby class="v1">開<rt>ひら</rt></ruby>いて、りんご<ruby class="v1">飴<rt>あめ</rt></ruby>を<ruby class="v1">一<rt>ひと</rt></ruby>つ<ruby class="v1">買<rt>か</rt></ruby>ってやりました。すると<ruby class="v1">今度<rt>こんど</rt></ruby>は<ruby class="v1">団子屋<rt>だんごや</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で<ruby class="v1">足<rt>あし</rt></ruby>を<ruby class="v1">止<rt>と</rt></ruby>めます。<br>
+<strong>金坊：</strong>「あ、お<ruby class="v1">団子<rt>だんご</rt></ruby>も<ruby class="v1">美味<rt>おい</rt></ruby>しそう！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「こら、さっき<ruby class="v1">飴<rt>あめ</rt></ruby>を<ruby class="v1">買<rt>か</rt></ruby>ったばかりだろう」<br>
+<strong>金坊：</strong>「飴と<ruby class="v1">団子<rt>だんご</rt></ruby>は<ruby class="v1">別腹<rt>べつばら</rt></ruby>だい！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>はぶつぶつ<ruby class="v1">言<rt>い</rt></ruby>いながらも、<ruby class="v1">結局<rt>けっきょく</rt></ruby>また<ruby class="v1">財布<rt>さいふ</rt></ruby>の<ruby class="v1">紐<rt>ひも</rt></ruby>を<ruby class="v1">緩<rt>ゆる</rt></ruby>めるのでございました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【凧をねだる】</span>
+                    お<ruby class="v1">参<rt>まい</rt></ruby>りを<ruby class="v1">済<rt>す</rt></ruby>ませて<ruby class="v1">帰<rt>かえ</rt></ruby>ろうとしたところ、<ruby class="v1">今度<rt>こんど</rt></ruby>は<ruby class="v1">凧<rt>たこ</rt></ruby>を<ruby class="v1">売<rt>う</rt></ruby>る<ruby class="v1">屋台<rt>やたい</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>で、金坊がぴたりと<ruby class="v1">止<rt>と</rt></ruby>まってしまいました。<br>
+<strong>金坊：</strong>「父ちゃん、あの<ruby class="v1">凧<rt>たこ</rt></ruby><ruby class="v1">買<rt>か</rt></ruby>って！お<ruby class="v1">願<rt>ねが</rt></ruby>い！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「ダメだダメだ、<ruby class="v1">飴<rt>あめ</rt></ruby>も<ruby class="v1">団子<rt>だんご</rt></ruby>も<ruby class="v1">買<rt>か</rt></ruby>ってやったろう、<ruby class="v1">凧<rt>たこ</rt></ruby>まではキリがない」<br>
+<strong>金坊：</strong>「や〜だ！買ってくれなきゃ<ruby class="v1">動<rt>うご</rt></ruby>かないもん！」<br>
+と、<ruby class="v1">地面<rt>じめん</rt></ruby>に<ruby class="v1">座<rt>すわ</rt></ruby>り<ruby class="v1">込<rt>こ</rt></ruby>んでダダをこねる<ruby class="v1">始末<rt>しまつ</rt></ruby>。<ruby class="v1">周<rt>まわ</rt></ruby>りの<ruby class="v1">目<rt>め</rt></ruby>もあって、<ruby class="v1">父親<rt>ちちおや</rt></ruby>はとうとう<ruby class="v1">根負<rt>こんま</rt></ruby>けしましてね。<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「わかった、わかったよ。<ruby class="v1">買<rt>か</rt></ruby>ってやるから、その<ruby class="v1">代<rt>か</rt></ruby>わり、あとで<ruby class="v1">父<rt>とう</rt></ruby>ちゃんにも<ruby class="v1">揚<rt>あ</rt></ruby>げさせろよ」<br>
+<strong>金坊：</strong>「うん、いいよ！」<br>
+こうして<ruby class="v1">凧<rt>たこ</rt></ruby>も<ruby class="v1">買<rt>か</rt></ruby>ってもらい、<ruby class="v1">二人<rt>ふたり</rt></ruby>は<ruby class="v1">近<rt>ちか</rt></ruby>くの<ruby class="v1">空<rt>あ</rt></ruby>き<ruby class="v1">地<rt>ち</rt></ruby>へと<ruby class="v1">向<rt>む</rt></ruby>かいました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【父ちゃん夢中】</span>
+                    <ruby class="v1">空<rt>あ</rt></ruby>き<ruby class="v1">地<rt>ち</rt></ruby>に<ruby class="v1">着<rt>つ</rt></ruby>くと、<ruby class="v1">父親<rt>ちちおや</rt></ruby>は「まずは<ruby class="v1">父<rt>とう</rt></ruby>ちゃんがお<ruby class="v1">手本<rt>てほん</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>せてやろう」と、<ruby class="v1">糸<rt>いと</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>って<ruby class="v1">走<rt>はし</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>しました。すると<ruby class="v1">凧<rt>たこ</rt></ruby>がふわりと<ruby class="v1">風<rt>かぜ</rt></ruby>に<ruby class="v1">乗<rt>の</rt></ruby>って、するすると<ruby class="v1">空<rt>そら</rt></ruby>高くあがっていきます。<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「おお、あがったあがった！こりゃ<ruby class="v1">気持<rt>きも</rt></ruby>ちいいぞ！」<br>
+<strong>金坊：</strong>「父ちゃん、<ruby class="v1">僕<rt>ぼく</rt></ruby>にも<ruby class="v1">貸<rt>か</rt></ruby>して！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「ちょ、ちょっと<ruby class="v1">待<rt>ま</rt></ruby>て、もうちょっとだけ、もうちょっとだけだから」<br>
+そう<ruby class="v1">言<rt>い</rt></ruby>いながら、<ruby class="v1">父親<rt>ちちおや</rt></ruby>はどんどん<ruby class="v1">夢中<rt>むちゅう</rt></ruby>になっていきます。<ruby class="v1">糸<rt>いと</rt></ruby>を<ruby class="v1">引<rt>ひ</rt></ruby>いては<ruby class="v1">緩<rt>ゆる</rt></ruby>め、<ruby class="v1">空<rt>そら</rt></ruby>を<ruby class="v1">見上<rt>みあ</rt></ruby>げてはしゃぐその<ruby class="v1">姿<rt>すがた</rt></ruby>は、まるで<ruby class="v1">子供<rt>こども</rt></ruby>そのもの。<br>
+<strong>金坊：</strong>「ねぇってば！<ruby class="v1">僕<rt>ぼく</rt></ruby>の<ruby class="v1">凧<rt>たこ</rt></ruby>なんだよ！」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「うるさいな、<ruby class="v1">静<rt>しず</rt></ruby>かにしてろ！<ruby class="v1">今<rt>いま</rt></ruby>いいところなんだから」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">日<rt>ひ</rt></ruby>が<ruby class="v1">傾<rt>かたむ</rt></ruby>き<ruby class="v1">始<rt>はじ</rt></ruby>めても、<ruby class="v1">父親<rt>ちちおや</rt></ruby>は<ruby class="v1">凧<rt>たこ</rt></ruby>から<ruby class="v1">目<rt>め</rt></ruby>を<ruby class="v1">離<rt>はな</rt></ruby>そうとしません。<ruby class="v1">息子<rt>むすこ</rt></ruby>そっちのけで、<ruby class="v1">糸<rt>いと</rt></ruby>を<ruby class="v1">引<rt>ひ</rt></ruby>いては「それそれ」、<ruby class="v1">緩<rt>ゆる</rt></ruby>めては「おっとっと」と、すっかり<ruby class="v1">大人気<rt>おとなげ</rt></ruby>ない<ruby class="v1">熱<rt>ねっ</rt></ruby><ruby class="v1">中<rt>ちゅう</rt></ruby>ぶり。<ruby class="v1">金坊<rt>きんぼう</rt></ruby>はすっかり<ruby class="v1">蚊帳<rt>かや</rt></ruby>の<ruby class="v1">外<rt>そと</rt></ruby>で、<ruby class="v1">地面<rt>じめん</rt></ruby>にしゃがんで<ruby class="v1">退屈<rt>たいくつ</rt></ruby>そうにしております。<br>
+<strong>金坊：</strong>「ねぇ父ちゃん、そろそろ<ruby class="v1">僕<rt>ぼく</rt></ruby>にも<ruby class="v1">代<rt>か</rt></ruby>わってよぉ」<br>
+<ruby class="v1">父親<rt>ちちおや</rt></ruby>：「ダメだダメだ、まだまだ！ほら<ruby class="v1">見<rt>み</rt></ruby>ろ、あんなに<ruby class="v1">高<rt>たか</rt></ruby>くあがって、いい<ruby class="v1">眺<rt>なが</rt></ruby>めだろう！」<br>
+<strong>金坊：</strong>「もういいよ、<ruby class="v1">飽<rt>あ</rt></ruby>きた……」<br>
+それでも<ruby class="v1">父親<rt>ちちおや</rt></ruby>は<ruby class="v1">聞<rt>き</rt></ruby>く<ruby class="v1">耳<rt>みみ</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>たず、<ruby class="v1">空<rt>そら</rt></ruby>を<ruby class="v1">見上<rt>みあ</rt></ruby>げてニコニコと<ruby class="v1">凧<rt>たこ</rt></ruby>を<ruby class="v1">揚<rt>あ</rt></ruby>げ<ruby class="v1">続<rt>つづ</rt></ruby>けます。とうとう<ruby class="v1">金坊<rt>きんぼう</rt></ruby>、ぽつりとこう<ruby class="v1">漏<rt>も</rt></ruby>らしました。<br>
+<strong>金坊：</strong>「あ〜あ、こんなことなら……<ruby class="v1">父<rt>とう</rt></ruby>ちゃんなんかと<ruby class="v1">来<rt>こ</rt></ruby>なきゃよかった」<br>
+<ruby class="v1">誘<rt>さそ</rt></ruby>ったのは<ruby class="v1">息子<rt>むすこ</rt></ruby>の<ruby class="v1">方<rt>ほう</rt></ruby>なのに、いざ<ruby class="v1">来<rt>き</rt></ruby>てみれば<ruby class="v1">父親<rt>ちちおや</rt></ruby>の<ruby class="v1">方<rt>ほう</rt></ruby>がすっかり<ruby class="v1">夢中<rt>むちゅう</rt></ruby>になってしまって、<ruby class="v1">息子<rt>むすこ</rt></ruby>が<ruby class="v1">置<rt>お</rt></ruby>いてけぼり。<ruby class="v1">何<rt>なん</rt></ruby>ともほほえましい、<ruby class="v1">親子<rt>おやこ</rt></ruby>の<ruby class="v1">噺<rt>はなし</rt></ruby>でございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Children are honest creatures at heart, and they know exactly where their parents are weak. Even after being told "no," they know that if they just keep whining long enough, sooner or later the parent will cave in. Today's tale is all about watching that little tug-of-war play out between a father and his son, at the shrine festival called Hatsutenjin.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[OFF TO THE SHRINE]</span>The twenty-fifth day of the New Year is the first shrine festival of Tenjin that year — the so-called Hatsutenjin. With the whole town buzzing with excitement, the son, little Kinbo, begged his father. "Hey, Pop, today's the Tenjin festival, right? Take me along too!" "Forget it, forget it — if I take you, you'll start whining to buy something at every stall, I just know it." "I won't say that, I promise I won't! Please, take me, take me!" And he clung to his father's leg and wouldn't let go. Being soft-hearted at the core, the father finally sighed, "Well, guess there's no helping it," and ended up taking the boy along.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDY AND DUMPLINGS]</span>The moment they reached the shrine grounds, Kinbo spotted a candy-apple stall. "Wow, candy apples! Pop, buy me one!" "See, told you so. We just got here and already?" "But it looks so good! Please, please!" The father sighed and opened his wallet, buying him a candy apple. Then the boy stopped in front of a dumpling stall. "Ooh, those dumplings look good too!" "Hey now, you just got the candy apple." "Candy and dumplings go in different stomachs!" Grumbling the whole time, the father ended up loosening his purse strings once again.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BEGGING FOR A KITE]</span>Having finished their prayers and about to head home, Kinbo suddenly stopped dead in front of a kite stall. "Pop, buy me that kite! Please!" "No way, no way, I already bought you candy and dumplings — there's no end to it if I start buying kites too." "No fair! I'm not moving until you buy it for me!" And he plopped down on the ground and threw a tantrum right there. With onlookers watching, the father finally gave in. "All right, all right. I'll buy it — but in exchange, let me fly it too, later." "Sure, okay!" And so the kite was bought, and the two of them headed off to a nearby empty lot.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER GETS HOOKED]</span>Once at the empty lot, the father said, "First let your old man show you how it's done," and took off running with the string in hand. The kite caught the wind and went sailing smoothly up into the sky. "Whoa, it's up, it's up! This feels amazing!" "Pop, let me have a turn too!" "J-just wait a second, just a little bit longer, just a little bit longer." As he said this, the father grew more and more absorbed, tugging the string and letting it slack, gazing up at the sky in sheer delight — looking every bit like a child himself. "Hey, I'm talking to you! It's MY kite!" "Quiet down, will you! I'm at the good part right now."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Even as the sun began to sink, the father still wouldn't take his eyes off the kite. Completely ignoring his son, he tugged the string — "there, there!" — and let it slacken — "whoa, whoa!" — utterly absorbed in a most childish way. Kinbo, left out entirely, crouched on the ground looking thoroughly bored. "Hey, Pop, isn't it about time you let me have a turn?" "No way, not yet, not yet! Look at that, it's up so high, what a great view!" "Forget it, I'm bored..." Still, the father paid him no mind at all, grinning up at the sky as he kept flying the kite. Finally, Kinbo muttered under his breath: "Ugh, if I'd known it would turn out like this... I shouldn't have bothered bringing Pop along." It was the son who'd begged to come in the first place, but once they got there, it was the father who became completely absorbed, leaving his own boy behind — a charmingly funny little tale of a father and son.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Les enfants sont des créatures franches, et ils savent exactement où leurs parents sont faibles. Même après s'être fait dire « non », ils savent que s'ils insistent assez longtemps, tôt ou tard le parent finira par céder. L'histoire d'aujourd'hui, c'est justement ce petit bras de fer entre un père et son fils, lors de la fête du sanctuaire appelée Hatsutenjin.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[OFF TO THE SHRINE]</span>Le vingt-cinquième jour du Nouvel An est la première fête du sanctuaire de Tenjin de l'année — le fameux Hatsutenjin. Avec toute la ville en effervescence, le fils, le petit Kinbo, supplia son père. « Dis, papa, c'est la fête de Tenjin aujourd'hui, non ? Emmène-moi aussi ! » « Laisse tomber, laisse tomber — si je t'emmène, tu vas te mettre à réclamer d'acheter quelque chose à chaque étal, j'en suis sûr. » « Je ne dirai pas ça, je te promets que non ! S'il te plaît, emmène-moi, emmène-moi ! » Et il s'accrocha à la jambe de son père sans vouloir lâcher prise. Ayant le cœur tendre au fond, le père finit par soupirer : « Bon, tant pis », et se retrouva à emmener le garçon.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDY AND DUMPLINGS]</span>À peine arrivés dans l'enceinte du sanctuaire, Kinbo repéra un étal de pommes d'amour. « Waouh, des pommes d'amour ! Papa, achète-m'en une ! » « Tu vois, je te l'avais bien dit. On vient à peine d'arriver et voilà déjà. » « Mais ça a l'air tellement bon ! S'il te plaît, s'il te plaît ! » Le père soupira et ouvrit son porte-monnaie, lui achetant une pomme d'amour. Puis le garçon s'arrêta devant un étal de boulettes de riz. « Oh, ces boulettes ont l'air bonnes aussi ! » « Dis donc, tu viens tout juste d'avoir ta pomme d'amour. » « Les bonbons et les boulettes, ça va dans des estomacs différents ! » Grommelant tout du long, le père finit par desserrer les cordons de sa bourse une fois de plus.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BEGGING FOR A KITE]</span>Leurs prières terminées et prêts à rentrer, Kinbo s'arrêta net devant un étal de cerfs-volants. « Papa, achète-moi ce cerf-volant ! S'il te plaît ! » « Pas question, pas question, je t'ai déjà acheté des bonbons et des boulettes — si je commence à acheter des cerfs-volants aussi, ça n'en finira jamais. » « C'est pas juste ! Je ne bouge pas tant que tu ne me l'achètes pas ! » Et il se laissa tomber par terre pour faire un caprice, en plein devant tout le monde. Sous le regard des passants, le père finit par céder. « D'accord, d'accord. Je te l'achète — mais en échange, laisse-moi le faire voler aussi, plus tard. » « D'accord, oui ! » Et c'est ainsi que le cerf-volant fut acheté, et tous deux se dirigèrent vers un terrain vague à proximité.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER GETS HOOKED]</span>Arrivé au terrain vague, le père dit : « Laisse d'abord ton vieux père te montrer comment on fait », et se mit à courir, ficelle en main. Le cerf-volant prit le vent et monta doucement, très haut dans le ciel. « Ouah, il vole, il vole ! C'est vraiment génial ! » « Papa, laisse-moi essayer aussi ! » « A-attends une seconde, encore un petit peu, encore un tout petit peu. » Tout en disant cela, le père devenait de plus en plus absorbé, tirant sur la ficelle puis la relâchant, levant les yeux vers le ciel avec un ravissement pur — ressemblant en tout point à un enfant lui-même. « Hé, je te parle ! C'est MON cerf-volant ! » « Silence, tais-toi ! Je suis au meilleur moment là. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Même quand le soleil commença à décliner, le père ne pouvait toujours pas détacher ses yeux du cerf-volant. Ignorant complètement son fils, il tirait sur la ficelle — « allez, allez ! » — et la relâchait — « oh là là ! » — totalement absorbé, d'une manière on ne peut plus enfantine. Kinbo, complètement mis de côté, s'accroupissait par terre, l'air profondément ennuyé. « Dis, papa, ce n'est pas bientôt mon tour ? » « Pas question, pas encore, pas encore ! Regarde ça, il est si haut, quelle belle vue ! » « Laisse tomber, je m'ennuie... » Pourtant, le père ne lui prêtait aucune attention, souriant vers le ciel tout en continuant de faire voler le cerf-volant. Finalement, Kinbo murmura : « Ah là là, si j'avais su que ça finirait comme ça... je n'aurais pas dû prendre la peine d'amener papa. » C'était pourtant le fils qui avait supplié de venir au départ, mais une fois sur place, c'est le père qui devint complètement absorbé, laissant son propre garçon de côté — une histoire de père et fils charmante et amusante.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Los niños son criaturas sinceras, y saben exactamente dónde son débiles sus padres. Aunque les digan «no», saben que si insisten lo suficiente, tarde o temprano el padre cederá. La historia de hoy trata justamente de ese pequeño tira y afloja entre un padre y su hijo, en el festival del santuario llamado Hatsutenjin.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[OFF TO THE SHRINE]</span>El día veinticinco del Año Nuevo es la primera fiesta del santuario de Tenjin del año, la llamada Hatsutenjin. Con toda la ciudad bullendo de emoción, el hijo, el pequeño Kinbo, le suplicó a su padre. «Oye, papá, hoy es la fiesta de Tenjin, ¿verdad? ¡Llévame también!» «Olvídalo, olvídalo, si te llevo vas a empezar a pedir que te compre algo en cada puesto, lo sé.» «¡No diré eso, te lo prometo que no! ¡Por favor, llévame, llévame!» Y se aferró a la pierna de su padre sin querer soltarlo. Como en el fondo tenía buen corazón, el padre finalmente suspiró: «Bueno, no hay remedio», y terminó llevando al niño.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[CANDY AND DUMPLINGS]</span>En cuanto llegaron al recinto del santuario, Kinbo divisó un puesto de manzanas acarameladas. «¡Guau, manzanas acarameladas! ¡Papá, cómprame una!» «Ya ves, te lo dije. Apenas llegamos y ya empiezas.» «¡Pero se ve tan rica! ¡Por favor, por favor!» El padre suspiró y abrió su billetera, comprándole una manzana acaramelada. Luego el niño se detuvo frente a un puesto de bolitas de arroz. «¡Ah, esas bolitas también se ven ricas!» «Oye, si acabas de comerte la manzana.» «¡Los dulces y las bolitas van en estómagos distintos!» Refunfuñando todo el tiempo, el padre terminó aflojando de nuevo los cordones de su bolsa.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BEGGING FOR A KITE]</span>Terminadas sus oraciones y a punto de volver a casa, Kinbo se detuvo en seco frente a un puesto de cometas. «¡Papá, cómprame esa cometa! ¡Por favor!» «Ni hablar, ni hablar, ya te compré dulces y bolitas, si empiezo a comprar cometas también, esto no se va a acabar nunca.» «¡No es justo! ¡No me muevo hasta que me la compres!» Y se dejó caer al suelo para hacer un berrinche, delante de todos. Con la gente mirando, el padre finalmente cedió. «Está bien, está bien. Te la compro, pero a cambio, déjame volarla a mí también, después.» «¡Sí, vale!» Y así fue como compraron la cometa, y los dos se dirigieron a un terreno baldío cercano.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER GETS HOOKED]</span>Al llegar al terreno baldío, el padre dijo: «Primero deja que tu viejo te muestre cómo se hace», y salió corriendo con el hilo en la mano. La cometa atrapó el viento y se elevó suavemente, muy alto en el cielo. «¡Guau, sube, sube! ¡Esto se siente increíble!» «¡Papá, déjame intentarlo a mí también!» «Es-espera un segundo, un poquito más, solo un poquito más.» Mientras decía esto, el padre se fue absorbiendo cada vez más, tirando del hilo y soltándolo, mirando al cielo con puro deleite, pareciendo él mismo un niño. «¡Oye, te estoy hablando! ¡Es MI cometa!» «¡Cállate ya! Ahora mismo estoy en la mejor parte.»</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Aunque el sol empezaba a ponerse, el padre seguía sin poder apartar la vista de la cometa. Ignorando por completo a su hijo, tiraba del hilo, «¡vamos, vamos!», y lo aflojaba, «¡ay, ay!», completamente absorto de la manera más infantil. Kinbo, totalmente dejado de lado, se agachaba en el suelo con cara de profundo aburrimiento. «Oye, papá, ¿no me toca ya a mí?» «¡Ni hablar, todavía no, todavía no! Mira eso, qué alto está, ¡qué vista tan bonita!» «Déjalo, ya me aburrí...» Aun así, el padre no le prestaba ninguna atención, sonriendo hacia el cielo mientras seguía volando la cometa. Finalmente, Kinbo murmuró para sus adentros: «Ay, si hubiera sabido que iba a terminar así... no debí haberme molestado en traer a papá.» Fue el hijo quien rogó venir en primer lugar, pero una vez allí, fue el padre quien se quedó completamente absorto, dejando atrás a su propio hijo, una entrañable y graciosa historia de padre e hijo.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②お参りに行こう","③飴玉と団子","④凧をねだる","⑤父ちゃん夢中","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② Off to the shrine","③ Candy and dumplings","④ Begging for a kite","⑤ Father gets hooked","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

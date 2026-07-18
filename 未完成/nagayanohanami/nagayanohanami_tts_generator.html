@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>長屋の花見 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 長屋の花見 TTS ジェネレーター</h1>
+<p class="subtitle">全6パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全6パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全6パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（18ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（24ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。<break time=\"500ms\"/>貧乏というのは辛いようで、存外陽気なものでございましてね。<break time=\"400ms\"/>無いなら無いなりに、知恵と洒落で乗り切ってしまうのが、江戸の長屋の住人たち。<break time=\"500ms\"/>今日は、そんな貧乏長屋の連中が、お花見に繰り出すという、馬鹿馬鹿しくも温かいお噺を一つ、お付き合いくださいまし。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p2', title:"②大家の誘い", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">さる長屋に、大家さんがみんなを呼び集めました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">おい、店子の諸君、いいことを思いついたぞ。明日はみんなで上野まで花見に繰り出そうじゃないか。<break time=\"400ms\"/></prosody><prosody rate=\"113%\" pitch=\"+1st\">花見？そりゃあ結構ですが、うちらにゃそんな余裕なんざありませんぜ。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">なぁに、心配いらんよ。酒やら肴やら、こっちで全部用意してやる。おめぇたちはただ、体一つで来りゃいい。<break time=\"450ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">そう聞いて店子たちは大喜び。ところが翌日、いざ集まってみると、用意されていたのは、なんとも怪しげな代物ばかりでございました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③お茶がお酒に", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">大家さんが得意気に差し出した徳利を見て、店子の一人が首をかしげます。<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">大家さん、これ……色は酒らしいですけど、匂いがどうも番茶じゃありませんか？<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">これ、大声で言うでない。番茶を薄い色に染めて、酒だと思って飲めば、それでいいんだ。気持ちの問題だよ、気持ちの。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">へえ、なるほど。じゃあこれは正真正銘、灘の酒ってことで。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">そうだそうだ、灘の生一本だ。さあ、遠慮なく注ぎ合おうじゃないか。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">一同は杯を取り出すと、まるで本当の名酒でも頂くように、大袈裟な手つきで注ぎ合い、大真面目な顔でぐいっとやりました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④たくあんが卵に", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">次に大家さんが重箱の蓋を開けると、中には黄色いものが並んでおりました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">さあさあ、こちらは卵の黄身だけを使った贅沢な卵焼き風のものだ、遠慮なく食べてくれ。<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">へえ、いただきます……あれ？これ、なんだかポリポリして歯応えが妙ですね。それに、この香り、沢庵そのものじゃありませんか。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">これ、それを言っちゃあおしまいだ。黄色くて、四角く切ってあれば、もう立派な卵焼きだ。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">なるほど、こっちの薄い桜色のは、さしずめ蒲鉾ってわけですかい？<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">その通りだ、大根の皮だなんて野暮なことは言いっこなしだよ。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">一同は顔を見合わせながらも、大真面目な顔で<break time=\"200ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">これはこれは結構なお味で、<break time=\"250ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">なんて言いながら、パリポリと沢庵を頬張るのでございました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤形だけの花見酒", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">そうこうしているうちに、一人がすっかり酔ったふりをして千鳥足を始めます。<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">いやぁ、今日は飲み過ぎたわい。おい、そこの若い衆、肩を貸してくれ。<break time=\"400ms\"/></prosody><prosody rate=\"112%\" pitch=\"0st\">よしなよ、そんなの、たかが番茶一杯で酔っ払う奴があるか。<break time=\"400ms\"/></prosody><prosody rate=\"92%\" pitch=\"-2st\">なぁに、気は心ってやつだ。せめて酔ったふりぐらいはさせてくれ、そのほうが花見らしいだろう。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">別の店子は扇子を広げて、こう謡い始めました。<break time=\"300ms\"/></prosody><prosody rate=\"108%\" pitch=\"+1st\">え〜、春のうららの……なんて、そういうことにしておこうじゃないか。<break time=\"450ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">頭上の桜だけは本物で、満開の花びらがはらはらと舞い落ちてくる中、長屋の連中はすっかり形だけの花見酒を楽しんでおりました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥サゲ", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">しばらくすると、一人の店子が徳利を傾けて、しみじみと呟きました。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"0st\">いやぁしかし、大家さん、正直な話、これが本物の酒だったらもっとよかったですがねぇ。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">これ、贅沢を言うでない。花を見ながら飲めりゃ、それで十分じゃないか。<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">そりゃそうですが……あ、でも大家さん、一つだけ、この番茶の方が本物の酒よりいいところがありますよ。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">ほう、何だいそりゃ。<break time=\"350ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">へえ、こいつぁいくら飲んでも酔っ払わない上に、なんと言ったって御代わりがきくときてる。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">違いない！<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"0st\">どっと笑い声が起こり、満開の桜の下、貧乏長屋の花見は、なんとも賑やかに暮れていったのでございます。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. Poverty may sound miserable, but it's surprisingly cheerful once you're in it. Making do with wit and playful jokes when you have nothing — that was the way of the tenement dwellers of old Edo. Today's tale is a delightfully silly and warm-hearted one about a group of poor tenement neighbors who head out for a cherry blossom picnic." },
+    { id:'p2', title:"②大家の誘い", ssml:false, text:"In a certain tenement, the landlord called everyone together. \"Listen up, tenants, I've had a splendid idea. Tomorrow, let's all head out to Ueno for a cherry blossom picnic.\" The tenants replied, \"A picnic? That sounds nice, but we can't afford anything like that.\" \"Don't you worry about a thing. I'll provide all the sake and snacks myself — all you need to bring is your own two hands.\" Hearing this, the tenants were overjoyed. But the next day, once everyone had gathered, what had actually been prepared turned out to be a collection of highly suspicious substitutes." },
+    { id:'p3', title:"③お茶がお酒に", ssml:false, text:"Looking at the sake flask the landlord proudly held out, one of the tenants tilted his head. \"Landlord, this... it looks like sake in color, but doesn't it smell an awful lot like cheap roasted tea?\" \"Shh, don't say that so loudly. As long as you dye the tea a pale color and drink it believing it's sake, that's all that matters. It's a matter of the heart, the heart.\" \"Ah, I see. Then this is, without a doubt, the genuine article — fine sake from Nada.\" \"That's right, that's right, pure unblended Nada sake. Come now, let's pour for each other without holding back.\" And so everyone took out their cups and, as if truly receiving a fine vintage, poured for one another with exaggerated ceremony, and downed it with the most solemn of faces." },
+    { id:'p4', title:"④たくあんが卵に", ssml:false, text:"Next, when the landlord lifted the lid of the tiered lacquer box, yellow things were lined up inside. \"Now then, this is a luxurious egg-roll-style dish made using only egg yolks, please don't be shy about eating it.\" \"Ah, thank you... wait a moment? This has such a strange crunchy texture. And this smell — isn't this just pickled radish?\" \"Now, now, saying that out loud ruins everything. If it's yellow and cut into squares, that makes it a perfectly respectable egg roll.\" \"I see, so this pale pink piece here must be, say, fish cake?\" \"Exactly right — let's not be crude and mention anything about radish skin.\" Exchanging glances with one another, they nevertheless kept the most solemn faces, remarking \"my, my, what a fine flavor this is\" while crunching away happily on the pickled radish." },
+    { id:'p5', title:"⑤形だけの花見酒", ssml:false, text:"Before long, one of them began to stagger about, pretending to be thoroughly drunk. \"Ah, I've had far too much to drink today. Hey, you there, young fellow, lend me your shoulder.\" \"Oh, come off it, who gets drunk off a single cup of cheap tea?\" \"Now, now, it's the thought that counts. At least let me pretend to be drunk, it makes for a proper cherry blossom party, doesn't it?\" Another tenant spread open a folding fan and began to sing. \"Ahh, the balmy haze of spring... well, let's just say that's how it goes.\" Only the cherry blossoms overhead were real, and as the full-bloom petals came fluttering gently down, the tenement folk thoroughly enjoyed their make-believe blossom-viewing sake party." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"After a while, one of the tenants tilted his sake flask and murmured wistfully. \"Well, landlord, honestly speaking, this would've been even better if it were real sake.\" \"Now, now, don't be so greedy. As long as you can drink while looking at the blossoms, isn't that enough?\" \"That's true enough, but... oh, landlord, there's one thing where this tea actually beats real sake.\" \"Oh? And what would that be?\" \"Well, no matter how much you drink, you never get drunk — and on top of that, you can always get a refill!\" \"Can't argue with that!\" A burst of laughter rose up, and beneath the cherry blossoms in full bloom, the poor tenement's cherry blossom party drew to a wonderfully lively close." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. La pauvreté peut sembler misérable, mais elle est étonnamment joyeuse une fois qu'on y est. Se débrouiller avec de l'esprit et des plaisanteries quand on n'a rien — c'était bien la manière des habitants des tenements du vieil Edo. L'histoire d'aujourd'hui est un récit délicieusement cocasse et chaleureux à propos d'un groupe de voisins pauvres partant pour un pique-nique sous les cerisiers en fleurs." },
+    { id:'p2', title:"②大家の誘い", ssml:false, text:"Dans un certain quartier, le propriétaire réunit tout le monde. « Écoutez, chers locataires, j'ai eu une idée formidable. Demain, allons tous à Ueno pour un pique-nique sous les cerisiers en fleurs. » Les locataires répondirent : « Un pique-nique ? Ça a l'air sympa, mais on n'a pas les moyens pour un truc pareil. » « Ne vous inquiétez de rien. Je fournirai moi-même tout le saké et les mets — il vous suffit d'amener vos deux mains. » En entendant cela, les locataires furent ravis. Mais le lendemain, une fois tout le monde rassemblé, ce qui avait été préparé s'avéra n'être qu'une collection de substituts des plus suspects." },
+    { id:'p3', title:"③お茶がお酒に", ssml:false, text:"En regardant la fiole de saké que le propriétaire tendait fièrement, un des locataires pencha la tête. « Propriétaire, ceci... ça a la couleur du saké, mais ça ne sent pas un peu trop le thé grillé bon marché ? » « Chut, ne dis pas ça si fort. Tant que tu teins le thé d'une couleur pâle et que tu le bois en croyant que c'est du saké, c'est tout ce qui compte. C'est une question de cœur, de cœur. » « Ah, je vois. Alors ceci est, sans aucun doute, l'article authentique, du fin saké de Nada. » « C'est ça, c'est ça, du saké pur de Nada non coupé. Allons, servons-nous les uns les autres sans retenue. » Et tous sortirent leurs coupes et, comme s'ils recevaient vraiment un grand cru, se versèrent mutuellement avec une cérémonie exagérée, et l'avalèrent d'un air des plus solennels." },
+    { id:'p4', title:"④たくあんが卵に", ssml:false, text:"Ensuite, quand le propriétaire souleva le couvercle de la boîte laquée à étages, des choses jaunes étaient alignées à l'intérieur. « Alors, voici un plat luxueux façon omelette roulée fait uniquement de jaunes d'œufs, ne vous gênez pas pour en manger. » « Ah, merci... attendez un instant ? Ça a une texture croquante bien étrange. Et cette odeur, n'est-ce pas tout simplement du radis mariné ? » « Allons, allons, dire ça à voix haute gâche tout. Si c'est jaune et coupé en carrés, ça fait une omelette roulée tout à fait respectable. » « Je vois, alors ce morceau rose pâle ici doit être, disons, du gâteau de poisson ? » « Exactement — ne soyons pas grossiers en mentionnant la peau de radis. » Échangeant des regards entre eux, ils gardèrent néanmoins les visages les plus solennels, remarquant « ma foi, quelle belle saveur » tout en croquant joyeusement le radis mariné." },
+    { id:'p5', title:"⑤形だけの花見酒", ssml:false, text:"Peu après, l'un d'eux se mit à tituber, feignant d'être complètement ivre. « Ah, j'ai vraiment trop bu aujourd'hui. Hé, toi là-bas, jeune homme, prête-moi ton épaule. » « Oh, arrête un peu, qui se saoule avec une seule tasse de thé bon marché ? » « Allons, allons, c'est l'intention qui compte. Laisse-moi au moins faire semblant d'être ivre, ça rend le pique-nique plus authentique, non ? » Un autre locataire déploya un éventail et commença à chanter. « Ahh, la brume tiède du printemps... bon, disons que c'est ainsi que ça se passe. » Seuls les cerisiers au-dessus d'eux étaient réels, et tandis que les pétales en pleine floraison voltigeaient doucement, les habitants du quartier profitaient pleinement de leur fête du saké de façade sous les cerisiers." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Après un moment, un des locataires pencha sa fiole de saké et murmura avec nostalgie. « Eh bien, propriétaire, honnêtement, ç'aurait été encore mieux si c'était du vrai saké. » « Allons, allons, ne sois pas si gourmand. Tant qu'on peut boire en regardant les fleurs, n'est-ce pas suffisant ? » « C'est bien vrai, mais... oh, propriétaire, il y a une chose où ce thé bat vraiment le vrai saké. » « Oh ? Et qu'est-ce donc ? » « Eh bien, peu importe la quantité qu'on en boit, on ne se saoule jamais, et en plus, on peut toujours se resservir ! » « On ne peut pas dire le contraire ! » Un éclat de rire général s'éleva, et sous les cerisiers en pleine floraison, la fête sous les cerisiers du pauvre quartier se termina de la manière la plus animée qui soit." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Déjenme contarles una historia. La pobreza puede sonar miserable, pero es sorprendentemente alegre una vez que uno está dentro de ella. Arreglárselas con ingenio y bromas cuando no se tiene nada, esa era la manera de los habitantes de las viviendas populares del viejo Edo. La historia de hoy es un relato deliciosamente disparatado y entrañable sobre un grupo de vecinos pobres que salen de picnic a ver los cerezos en flor." },
+    { id:'p2', title:"②大家の誘い", ssml:false, text:"En cierta vivienda popular, el casero reunió a todos. «Escuchen, inquilinos, se me ha ocurrido una idea espléndida. Mañana vayamos todos a Ueno a un picnic para ver los cerezos en flor.» Los inquilinos respondieron: «¿Un picnic? Suena bien, pero no podemos permitirnos algo así.» «No se preocupen por nada. Yo mismo proveeré todo el sake y los aperitivos, solo necesitan traer sus propias manos.» Al oír esto, los inquilinos se alegraron muchísimo. Pero al día siguiente, una vez que todos se reunieron, lo que en realidad habían preparado resultó ser una colección de sustitutos de lo más sospechosos." },
+    { id:'p3', title:"③お茶がお酒に", ssml:false, text:"Mirando la botella de sake que el casero sostenía orgullosamente, uno de los inquilinos ladeó la cabeza. «Casero, esto... tiene color de sake, pero ¿no huele demasiado a té tostado barato?» «Shh, no lo digas tan alto. Mientras tiñas el té de un color pálido y lo bebas creyendo que es sake, eso es lo único que importa. Es cuestión de actitud, de actitud.» «Ah, ya veo. Entonces esto es, sin duda alguna, el artículo genuino, sake fino de Nada.» «Así es, así es, sake puro de Nada sin mezclar. Vamos, sirvámonos unos a otros sin reparos.» Y todos sacaron sus copas y, como si de verdad estuvieran recibiendo un vino exquisito, se sirvieron mutuamente con ceremonia exagerada, y lo bebieron de un trago con las caras más solemnes." },
+    { id:'p4', title:"④たくあんが卵に", ssml:false, text:"Después, cuando el casero levantó la tapa de la caja lacada de niveles, había cosas amarillas alineadas dentro. «Bien, esto es un lujoso plato estilo tortilla enrollada hecho solo con yemas de huevo, no se contengan al comerlo.» «Ah, gracias... ¿un momento? Esto tiene una textura crujiente bien extraña. Y este olor, ¿no es simplemente rábano encurtido?» «Vamos, vamos, decir eso en voz alta lo arruina todo. Si es amarillo y está cortado en cuadrados, eso lo convierte en una tortilla enrollada de lo más respetable.» «Ya veo, entonces este trozo rosa pálido de aquí debe ser, digamos, pastel de pescado?» «Exactamente, no seamos groseros mencionando la piel del rábano.» Intercambiando miradas entre ellos, mantuvieron de todos modos las caras más solemnes, comentando «vaya, vaya, qué sabor tan fino» mientras masticaban alegremente el rábano encurtido." },
+    { id:'p5', title:"⑤形だけの花見酒", ssml:false, text:"Poco después, uno de ellos empezó a tambalearse, fingiendo estar completamente borracho. «Ah, hoy he bebido demasiado. Oye, tú, joven, préstame tu hombro.» «Ay, vamos, ¿quién se emborracha con una sola taza de té barato?» «Vamos, vamos, es la intención lo que cuenta. Al menos déjame fingir que estoy borracho, así el picnic parece más auténtico, ¿no?» Otro inquilino desplegó un abanico y empezó a cantar. «Ahh, la bruma tibia de la primavera... bueno, digamos que así son las cosas.» Solo los cerezos sobre sus cabezas eran reales, y mientras los pétalos en plena floración caían suavemente revoloteando, la gente de la vivienda popular disfrutaba plenamente de su fiesta de sake de mentira bajo los cerezos." },
+    { id:'p6', title:"⑥サゲ", ssml:false, text:"Al cabo de un rato, uno de los inquilinos inclinó su botella de sake y murmuró con nostalgia. «Bueno, casero, honestamente, esto habría sido aún mejor si fuera sake de verdad.» «Vamos, vamos, no seas tan ambicioso. Mientras se pueda beber mirando las flores, ¿no es suficiente?» «Eso es bien cierto, pero... ah, casero, hay una cosa en la que este té realmente le gana al sake de verdad.» «¿Ah, sí? ¿Y cuál sería?» «Pues bien, no importa cuánto se beba, uno nunca se emborracha, y además, siempre se puede pedir más!» «¡No se puede negar eso!» Se alzó una carcajada general, y bajo los cerezos en plena floración, la fiesta de los cerezos de la pobre vivienda popular llegó a un final de lo más animado y alegre." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI落語 — Japanese Rakugo for the World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #0f0f0f;
+      --paper: #fafaf8;
+      --red: #c0392b;
+      --red-dark: #922b21;
+      --gold: #b8960c;
+      --muted: #6b6b6b;
+      --border: #e0ddd8;
+      --card: #ffffff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    /* ===== NAV ===== */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 48px;
+      background: rgba(250,250,248,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-logo span { color: var(--red); }
+
+    .nav-links {
+      display: flex; gap: 32px; align-items: center;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px; font-weight: 500;
+      color: var(--muted); text-decoration: none;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      transition: color .2s;
+    }
+
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-cta {
+      background: var(--red);
+      color: white !important;
+      padding: 9px 20px;
+      border-radius: 6px;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      transition: background .2s !important;
+    }
+
+    .nav-cta:hover { background: var(--red-dark) !important; color: white !important; }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 120px 48px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '落';
+      position: absolute;
+      right: -40px; top: 50%;
+      transform: translateY(-50%);
+      font-family: 'Noto Serif JP', serif;
+      font-size: 480px;
+      font-weight: 700;
+      color: rgba(192,57,43,0.04);
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .hero-inner { max-width: 1200px; margin: 0 auto; width: 100%; }
+
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600;
+      color: var(--red);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 24px; height: 1px;
+      background: var(--red);
+    }
+
+    .hero h1 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(48px, 7vw, 96px);
+      font-weight: 300;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--red);
+    }
+
+    .hero-sub {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(16px, 2vw, 22px);
+      font-weight: 300;
+      color: var(--muted);
+      margin-bottom: 48px;
+      max-width: 540px;
+      line-height: 1.7;
+    }
+
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    .btn-primary {
+      background: var(--red);
+      color: white;
+      padding: 16px 36px;
+      border-radius: 6px;
+      font-size: 15px; font-weight: 600;
+      text-decoration: none;
+      transition: background .2s, transform .15s;
+      display: inline-block;
+    }
+
+    .btn-primary:hover { background: var(--red-dark); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      padding: 16px 36px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      font-size: 15px; font-weight: 500;
+      text-decoration: none;
+      transition: border-color .2s;
+      display: inline-block;
+    }
+
+    .btn-secondary:hover { border-color: var(--ink); }
+
+    .hero-stats {
+      display: flex; gap: 48px;
+      margin-top: 72px;
+      padding-top: 40px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-num {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 36px; font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-top: 6px;
+    }
+
+    /* ===== WHAT IS RAKUGO ===== */
+    .section {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-eyebrow {
+      font-size: 11px; font-weight: 600;
+      color: var(--red);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .section-eyebrow::before {
+      content: '';
+      display: block; width: 20px; height: 1px;
+      background: var(--red);
+    }
+
+    .section h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 300;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 24px;
+    }
+
+    .rakugo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: start;
+      margin-top: 60px;
+    }
+
+    .rakugo-text p {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.85;
+      margin-bottom: 20px;
+    }
+
+    .rakugo-features {
+      display: flex; flex-direction: column; gap: 24px;
+    }
+
+    .feature-item {
+      display: flex; gap: 20px;
+      padding: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color .2s;
+    }
+
+    .feature-item:hover { border-color: var(--red); }
+
+    .feature-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .feature-title {
+      font-weight: 600; font-size: 15px;
+      margin-bottom: 6px;
+    }
+
+    .feature-desc {
+      font-size: 13px; color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    .how-section {
+      padding: 100px 48px;
+      background: var(--ink);
+      color: white;
+    }
+
+    .how-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .how-section .section-eyebrow { color: var(--gold); }
+    .how-section .section-eyebrow::before { background: var(--gold); }
+
+    .how-section h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 300;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 60px;
+      color: white;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .step {
+      padding: 40px 36px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+    }
+
+    .step-num {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 64px; font-weight: 700;
+      color: rgba(192,57,43,0.3);
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+
+    .step-title {
+      font-size: 18px; font-weight: 600;
+      margin-bottom: 12px;
+      color: white;
+    }
+
+    .step-desc {
+      font-size: 14px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.7;
+    }
+
+    /* ===== REPERTOIRE ===== */
+    .rep-section {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .rep-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 48px;
+    }
+
+    .rep-header h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 300;
+      letter-spacing: -0.02em;
+    }
+
+    .rotation-badge {
+      font-size: 12px; font-weight: 600;
+      color: var(--red);
+      border: 1px solid var(--red);
+      padding: 6px 14px;
+      border-radius: 20px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .rep-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .rep-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform .2s, border-color .2s;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .rep-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--red);
+    }
+
+    .rep-card-header {
+      background: var(--ink);
+      padding: 32px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rep-card-header::after {
+      content: attr(data-kanji);
+      position: absolute;
+      right: -10px; bottom: -20px;
+      font-family: 'Noto Serif JP', serif;
+      font-size: 80px; font-weight: 700;
+      color: rgba(255,255,255,0.06);
+      line-height: 1;
+    }
+
+    .rep-level {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    .free-badge {
+      position: absolute;
+      top: 14px; right: 14px;
+      background: var(--red);
+      color: white;
+      font-size: 10px; font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .rep-title-ja {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 24px; font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .rep-title-en {
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    .rep-card-body {
+      padding: 24px 28px;
+    }
+
+    .rep-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    .rep-meta {
+      display: flex; gap: 16px;
+    }
+
+    .rep-tag {
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .rep-tag span {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .preview-btn {
+      margin-top: 16px;
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px; font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+
+    .preview-btn:hover { border-color: var(--red); }
+    .preview-btn.playing { border-color: var(--red); background: #fdf2f1; color: var(--red); }
+
+    .rep-coming {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .coming-overlay {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
+    /* ===== PRICING ===== */
+    /* ===== NEXT UPDATE ===== */
+    .next-section {
+      padding: 80px 48px;
+      background: var(--card);
+    }
+
+    .next-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .next-card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 32px 36px;
+      max-width: 720px;
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .next-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 15px;
+    }
+
+    .next-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .next-tag.new { background: #fef3c7; color: #92400e; }
+    .next-tag.swap { background: #ede9fe; color: #5b21b6; }
+
+    .next-piece { font-weight: 600; }
+    .next-arrow { color: var(--muted); }
+
+    /* ===== REQUEST BOX ===== */
+    .request-section {
+      padding: 80px 48px;
+      background: var(--ink);
+      color: white;
+      text-align: center;
+    }
+
+    .request-inner {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .request-inner .section-eyebrow { color: var(--gold); justify-content: center; }
+    .request-inner .section-eyebrow::before { background: var(--gold); }
+
+    .request-inner h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(28px, 3.5vw, 40px);
+      font-weight: 300;
+      margin-bottom: 16px;
+    }
+
+    .request-desc {
+      color: #c9c9c9;
+      font-size: 15px;
+      line-height: 1.8;
+      margin-bottom: 28px;
+    }
+
+    .request-btn {
+      display: inline-block;
+      padding: 15px 36px;
+      background: var(--red);
+      color: white;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .2s;
+    }
+
+    .request-btn:hover { background: var(--red-dark); }
+
+    .pricing-section {
+      padding: 100px 48px;
+      background: #f5f3ef;
+    }
+
+    .pricing-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .pricing-inner h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(32px, 4vw, 52px);
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .pricing-sub {
+      font-size: 16px;
+      color: var(--muted);
+      margin-bottom: 60px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .price-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 36px;
+    }
+
+    .price-card.featured {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: white;
+      position: relative;
+    }
+
+    .featured-badge {
+      position: absolute;
+      top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--red);
+      color: white;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 20px;
+    }
+
+    .plan-name {
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .price-card.featured .plan-name { color: rgba(255,255,255,0.5); }
+
+    .price-amount {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 48px; font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .price-period {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    .price-card.featured .price-period { color: rgba(255,255,255,0.4); }
+
+    .price-features {
+      list-style: none;
+      display: flex; flex-direction: column; gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    .price-features li {
+      font-size: 14px;
+      display: flex; gap: 10px; align-items: flex-start;
+      color: var(--muted);
+    }
+
+    .price-card.featured .price-features li { color: rgba(255,255,255,0.7); }
+
+    .price-features li::before {
+      content: '✓';
+      color: var(--red);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .price-card.featured .price-features li::before { color: var(--gold); }
+
+    .price-btn {
+      display: block;
+      text-align: center;
+      padding: 14px;
+      border-radius: 6px;
+      font-size: 14px; font-weight: 600;
+      text-decoration: none;
+      transition: all .2s;
+    }
+
+    .price-btn-outline {
+      border: 1.5px solid var(--border);
+      color: var(--ink);
+    }
+
+    .price-btn-outline:hover { border-color: var(--ink); }
+
+    .price-btn-filled {
+      background: var(--red);
+      color: white;
+    }
+
+    .price-btn-filled:hover { background: var(--red-dark); }
+
+    /* ===== LANG TABS ===== */
+    .lang-bar {
+      display: flex; gap: 8px;
+      margin-bottom: 48px;
+      flex-wrap: wrap;
+    }
+
+    .lang-tab {
+      padding: 8px 18px;
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      transition: all .15s;
+    }
+
+    .lang-tab.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: white;
+    }
+
+    .lang-tab:hover:not(.active) {
+      border-color: var(--muted);
+      color: var(--ink);
+    }
+
+    .lang-content { display: none; }
+    .lang-content.active { display: block; }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: var(--ink);
+      color: rgba(255,255,255,0.4);
+      padding: 48px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    footer a { color: rgba(255,255,255,0.6); text-decoration: none; }
+    footer a:hover { color: white; }
+
+    .footer-logo {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 22px; font-weight: 700;
+      color: white;
+      margin-bottom: 16px;
+    }
+
+    .footer-logo span { color: var(--red); }
+
+    .footer-links {
+      display: flex; gap: 24px;
+      justify-content: center;
+      margin: 20px 0;
+      list-style: none;
+    }
+
+    .footer-credit {
+      margin-top: 24px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+    }
+
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .nav-links { display: none; }
+      .hero { padding: 100px 24px 60px; }
+      .hero::before { font-size: 200px; right: -20px; }
+      .hero-stats { gap: 24px; flex-wrap: wrap; }
+      .section, .rep-section { padding: 60px 24px; }
+      .how-section { padding: 60px 24px; }
+      .pricing-section { padding: 60px 24px; }
+      .rakugo-grid, .steps, .rep-grid, .pricing-grid { grid-template-columns: 1fr; }
+      .rep-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+      footer { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">AI<span>落語</span></a>
+  <ul class="nav-links">
+    <li><a href="#rakugo">落語とは</a></li>
+    <li><a href="#repertoire">演目</a></li>
+    <li><a href="#pricing">料金</a></li>
+    <li><a href="#request">リクエスト</a></li>
+    <li><a href="index-en.html">🇬🇧 English</a></li>
+    <li><a href="完成/tokisoba/落語デモ_v3.html" class="nav-cta">無料で試す</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Japan's Oldest Comedy — Now for the World</div>
+    <h1>落語を、<br><em>世界へ。</em></h1>
+    <p class="hero-sub">
+      300年の歴史を持つ日本の話芸、落語。<br>
+      AI音声と多言語字幕で、世界中の日本語学習者へ。
+    </p>
+    <div class="hero-actions">
+      <a href="完成/tokisoba/落語デモ_v3.html" class="btn-primary">無料で聴いてみる →</a>
+      <a href="#rakugo" class="btn-secondary">落語とは？</a>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="stat-num">6</div>
+        <div class="stat-label">常時ラインナップ</div>
+      </div>
+      <div>
+        <div class="stat-num">4</div>
+        <div class="stat-label">対応言語</div>
+      </div>
+      <div>
+        <div class="stat-num">3</div>
+        <div class="stat-label">ルビレベル</div>
+      </div>
+      <div>
+        <div class="stat-num">月2本</div>
+        <div class="stat-label">新作入替</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT IS RAKUGO -->
+<section class="section" id="rakugo">
+  <div class="section-eyebrow">What is Rakugo?</div>
+
+  <!-- 言語タブ -->
+  <div class="lang-bar">
+    <button class="lang-tab active" onclick="switchAboutLang('ja', this)">日本語</button>
+    <button class="lang-tab" onclick="switchAboutLang('en', this)">English</button>
+    <button class="lang-tab" onclick="switchAboutLang('fr', this)">Français</button>
+    <button class="lang-tab" onclick="switchAboutLang('es', this)">Español</button>
+  </div>
+
+  <div id="about-ja" class="lang-content active">
+    <h2>ひとりの話芸が、<br>無限の世界を生む。</h2>
+    <div class="rakugo-grid">
+      <div class="rakugo-text">
+        <p>落語は江戸時代に生まれた日本の伝統話芸です。たった一人の演者が座布団の上に座り、扇子と手拭いだけを小道具として、複数の登場人物を声色と所作だけで演じ分けます。</p>
+        <p>右を向けば江戸っ子の男、左を向けばそば屋の親父——観客の想像力の中で、無限の世界が広がります。</p>
+        <p>AIによる音声と多言語字幕で、この300年の笑いを世界へ届けます。</p>
+      </div>
+      <div class="rakugo-features">
+        <div class="feature-item">
+          <div class="feature-icon">🎭</div>
+          <div>
+            <div class="feature-title">1人芸の極致</div>
+            <div class="feature-desc">扇子一本で刀にも蕎麦にもなる。声色だけで何人もの人物を演じ分ける究極の話芸。</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📚</div>
+          <div>
+            <div class="feature-title">生きた日本語教材</div>
+            <div class="feature-desc">江戸の口語、庶民の笑い、文化的背景——落語は日本語と日本文化の宝庫。</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🔁</div>
+          <div>
+            <div class="feature-title">聴くほどに深まる</div>
+            <div class="feature-desc">同じ演目でも、聴くたびに新しい発見がある。ルビレベルを上げて上達を実感。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-en" class="lang-content">
+    <h2>One performer.<br>Infinite worlds.</h2>
+    <div class="rakugo-grid">
+      <div class="rakugo-text">
+        <p>Rakugo is Japan's centuries-old solo storytelling tradition. A single performer sits on a cushion with only a fan and a cloth, and conjures entire worlds through voice, expression, and subtle movement.</p>
+        <p>Turn right — a sharp-tongued Edo merchant. Turn left — a bumbling noodle vendor. The audience's imagination fills the stage.</p>
+        <p>We bring this 300-year-old art form to Japanese learners worldwide, with AI voice and multilingual subtitles.</p>
+      </div>
+      <div class="rakugo-features">
+        <div class="feature-item">
+          <div class="feature-icon">🎭</div>
+          <div>
+            <div class="feature-title">Solo Performance Art</div>
+            <div class="feature-desc">One fan becomes a sword, a bowl of noodles, anything. Multiple characters voiced by a single performer.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📚</div>
+          <div>
+            <div class="feature-title">Living Japanese</div>
+            <div class="feature-desc">Edo slang, commoner humor, cultural depth — Rakugo is a living encyclopedia of Japanese language and culture.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🔁</div>
+          <div>
+            <div class="feature-title">Grows with You</div>
+            <div class="feature-desc">The same story reveals new layers with each listen. Adjust furigana levels as your Japanese improves.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-fr" class="lang-content">
+    <h2>Un seul artiste.<br>Des mondes infinis.</h2>
+    <div class="rakugo-grid">
+      <div class="rakugo-text">
+        <p>Le rakugo est l'art du conte solo japonais, vieux de plusieurs siècles. Un seul interprète, assis sur un coussin, avec un éventail et un carré de tissu, fait surgir des mondes entiers grâce à sa voix, ses expressions et ses gestes.</p>
+        <p>Il se tourne à droite — un marchand d'Edo à la langue bien pendue. À gauche — un vendeur de nouilles maladroit. L'imagination du public fait le reste.</p>
+        <p>Nous apportons cet art multiséculaire aux apprenants de japonais du monde entier, avec voix IA et sous-titres multilingues.</p>
+      </div>
+      <div class="rakugo-features">
+        <div class="feature-item">
+          <div class="feature-icon">🎭</div>
+          <div>
+            <div class="feature-title">Art du solo absolu</div>
+            <div class="feature-desc">Un éventail devient une épée, un bol de nouilles, n'importe quoi. Plusieurs personnages incarnés par un seul artiste.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📚</div>
+          <div>
+            <div class="feature-title">Japonais vivant</div>
+            <div class="feature-desc">Argot d'Edo, humour populaire, profondeur culturelle — le rakugo est une encyclopédie vivante de la langue et de la culture japonaises.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🔁</div>
+          <div>
+            <div class="feature-title">Évolue avec vous</div>
+            <div class="feature-desc">La même histoire révèle de nouvelles couches à chaque écoute. Ajustez les furigana selon votre niveau.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-es" class="lang-content">
+    <h2>Un artista solo.<br>Mundos infinitos.</h2>
+    <div class="rakugo-grid">
+      <div class="rakugo-text">
+        <p>El rakugo es el arte milenario del monólogo japonés. Un solo intérprete, sentado en un cojín con solo un abanico y un pañuelo, evoca mundos enteros a través de su voz, expresiones y movimientos sutiles.</p>
+        <p>Gira a la derecha — un astuto mercader de Edo. Gira a la izquierda — un torpe vendedor de fideos. La imaginación del público hace el resto.</p>
+        <p>Llevamos este arte de 300 años a los estudiantes de japonés de todo el mundo, con voz IA y subtítulos multilingües.</p>
+      </div>
+      <div class="rakugo-features">
+        <div class="feature-item">
+          <div class="feature-icon">🎭</div>
+          <div>
+            <div class="feature-title">Arte del Solo Absoluto</div>
+            <div class="feature-desc">Un abanico se convierte en espada, en un tazón de fideos, en cualquier cosa. Múltiples personajes interpretados por uno solo.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📚</div>
+          <div>
+            <div class="feature-title">Japonés Vivo</div>
+            <div class="feature-desc">Argot de Edo, humor popular, profundidad cultural — el rakugo es una enciclopedia viva de la lengua y cultura japonesas.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🔁</div>
+          <div>
+            <div class="feature-title">Crece Contigo</div>
+            <div class="feature-desc">La misma historia revela nuevas capas en cada escucha. Ajusta los furigana según tu nivel de japonés.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <div class="how-inner">
+    <div class="section-eyebrow">How It Works</div>
+    <h2>聴いて、読んで、<br>日本語が身につく。</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">演目を選ぶ</div>
+        <div class="step-desc">常時6本の演目から好きなものを選ぶ。初心者向けの短編から、上級者向けの長編まで。</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">AI音声で聴く</div>
+        <div class="step-desc">本格的なSSML調教を施したAI落語家の声で全編を楽しむ。スピード調整で自分のペースで。</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">字幕・ルビで学ぶ</div>
+        <div class="step-desc">4言語の字幕と3段階のルビ設定で、初級から上級まで自分のレベルに合わせて学習。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REPERTOIRE -->
+<section class="rep-section" id="repertoire">
+  <div class="rep-header">
+    <div>
+      <div class="section-eyebrow">Repertoire</div>
+      <h2>演目ラインナップ</h2>
+    </div>
+    <div class="rotation-badge">常時6本・月2本 自動ローテーション</div>
+  </div>
+
+  <div class="rep-grid">
+    <!-- 時そば -->
+    <a href="完成/tokisoba/落語デモ_v3.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="時">
+        <span class="free-badge">🆓 いつでも無料</span>
+        <div class="rep-level">入門 · Beginner</div>
+        <div class="rep-title-ja">時そば</div>
+        <div class="rep-title-en">Time Noodles</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">江戸の夜、機転の利く男がそば代を一文ごまかす——それを真似した間抜けな男のオチとは？</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約3分</span></div>
+          <div class="rep-tag">難易度 <span>★☆☆</span></div>
+        </div>
+      </div>
+    </a>
+
+    <!-- まんじゅうこわい -->
+    <a href="完成/manjyuukowai/manjyuukowai.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="饅">
+        <div class="rep-level">初級 · Elementary</div>
+        <div class="rep-title-ja">まんじゅうこわい</div>
+        <div class="rep-title-en">Scared of Manju</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">「怖いもの」の話から始まる、江戸っ子の計略と笑いの定番中の定番。</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約4分</span></div>
+          <div class="rep-tag">難易度 <span>★★☆</span></div>
+        </div>
+        <button type="button" class="preview-btn" onclick="playPreview(event, '完成/manjyuukowai/ja_p1.mp3', this)">▶ 30秒試聴</button>
+      </div>
+    </a>
+
+    <!-- 猫の皿 -->
+    <a href="完成/nekonosara/nekonosara.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="皿">
+        <div class="rep-level">初級 · Elementary</div>
+        <div class="rep-title-ja">猫の皿</div>
+        <div class="rep-title-en">The Cat's Plate</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">掘り出し物の皿を見抜いた目利きの男。だが店の主人はさらにその上手だった——化かし合いの結末は？</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約3分</span></div>
+          <div class="rep-tag">難易度 <span>★★☆</span></div>
+        </div>
+        <button type="button" class="preview-btn" onclick="playPreview(event, '完成/nekonosara/ja_p1.mp3', this)">▶ 30秒試聴</button>
+      </div>
+    </a>
+
+    <!-- 転失気 -->
+    <a href="完成/tensiki/tensiki.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="転">
+        <div class="rep-level">中級 · Intermediate</div>
+        <div class="rep-title-ja">転失気</div>
+        <div class="rep-title-en">The Broken Wind</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">知ったかぶりの和尚が、小僧の使いをきっかけに医者と繰り広げる、知ったかぶり連鎖の一席。</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約6分</span></div>
+          <div class="rep-tag">難易度 <span>★★☆</span></div>
+        </div>
+        <button type="button" class="preview-btn" onclick="playPreview(event, '完成/tensiki/ja_p1.mp3', this)">▶ 30秒試聴</button>
+      </div>
+    </a>
+
+    <!-- 牛ほめ -->
+    <a href="完成/ushihome/ushihome.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="牛">
+        <div class="rep-level">入門 · Beginner</div>
+        <div class="rep-title-ja">牛ほめ</div>
+        <div class="rep-title-en">Praising the Cow</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">覚えたての褒め言葉を手に、伯父さんの新居へ向かう与太郎。果たしてうまく言えるか？</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約6分</span></div>
+          <div class="rep-tag">難易度 <span>★☆☆</span></div>
+        </div>
+        <button type="button" class="preview-btn" onclick="playPreview(event, '完成/ushihome/ja_p1.mp3', this)">▶ 30秒試聴</button>
+      </div>
+    </a>
+
+    <!-- 強情灸 -->
+    <a href="完成/goujoukyu/goujoukyu.html" class="rep-card">
+      <div class="rep-card-header" data-kanji="灸">
+        <div class="rep-level">中級 · Intermediate</div>
+        <div class="rep-title-ja">強情灸</div>
+        <div class="rep-title-en">The Stubborn Moxa</div>
+      </div>
+      <div class="rep-card-body">
+        <p class="rep-desc">痩せ我慢自慢がエスカレートし、ついには灸の我慢比べへ。江戸っ子二人の意地の張り合い。</p>
+        <div class="rep-meta">
+          <div class="rep-tag">収録時間 <span>約5分</span></div>
+          <div class="rep-tag">難易度 <span>★★★</span></div>
+        </div>
+        <button type="button" class="preview-btn" onclick="playPreview(event, '完成/goujoukyu/ja_p1.mp3', this)">▶ 30秒試聴</button>
+      </div>
+    </a>
+  </div>
+</section>
+
+<audio id="preview-player"></audio>
+<script>
+  let previewTimer = null;
+  let activePreviewBtn = null;
+
+  function stopPreview() {
+    const player = document.getElementById('preview-player');
+    player.pause();
+    player.currentTime = 0;
+    if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+    if (activePreviewBtn) {
+      activePreviewBtn.textContent = '▶ 30秒試聴';
+      activePreviewBtn.classList.remove('playing');
+      activePreviewBtn = null;
+    }
+  }
+
+  function playPreview(evt, src, btn) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const player = document.getElementById('preview-player');
+    const wasThisButton = (btn === activePreviewBtn);
+    stopPreview();
+    if (wasThisButton) return;
+    player.src = src;
+    player.currentTime = 0;
+    player.play().catch(() => {});
+    btn.textContent = '■ 試聴を止める';
+    btn.classList.add('playing');
+    activePreviewBtn = btn;
+    previewTimer = setTimeout(stopPreview, 30000);
+  }
+</script>
+
+<!-- NEXT UPDATE -->
+<section class="next-section" id="next-update">
+  <div class="next-inner">
+    <div class="section-eyebrow">Coming Next</div>
+    <h2 style="font-family:'Noto Serif JP',serif;font-weight:300;font-size:clamp(26px,3vw,36px);">9月の更新予告</h2>
+    <div class="next-card">
+      <div class="next-row">
+        <span class="next-tag new">NEW</span>
+        <span>新登場：<span class="next-piece">寿限無</span></span>
+      </div>
+      <div class="next-row">
+        <span class="next-tag swap">CHANGE</span>
+        <span>入替：<span class="next-piece">転失気</span> <span class="next-arrow">→</span> <span class="next-piece">長屋の花見</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="pricing">
+  <div class="pricing-inner">
+    <div class="section-eyebrow">Pricing</div>
+    <h2>シンプルな料金体系</h2>
+    <p class="pricing-sub">まず無料で試して、気に入ったら続けてください。</p>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="price-card">
+        <div class="plan-name">Free</div>
+        <div class="price-amount">¥0</div>
+        <div class="price-period">永久無料</div>
+        <ul class="price-features">
+          <li>『時そば』1本を永久無料で聴ける</li>
+          <li>日本語字幕（初級ルビのみ）</li>
+          <li>スピード調整</li>
+        </ul>
+        <a href="完成/tokisoba/落語デモ_v3.html" class="price-btn price-btn-outline">今すぐ試す</a>
+      </div>
+
+      <!-- Standard -->
+      <div class="price-card featured">
+        <div class="featured-badge">人気プラン</div>
+        <div class="plan-name">Standard</div>
+        <div class="price-amount">¥980</div>
+        <div class="price-period">/ 月（税込）</div>
+        <ul class="price-features">
+          <li>常時6本の演目にアクセス</li>
+          <li>毎月2本を新作と入替</li>
+          <li>4言語字幕すべて対応</li>
+          <li>ルビ3段階切り替え</li>
+          <li>スピード調整（0.5x〜2x）</li>
+          <li>広告なし</li>
+        </ul>
+        <a href="https://buy.stripe.com/8x2aEX2S33e39BmatS14400" target="_blank" rel="noopener" class="price-btn price-btn-filled">はじめる →</a>
+      </div>
+
+      <!-- Annual -->
+      <div class="price-card">
+        <div class="plan-name">Annual</div>
+        <div class="price-amount">¥800</div>
+        <div class="price-period">/ 月（年払い・約2ヶ月分お得）</div>
+        <ul class="price-features">
+          <li>Standardの全機能</li>
+          <li>年間28本の演目</li>
+          <li>新演目の優先アクセス</li>
+          <li>過去演目アーカイブ</li>
+          <li>広告なし</li>
+        </ul>
+        <a href="https://buy.stripe.com/bJe3cvdwH5mb28U7hG14401" target="_blank" rel="noopener" class="price-btn price-btn-outline">年払いで申し込む</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REQUEST BOX -->
+<section class="request-section" id="request">
+  <div class="request-inner">
+    <div class="section-eyebrow">Request</div>
+    <h2>聴きたい演目、教えてください</h2>
+    <p class="request-desc">やってほしい演目のリクエストや、ご要望はこちらから。<br>いただいたリクエストは今後のラインナップ選定の参考にさせていただきます。</p>
+    <a href="https://forms.gle/BAcEo3KUieUbYuSD6" target="_blank" rel="noopener" class="request-btn">リクエストを送る →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">AI<span>落語</span></div>
+  <p>日本の話芸を、世界へ。</p>
+  <ul class="footer-links">
+    <li><a href="#rakugo">落語とは</a></li>
+    <li><a href="#repertoire">演目</a></li>
+    <li><a href="#pricing">料金</a></li>
+    <li><a href="#request">リクエスト</a></li>
+    <li><a href="#">お問い合わせ</a></li>
+  </ul>
+  <p>© 2025 AI落語. All rights reserved.</p>
+  <p class="footer-credit">Powered by Google Cloud Text-to-Speech · Built with ❤️ for Japanese learners worldwide</p>
+</footer>
+
+<script>
+  function switchAboutLang(lang, btn) {
+    document.querySelectorAll('.lang-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.lang-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('about-' + lang).classList.add('active');
+    btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>

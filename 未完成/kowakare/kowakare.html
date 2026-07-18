@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>子別れ - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.18 🔥エース</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">子別れ</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Kowakare / Parting with a Child</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p8.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                        <div class="part-dot" id="dot-7"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②熊五郎の乱れ</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③お徳の決意</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④独りぼっちの後悔</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤腕を取り戻して</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥亀吉との再会</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦小遣いと言い付け</button>
+                    <button onclick="playPart(7)" id="part-btn-7" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑧母への告白と再会</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、よく「<ruby class='v1'>子<rt>こ</rt></ruby>は<ruby class='v2'>鎹<rt>かすがい</rt></ruby>」なんて<ruby class='v1'>申<rt>もう</rt></ruby>しますが、これはどんなに<ruby class='v1'>夫婦<rt>ふうふ</rt></ruby>の<ruby class='v1'>仲<rt>なか</rt></ruby>がこじれてしまっても、<ruby class='v1'>間<rt>あいだ</rt></ruby>に<ruby class='v1'>子供<rt>こども</rt></ruby>が<ruby class='v1'>一人<rt>ひとり</rt></ruby>いるだけで、また<ruby class='v1'>元通<rt>もとどお</rt></ruby>りに<ruby class='v1'>結<rt>むす</rt></ruby>びつくことがある、という<ruby class='v1'>意味<rt>いみ</rt></ruby>の<ruby class='v1'>言葉<rt>ことば</rt></ruby>でございます。<ruby class='v1'>今日<rt>きょう</rt></ruby>はそんな、<ruby class='v1'>酒<rt>さけ</rt></ruby>と<ruby class='v1'>女<rt>おんな</rt></ruby>に<ruby class='v1'>溺<rt>おぼ</rt></ruby>れてしまった<ruby class='v1'>一人<rt>ひとり</rt></ruby>の<ruby class='v1'>職人<rt>しょくにん</rt></ruby>が、<ruby class='v1'>我<rt>わ</rt></ruby>が<ruby class='v1'>子<rt>こ</rt></ruby>のおかげで、もう<ruby class='v1'>一度<rt>いちど</rt></ruby>やり<ruby class='v1'>直<rt>なお</rt></ruby>すことになる、そんな<ruby class='v2'>人情噺<rt>にんじょうばなし</rt></ruby>を<ruby class='v1'>一席<rt>いっせき</rt></ruby><ruby class='v1'>申<rt>もう</rt></ruby>し<ruby class='v1'>上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【熊五郎の乱れ】</span>
+                    <ruby class='v1'>腕<rt>うで</rt></ruby>はいいが<ruby class='v1'>酒癖<rt>さけぐせ</rt></ruby>の<ruby class='v1'>悪<rt>わる</rt></ruby>い<ruby class='v1'>大工<rt>だいく</rt></ruby>がおりました。<ruby class='v1'>名<rt>な</rt></ruby>を<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>と<ruby class='v1'>申<rt>もう</rt></ruby>します。<ruby class='v1'>女房<rt>にょうぼう</rt></ruby>のお<ruby class='v1'>徳<rt>とく</rt></ruby>との<ruby class='v1'>間<rt>あいだ</rt></ruby>には、<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>という<ruby class='v1'>五<rt>いつ</rt></ruby>つになる<ruby class='v1'>可愛<rt>かわい</rt></ruby>い<ruby class='v1'>息子<rt>むすこ</rt></ruby>がおりまして、<ruby class='v1'>貧<rt>まず</rt></ruby>しいながらも<ruby class='v2'>仲睦<rt>なかむつ</rt></ruby>まじく<ruby class='v1'>暮<rt>く</rt></ruby>らしておりました。ところがこの<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>、ある<ruby class='v1'>時<rt>とき</rt></ruby>から<ruby class='v1'>夜<rt>よ</rt></ruby>な<ruby class='v1'>夜<rt>よ</rt></ruby>な<ruby class='v1'>飲<rt>の</rt></ruby>み<ruby class='v1'>歩<rt>ある</rt></ruby>くようになり、そのうち<ruby class='v1'>近所<rt>きんじょ</rt></ruby>の<ruby class='v2'>酌婦<rt>しゃくふ</rt></ruby>とねんごろになってしまいます。<ruby class='v1'>仕事<rt>しごと</rt></ruby>にも<ruby class='v1'>身<rt>み</rt></ruby>が<ruby class='v1'>入<rt>はい</rt></ruby>らず、<ruby class='v1'>稼<rt>かせ</rt></ruby>いだ<ruby class='v1'>金<rt>かね</rt></ruby>はすっかり<ruby class='v1'>女<rt>おんな</rt></ruby>のところへ。<ruby class='v1'>家<rt>いえ</rt></ruby>に<ruby class='v1'>帰<rt>かえ</rt></ruby>れば、お<ruby class='v1'>徳<rt>とく</rt></ruby>や<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>に<ruby class='v1'>当<rt>あ</rt></ruby>たり<ruby class='v1'>散<rt>ち</rt></ruby>らす<ruby class='v1'>始末<rt>しまつ</rt></ruby>でございます。<br><strong>お徳：</strong>「おまえさん、いい<ruby class='v1'>加減<rt>かげん</rt></ruby>にしておくれよ。<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>がどれだけ<ruby class='v1'>寂<rt>さび</rt></ruby>しい<ruby class='v1'>思<rt>おも</rt></ruby>いをしてるか」<br><strong>熊五郎：</strong>「うるせえ、<ruby class='v1'>亭主<rt>ていしゅ</rt></ruby>のやることに<ruby class='v1'>口<rt>くち</rt></ruby>を<ruby class='v1'>出<rt>だ</rt></ruby>すんじゃねえ」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【お徳の決意】</span>
+                    そんな<ruby class='v1'>日<rt>ひ</rt></ruby>が<ruby class='v1'>続<rt>つづ</rt></ruby>いたある<ruby class='v1'>晩<rt>ばん</rt></ruby>、<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は<ruby class='v1'>酔<rt>よ</rt></ruby>った<ruby class='v1'>勢<rt>いきお</rt></ruby>いで、とうとうお<ruby class='v1'>徳<rt>とく</rt></ruby>に<ruby class='v1'>手<rt>て</rt></ruby>を<ruby class='v1'>上<rt>あ</rt></ruby>げてしまいました。それを<ruby class='v1'>見<rt>み</rt></ruby>た<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>が、<ruby class='v1'>火<rt>ひ</rt></ruby>がついたように<ruby class='v1'>泣<rt>な</rt></ruby>き<ruby class='v1'>出<rt>だ</rt></ruby>します。お<ruby class='v1'>徳<rt>とく</rt></ruby>はその<ruby class='v1'>夜<rt>よる</rt></ruby>、じっと<ruby class='v1'>考<rt>かんが</rt></ruby>えた<ruby class='v1'>末<rt>すえ</rt></ruby>に、<ruby class='v1'>心<rt>こころ</rt></ruby>を<ruby class='v1'>決<rt>き</rt></ruby>めました。<br><strong>お徳：</strong>「おまえさんとは、もうやっていけません。<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>と<ruby class='v1'>二人<rt>ふたり</rt></ruby>で、<ruby class='v1'>出<rt>で</rt></ruby>て<ruby class='v1'>行<rt>い</rt></ruby>かせてもらいます」<br><strong>熊五郎：</strong>「な、<ruby class='v1'>何<rt>なに</rt></ruby>を<ruby class='v1'>言<rt>い</rt></ruby>い<ruby class='v1'>出<rt>だ</rt></ruby>すんだ。お<ruby class='v1'>前<rt>まえ</rt></ruby>ら、<ruby class='v1'>俺<rt>おれ</rt></ruby>なしでどうやって<ruby class='v1'>食<rt>く</rt></ruby>っていくんだ」<br><strong>お徳：</strong>「<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>の<ruby class='v1'>手<rt>て</rt></ruby>を<ruby class='v1'>引<rt>ひ</rt></ruby>いて、どんなに<ruby class='v1'>苦労<rt>くろう</rt></ruby>しようと、こんな<ruby class='v1'>暮<rt>く</rt></ruby>らしを<ruby class='v1'>続<rt>つづ</rt></ruby>けるよりよほどましです」<br>お<ruby class='v1'>徳<rt>とく</rt></ruby>は<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>の<ruby class='v1'>手<rt>て</rt></ruby>を<ruby class='v1'>引<rt>ひ</rt></ruby>いて、その<ruby class='v1'>日<rt>ひ</rt></ruby>のうちに<ruby class='v1'>家<rt>いえ</rt></ruby>を<ruby class='v1'>出<rt>で</rt></ruby>てしまいました。<ruby class='v1'>長屋<rt>ながや</rt></ruby>の<ruby class='v1'>連中<rt>れんちゅう</rt></ruby>も、みな<ruby class='v1'>陰<rt>かげ</rt></ruby>でお<ruby class='v1'>徳<rt>とく</rt></ruby>に<ruby class='v1'>同情<rt>どうじょう</rt></ruby>したということでございます。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【独りぼっちの後悔】</span>
+                    <ruby class='v1'>女房子供<rt>にょうぼうこども</rt></ruby>に<ruby class='v1'>出<rt>で</rt></ruby>て<ruby class='v1'>行<rt>い</rt></ruby>かれた<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>、はじめのうちは<ruby class='v1'>強<rt>つよ</rt></ruby>がっておりましたが、<ruby class='v1'>独<rt>ひと</rt></ruby>りぼっちの<ruby class='v1'>部屋<rt>へや</rt></ruby>に<ruby class='v1'>帰<rt>かえ</rt></ruby>るたび、<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>の<ruby class='v1'>小<rt>ちい</rt></ruby>さな<ruby class='v1'>下駄<rt>げた</rt></ruby>が<ruby class='v1'>置<rt>お</rt></ruby>いてあった<ruby class='v1'>場所<rt>ばしょ</rt></ruby>や、お<ruby class='v1'>徳<rt>とく</rt></ruby>の<ruby class='v1'>作<rt>つく</rt></ruby>った<ruby class='v2'>味噌汁<rt>みそしる</rt></ruby>の<ruby class='v1'>匂<rt>にお</rt></ruby>いを<ruby class='v1'>思<rt>おも</rt></ruby>い<ruby class='v1'>出<rt>だ</rt></ruby>しては、<ruby class='v1'>涙<rt>なみだ</rt></ruby>がこぼれる<ruby class='v1'>始末<rt>しまつ</rt></ruby>。<ruby class='v1'>仕事<rt>しごと</rt></ruby>も<ruby class='v1'>手<rt>て</rt></ruby>につかず、<ruby class='v1'>酒<rt>さけ</rt></ruby>はますます<ruby class='v1'>増<rt>ふ</rt></ruby>えるばかり。しかしある<ruby class='v1'>朝<rt>あさ</rt></ruby>、<ruby class='v2'>二日酔<rt>ふつかよ</rt></ruby>いの<ruby class='v1'>頭<rt>あたま</rt></ruby>で<ruby class='v1'>鏡<rt>かがみ</rt></ruby>を<ruby class='v1'>覗<rt>のぞ</rt></ruby>き<ruby class='v1'>込<rt>こ</rt></ruby>んだ<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は、やつれ<ruby class='v1'>果<rt>は</rt></ruby>てた<ruby class='v1'>自分<rt>じぶん</rt></ruby>の<ruby class='v1'>顔<rt>かお</rt></ruby>にはっといたしました。<br><strong>熊五郎：</strong>「<ruby class='v1'>俺<rt>おれ</rt></ruby>は<ruby class='v1'>一体<rt>いったい</rt></ruby>、<ruby class='v1'>何<rt>なに</rt></ruby>をやっているんだ……」<br>その<ruby class='v1'>日<rt>ひ</rt></ruby>を<ruby class='v1'>境<rt>さかい</rt></ruby>に、<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>はぴたりと<ruby class='v1'>酒<rt>さけ</rt></ruby>をやめ、<ruby class='v1'>大工道具<rt>だいくどうぐ</rt></ruby>を<ruby class='v1'>取<rt>と</rt></ruby>り<ruby class='v1'>出<rt>だ</rt></ruby>して、もう<ruby class='v1'>一度<rt>いちど</rt></ruby><ruby class='v1'>真面目<rt>まじめ</rt></ruby>に<ruby class='v1'>仕事<rt>しごと</rt></ruby>へ<ruby class='v1'>向<rt>む</rt></ruby>かうようになったのでございます。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【腕を取り戻して】</span>
+                    それから<ruby class='v1'>三年<rt>さんねん</rt></ruby>の<ruby class='v1'>月日<rt>つきひ</rt></ruby>が<ruby class='v1'>流<rt>なが</rt></ruby>れました。<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>はすっかり<ruby class='v1'>酒<rt>さけ</rt></ruby>を<ruby class='v1'>断<rt>た</rt></ruby>ち、<ruby class='v1'>真面目<rt>まじめ</rt></ruby>に<ruby class='v1'>仕事<rt>しごと</rt></ruby>に<ruby class='v1'>打<rt>う</rt></ruby>ち<ruby class='v1'>込<rt>こ</rt></ruby>んだおかげで、<ruby class='v1'>以前<rt>いぜん</rt></ruby>にも<ruby class='v1'>増<rt>ま</rt></ruby>して<ruby class='v1'>腕<rt>うで</rt></ruby>のいい<ruby class='v1'>大工<rt>だいく</rt></ruby>として<ruby class='v1'>評判<rt>ひょうばん</rt></ruby>を<ruby class='v1'>取<rt>と</rt></ruby>り<ruby class='v1'>戻<rt>もど</rt></ruby>しておりました。<ruby class='v2'>棟梁<rt>とうりょう</rt></ruby>からも<ruby class='v1'>頼<rt>たよ</rt></ruby>りにされ、<ruby class='v1'>近頃<rt>ちかごろ</rt></ruby>では<ruby class='v1'>弟子<rt>でし</rt></ruby>まで<ruby class='v1'>持<rt>も</rt></ruby>つようになったと<ruby class='v1'>申<rt>もう</rt></ruby>します。しかし、<ruby class='v1'>心<rt>こころ</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>には、いつもお<ruby class='v1'>徳<rt>とく</rt></ruby>と<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>のことがございました。<br><strong>熊五郎：</strong>「あいつらは<ruby class='v1'>今頃<rt>いまごろ</rt></ruby>、どうしているだろうか。せめて<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>だけでも、<ruby class='v1'>一目<rt>ひとめ</rt></ruby><ruby class='v1'>会<rt>あ</rt></ruby>いたいもんだ」<br>そんなことを<ruby class='v1'>思<rt>おも</rt></ruby>いながら、<ruby class='v1'>独<rt>ひと</rt></ruby>り<ruby class='v1'>身<rt>み</rt></ruby>の<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は、<ruby class='v1'>真面目<rt>まじめ</rt></ruby>に、しかしどこか<ruby class='v1'>寂<rt>さび</rt></ruby>しく、<ruby class='v1'>日々<rt>ひび</rt></ruby>を<ruby class='v1'>過<rt>す</rt></ruby>ごしておりました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【亀吉との再会】</span>
+                    <ruby class='v1'>ある日<rt>あるひ</rt></ruby>のこと、<ruby class='v1'>仕事<rt>しごと</rt></ruby>の<ruby class='v1'>帰<rt>かえ</rt></ruby>り<ruby class='v1'>道<rt>みち</rt></ruby>、<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>はふと、あるお<ruby class='v1'>店<rt>みせ</rt></ruby>の<ruby class='v1'>前<rt>まえ</rt></ruby>で<ruby class='v1'>凧<rt>たこ</rt></ruby>を<ruby class='v1'>売<rt>う</rt></ruby>っている<ruby class='v1'>一人<rt>ひとり</rt></ruby>の<ruby class='v1'>男<rt>おとこ</rt></ruby>の<ruby class='v1'>子<rt>こ</rt></ruby>に<ruby class='v1'>目<rt>め</rt></ruby>を<ruby class='v1'>留<rt>と</rt></ruby>めました。よく<ruby class='v1'>見<rt>み</rt></ruby>れば、その<ruby class='v1'>顔立<rt>かおだ</rt></ruby>ち、<ruby class='v1'>背格好<rt>せかっこう</rt></ruby>、どこか<ruby class='v1'>見覚<rt>みおぼ</rt></ruby>えがある。おそるおそる<ruby class='v1'>声<rt>こえ</rt></ruby>をかけてみますと、<br><strong>熊五郎：</strong>「<ruby class='v1'>坊主<rt>ぼうず</rt></ruby>、お<ruby class='v1'>前<rt>まえ</rt></ruby>さん、<ruby class='v1'>名<rt>な</rt></ruby>は<ruby class='v1'>何<rt>なん</rt></ruby>てんだい」<br><strong>男の子：</strong>「<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>って<ruby class='v1'>言<rt>い</rt></ruby>います」<br><ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は<ruby class='v1'>心<rt>しん</rt></ruby>の<ruby class='v1'>臓<rt>ぞう</rt></ruby>が<ruby class='v1'>飛<rt>と</rt></ruby>び<ruby class='v1'>出<rt>だ</rt></ruby>るかと<ruby class='v1'>思<rt>おも</rt></ruby>うほど<ruby class='v1'>驚<rt>おどろ</rt></ruby>きました。<ruby class='v1'>目<rt>め</rt></ruby>の<ruby class='v1'>前<rt>まえ</rt></ruby>にいるのは、<ruby class='v1'>紛<rt>まぎ</rt></ruby>れもなく<ruby class='v1'>我<rt>わ</rt></ruby>が<ruby class='v1'>子<rt>こ</rt></ruby>、あの<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>でございます。<ruby class='v1'>三年前<rt>さんねんまえ</rt></ruby>は<ruby class='v1'>五<rt>いつ</rt></ruby>つだった<ruby class='v1'>子<rt>こ</rt></ruby>が、もう<ruby class='v1'>八<rt>やっ</rt></ruby>つ、すっかり<ruby class='v1'>大<rt>おお</rt></ruby>きくなっておりました。<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は<ruby class='v1'>込<rt>こ</rt></ruby>み<ruby class='v1'>上<rt>あ</rt></ruby>げる<ruby class='v1'>想<rt>おも</rt></ruby>いを<ruby class='v1'>抑<rt>おさ</rt></ruby>えながら、そっと<ruby class='v1'>尋<rt>たず</rt></ruby>ねます。<br><strong>熊五郎：</strong>「お<ruby class='v1'>前<rt>まえ</rt></ruby>、<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃんは<ruby class='v1'>元気<rt>げんき</rt></ruby>にしているかい」<br><strong>亀吉：</strong>「うん、<ruby class='v1'>元気<rt>げんき</rt></ruby>だよ。おいら、お<ruby class='v1'>店<rt>みせ</rt></ruby>の<ruby class='v1'>手伝<rt>てつだ</rt></ruby>いをしてるんだ」
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【小遣いと言い付け】</span>
+                    <ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>は<ruby class='v1'>懐<rt>ふところ</rt></ruby>から<ruby class='v1'>財布<rt>さいふ</rt></ruby>を<ruby class='v1'>取<rt>と</rt></ruby>り<ruby class='v1'>出<rt>だ</rt></ruby>し、<ruby class='v1'>有<rt>あ</rt></ruby>り<ruby class='v1'>金<rt>がね</rt></ruby>をそっくり<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>の<ruby class='v1'>手<rt>て</rt></ruby>に<ruby class='v1'>握<rt>にぎ</rt></ruby>らせました。<br><strong>熊五郎：</strong>「これで<ruby class='v1'>何<rt>なに</rt></ruby>か<ruby class='v1'>美味<rt>うま</rt></ruby>い<ruby class='v1'>物<rt>もの</rt></ruby>でも<ruby class='v1'>買<rt>か</rt></ruby>いな。<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃんにも、<ruby class='v1'>何<rt>なに</rt></ruby>か<ruby class='v1'>買<rt>か</rt></ruby>ってあげるといい」<br><strong>亀吉：</strong>「え、こんなに。おじさん、<ruby class='v1'>誰<rt>だれ</rt></ruby>なの」<br><strong>熊五郎：</strong>「<ruby class='v1'>誰<rt>だれ</rt></ruby>でもいいさ。ただな、<ruby class='v1'>坊主<rt>ぼうず</rt></ruby>、このことは<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃんに<ruby class='v1'>黙<rt>だま</rt></ruby>っといておくれ。<ruby class='v1'>誰<rt>だれ</rt></ruby>にもらったとか、そういうのは、<ruby class='v1'>言<rt>い</rt></ruby>わなくていいから」<br><ruby class='v1'>亀吉<rt>かめきち</rt></ruby>は<ruby class='v1'>不思議<rt>ふしぎ</rt></ruby>そうな<ruby class='v1'>顔<rt>かお</rt></ruby>をしながらも、ぺこりと<ruby class='v1'>頭<rt>あたま</rt></ruby>を<ruby class='v1'>下<rt>さ</rt></ruby>げて、<ruby class='v1'>嬉<rt>うれ</rt></ruby>しそうに<ruby class='v1'>駆<rt>か</rt></ruby>けていきました。<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>はその<ruby class='v1'>後<rt>うし</rt></ruby>ろ<ruby class='v1'>姿<rt>すがた</rt></ruby>をいつまでも<ruby class='v1'>見送<rt>みおく</rt></ruby>りながら、<ruby class='v1'>込<rt>こ</rt></ruby>み<ruby class='v1'>上<rt>あ</rt></ruby>げる<ruby class='v1'>涙<rt>なみだ</rt></ruby>を<ruby class='v1'>拭<rt>ぬぐ</rt></ruby>ったのでございます。
+                </p>
+                <p id="line-7" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【母への告白と再会】</span>
+                    <ruby class='v1'>家<rt>いえ</rt></ruby>に<ruby class='v1'>帰<rt>かえ</rt></ruby>った<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>は、<ruby class='v1'>大喜<rt>おおよろこ</rt></ruby>びで、もらったばかりの<ruby class='v1'>小遣<rt>こづか</rt></ruby>いをお<ruby class='v1'>徳<rt>とく</rt></ruby>の<ruby class='v1'>前<rt>まえ</rt></ruby>にどさりと<ruby class='v1'>出<rt>だ</rt></ruby>しました。<br><strong>亀吉：</strong>「<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃん、<ruby class='v1'>見<rt>み</rt></ruby>て。これでうまい<ruby class='v1'>物<rt>もの</rt></ruby>、<ruby class='v1'>買<rt>か</rt></ruby>おう」<br><strong>お徳：</strong>「まあ、<ruby class='v1'>大変<rt>たいへん</rt></ruby>なお<ruby class='v1'>金<rt>かね</rt></ruby>じゃないか。<ruby class='v1'>一体<rt>いったい</rt></ruby><ruby class='v1'>誰<rt>だれ</rt></ruby>にもらったんだい」<br><strong>亀吉：</strong>「それが、<ruby class='v1'>言<rt>い</rt></ruby>っちゃいけないって<ruby class='v1'>言<rt>い</rt></ruby>われたんだけど……なんだか、おいらのこと、じっと<ruby class='v1'>見<rt>み</rt></ruby>て、<ruby class='v1'>優<rt>やさ</rt></ruby>しい<ruby class='v1'>声<rt>こえ</rt></ruby>で<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃんは<ruby class='v1'>元気<rt>げんき</rt></ruby>かって<ruby class='v1'>聞<rt>き</rt></ruby>いてきたんだ」<br>その<ruby class='v1'>様子<rt>ようす</rt></ruby>を<ruby class='v1'>聞<rt>き</rt></ruby>くうちに、お<ruby class='v1'>徳<rt>とく</rt></ruby>の<ruby class='v1'>胸<rt>むね</rt></ruby>に、ある<ruby class='v1'>予感<rt>よかん</rt></ruby>がよぎりました。<ruby class='v1'>目<rt>め</rt></ruby>の<ruby class='v1'>色<rt>いろ</rt></ruby>、<ruby class='v1'>声<rt>こえ</rt></ruby>の<ruby class='v1'>調子<rt>ちょうし</rt></ruby>、それはまさしく、<ruby class='v1'>忘<rt>わす</rt></ruby>れもしない<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>のものでございます。お<ruby class='v1'>徳<rt>とく</rt></ruby>の<ruby class='v1'>目<rt>め</rt></ruby>から、<ruby class='v1'>堪<rt>こら</rt></ruby>えきれない<ruby class='v1'>涙<rt>なみだ</rt></ruby>がほろほろとこぼれ<ruby class='v1'>落<rt>お</rt></ruby>ちました。<br><strong>お徳：</strong>「<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>、その<ruby class='v1'>人<rt>ひと</rt></ruby>にもう<ruby class='v1'>一度<rt>いちど</rt></ruby><ruby class='v1'>会<rt>あ</rt></ruby>ったら、<ruby class='v1'>教<rt>おし</rt></ruby>えておくれ。<ruby class='v1'>母<rt>かあ</rt></ruby>ちゃんも、<ruby class='v1'>会<rt>あ</rt></ruby>いたいと<ruby class='v1'>伝<rt>つた</rt></ruby>えておくれ」<br><ruby class='v1'>数日後<rt>すうじつご</rt></ruby>、<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>に<ruby class='v1'>連<rt>つ</rt></ruby>れられて、<ruby class='v1'>熊五郎<rt>くまごろう</rt></ruby>はとうとうお<ruby class='v1'>徳<rt>とく</rt></ruby>と<ruby class='v1'>顔<rt>かお</rt></ruby>を<ruby class='v1'>合<rt>あ</rt></ruby>わせることになりました。<ruby class='v1'>三年<rt>さんねん</rt></ruby>ぶりに<ruby class='v1'>向<rt>む</rt></ruby>き<ruby class='v1'>合<rt>あ</rt></ruby>った<ruby class='v1'>二人<rt>ふたり</rt></ruby>は、しばらく<ruby class='v1'>何<rt>なに</rt></ruby>も<ruby class='v1'>言<rt>い</rt></ruby>えず、ただ<ruby class='v1'>黙<rt>だま</rt></ruby>って<ruby class='v1'>涙<rt>なみだ</rt></ruby>を<ruby class='v1'>流<rt>なが</rt></ruby>すばかり。それを<ruby class='v1'>見<rt>み</rt></ruby>た<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>は、きょとんとしながらも、なんだか<ruby class='v1'>嬉<rt>うれ</rt></ruby>しそうに、<ruby class='v1'>二人<rt>ふたり</rt></ruby>の<ruby class='v1'>間<rt>あいだ</rt></ruby>を<ruby class='v1'>行<rt>い</rt></ruby>ったり<ruby class='v1'>来<rt>き</rt></ruby>たりしております。<br><strong>熊五郎：</strong>「すまなかった。もう<ruby class='v1'>一度<rt>いちど</rt></ruby>、やり<ruby class='v1'>直<rt>なお</rt></ruby>させてくれないか」<br><strong>お徳：</strong>「<ruby class='v1'>亀吉<rt>かめきち</rt></ruby>のためにも……ええ、やり<ruby class='v1'>直<rt>なお</rt></ruby>しましょう」<br>かくして、<ruby class='v2'>鎹<rt>かすがい</rt></ruby>となった<ruby class='v1'>一人<rt>ひとり</rt></ruby>の<ruby class='v1'>子供<rt>こども</rt></ruby>のおかげで、<ruby class='v1'>離<rt>はな</rt></ruby>れ<ruby class='v1'>離<rt>ばな</rt></ruby>れになっていた<ruby class='v1'>親子三人<rt>おやこさんにん</rt></ruby>は、めでたく<ruby class='v1'>元<rt>もと</rt></ruby>の<ruby class='v1'>鞘<rt>さや</rt></ruby>に<ruby class='v1'>収<rt>おさ</rt></ruby>まったのでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Well now, there’s a saying, ‘a child is the clamp that holds a family together.’ It means that no matter how badly a marriage falls apart, having just one child between a couple can sometimes bring them back together again. Today I’ll tell you a heartfelt human-interest tale about a craftsman who fell into drink and another woman’s arms, only to be given a second chance thanks to his own son.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[KUMAGORO'S FALL]</span>There once was a carpenter, skilled with his hands but cursed with a weakness for drink. His name was Kumagoro. He and his wife Otoku had a sweet little five-year-old son named Kamekichi, and though poor, the family lived happily together. But at some point, Kumagoro took to drinking every single night, and before long he grew intimate with a barmaid from the neighborhood. He stopped putting his heart into his work, and whatever money he earned went straight to the woman. When he did come home, he took it out on Otoku and Kamekichi.<br><strong>Otoku:</strong> “Won’t you please stop this? Do you have any idea how lonely Kamekichi feels?”<br><strong>Kumagoro:</strong> “Shut up. Don’t go poking your nose into a husband’s business.”</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OTOKU'S DECISION]</span>One night, after this had gone on for some time, Kumagoro, drunk, finally raised his hand against Otoku. Seeing this, little Kamekichi burst into tears as if something inside him had caught fire. That night, after much silent thought, Otoku made up her mind.<br><strong>Otoku:</strong> “I can’t go on with you any longer. Kamekichi and I are leaving.”<br><strong>Kumagoro:</strong> “Wh-what are you saying? How are the two of you going to eat without me?”<br><strong>Otoku:</strong> “However hard it may be, taking Kamekichi’s hand and struggling on our own is far better than continuing this life.”<br>Otoku took Kamekichi by the hand and left the house that very day. It’s said that everyone in the tenement quietly sympathized with her.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[LONELINESS AND REGRET]</span>Once his wife and child were gone, Kumagoro at first put on a brave face, but every time he came home to his empty room, the sight of where Kamekichi’s little sandals used to sit, or the remembered smell of Otoku’s miso soup, would bring tears to his eyes. He couldn’t focus on his work, and his drinking only grew worse. But one morning, looking into the mirror with a pounding hangover, Kumagoro was struck by the sight of his own haggard face.<br><strong>Kumagoro:</strong> “What in the world am I doing…”<br>From that day on, he quit drinking cold turkey, took his carpentry tools back out, and began working seriously once again.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS OF HARD WORK]</span>Three years passed. Having sworn off drink completely and thrown himself into honest work, Kumagoro had regained his reputation as an even better carpenter than before. His master craftsman relied on him, and it’s said he’d even taken on an apprentice of his own by then. But in his heart, Otoku and Kamekichi were never far from his thoughts.<br><strong>Kumagoro:</strong> “I wonder how those two are getting along these days. If only I could see Kamekichi, just once…”<br>Thinking such thoughts, Kumagoro, still living alone, passed his days honestly, if with a quiet loneliness that never quite left him.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A CHANCE REUNION]</span>One day, on his way home from work, Kumagoro’s eye happened to land on a young boy selling kites in front of a shop. Looking closer — that face, that build — something about him seemed familiar. Hesitantly, he called out.<br><strong>Kumagoro:</strong> “Hey there, kid. What’s your name?”<br><strong>Boy:</strong> “I’m Kamekichi.”<br>Kumagoro’s heart nearly leapt out of his chest. Standing before him was, without question, his own son — that very Kamekichi. The boy who had been five three years ago was now eight, and quite grown. Holding back the surge of emotion welling up inside him, Kumagoro asked gently.<br><strong>Kumagoro:</strong> “Is your mother doing well?”<br><strong>Kamekichi:</strong> “Yeah, she’s fine. I help out at a shop now.”</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECRET GIFT]</span>Kumagoro pulled out his wallet and pressed every bit of money he had into Kamekichi’s hand.<br><strong>Kumagoro:</strong> “Here — buy yourself something good to eat with this. And get something nice for your mother too.”<br><strong>Kamekichi:</strong> “Whoa, this much? Mister, who are you?”<br><strong>Kumagoro:</strong> “Doesn’t matter who I am. But listen, kid — don’t tell your mother about this, alright? You don’t need to say who gave it to you or anything like that.”<br>Kamekichi, looking a little puzzled, bowed his head politely and ran off happily. Kumagoro stood there watching his son’s small back for a long while, wiping away the tears that welled up in his eyes.</p>
+                <p id="line-en-7"><span class="text-xs font-bold text-stone-400 block mb-1">[REUNION]</span>When Kamekichi got home, overjoyed, he dumped the money he’d just been given right in front of Otoku.<br><strong>Kamekichi:</strong> “Mom, look! Let’s buy something delicious with this!”<br><strong>Otoku:</strong> “Goodness, that’s an awful lot of money. Just who gave you this?”<br><strong>Kamekichi:</strong> “Well, he told me not to say… but he looked at me for the longest time, and then asked, real gently, whether Mom was doing well.”<br>As she listened, a certain feeling began to stir in Otoku’s chest. That look in his eyes, that tone of voice — it was unmistakably Kumagoro’s, the man she could never quite forget. Tears she could no longer hold back spilled from Otoku’s eyes.<br><strong>Otoku:</strong> “Kamekichi, if you see that person again, let me know. Tell him… tell him your mother would like to see him too.”<br>A few days later, led by Kamekichi, Kumagoro finally came face to face with Otoku again. Standing before each other for the first time in three years, neither could speak for a long while — they simply stood in silence, tears falling. Watching this, Kamekichi, looking a little bewildered but somehow happy, kept glancing back and forth between the two of them.<br><strong>Kumagoro:</strong> “I’m sorry. Would you let me try again, one more time?”<br><strong>Otoku:</strong> “For Kamekichi’s sake too… yes. Let’s start over.”<br>And so, thanks to the one small child who had become their clamp, the three members of that separated family were happily reunited, back where they belonged.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Eh bien, on dit souvent qu’« un enfant est l’agrafe qui tient une famille ensemble ». Cela signifie que, peu importe à quel point un mariage se brise, un seul enfant entre deux époux peut parfois les réunir à nouveau. Aujourd’hui, je vais vous conter une histoire humaine et touchante, celle d’un artisan tombé dans la boisson et dans les bras d’une autre femme, à qui son propre fils offrira une seconde chance.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[KUMAGORO'S FALL]</span>Il était une fois un charpentier, habile de ses mains mais maudit par un penchant pour la boisson. Il s’appelait Kumagoro. Lui et sa femme Otoku avaient un doux petit garçon de cinq ans nommé Kamekichi, et bien que pauvre, la famille vivait heureuse. Mais à un moment donné, Kumagoro se mit à boire chaque soir, et bientôt il se lia intimement avec une serveuse du quartier. Il cessa de mettre du cœur à l’ouvrage, et le peu d’argent qu’il gagnait filait tout droit chez cette femme. Quand il rentrait, c’est sur Otoku et Kamekichi qu’il passait ses nerfs.<br><strong>Otoku :</strong> « Tu ne veux pas arrêter, s’il te plaît ? Sais-tu seulement à quel point Kamekichi se sent seul ? »<br><strong>Kumagoro :</strong> « Tais-toi. Ne te mêle pas des affaires d’un mari. »</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OTOKU'S DECISION]</span>Un soir, après que cela eut duré un certain temps, Kumagoro, ivre, finit par lever la main sur Otoku. En voyant cela, le petit Kamekichi éclata en sanglots comme si quelque chose s’était enflammé en lui. Cette nuit-là, après une longue réflexion silencieuse, Otoku prit sa décision.<br><strong>Otoku :</strong> « Je ne peux plus continuer avec toi. Kamekichi et moi, nous partons. »<br><strong>Kumagoro :</strong> « Qu... qu’est-ce que tu racontes ? Comment allez-vous manger sans moi ? »<br><strong>Otoku :</strong> « Aussi difficile que ce soit, prendre la main de Kamekichi et nous débrouiller seuls vaut bien mieux que de continuer cette vie. »<br>Otoku prit Kamekichi par la main et quitta la maison ce jour-là même. On dit que tous les habitants de l’immeuble compatissaient discrètement avec elle.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[LONELINESS AND REGRET]</span>Une fois sa femme et son fils partis, Kumagoro fit d’abord bonne figure, mais chaque fois qu’il rentrait dans sa chambre vide, la vue de l’endroit où se trouvaient jadis les petites sandales de Kamekichi, ou l’odeur imaginée de la soupe miso d’Otoku, lui arrachaient des larmes. Il ne parvenait plus à se concentrer sur son travail, et sa consommation d’alcool ne faisait qu’empirer. Mais un matin, en se regardant dans le miroir avec une gueule de bois carabinée, Kumagoro fut frappé par le spectacle de son propre visage émacié.<br><strong>Kumagoro :</strong> « Mais qu’est-ce que je fabrique, bon sang… »<br>À partir de ce jour, il arrêta l’alcool net, ressortit ses outils de charpentier, et se remit sérieusement au travail.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS OF HARD WORK]</span>Trois années passèrent. Ayant complètement renoncé à la boisson et s’étant plongé dans un travail honnête, Kumagoro avait retrouvé sa réputation de charpentier encore meilleur qu’avant. Son maître artisan comptait sur lui, et l’on dit qu’il avait même pris un apprenti à son compte. Mais dans son cœur, Otoku et Kamekichi n’étaient jamais bien loin de ses pensées.<br><strong>Kumagoro :</strong> « Je me demande comment vont ces deux-là ces temps-ci. Si seulement je pouvais voir Kamekichi, ne serait-ce qu’une fois… »<br>En pensant ainsi, Kumagoro, toujours seul, passait ses jours honnêtement, mais avec une solitude discrète qui ne le quittait jamais tout à fait.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A CHANCE REUNION]</span>Un jour, en rentrant du travail, le regard de Kumagoro se posa sur un jeune garçon qui vendait des cerfs-volants devant une boutique. En y regardant de plus près — ce visage, cette carrure — quelque chose lui semblait familier. Hésitant, il l’interpella.<br><strong>Kumagoro :</strong> « Dis-moi, petit. Comment tu t’appelles ? »<br><strong>Le garçon :</strong> « Je m’appelle Kamekichi. »<br>Le cœur de Kumagoro faillit lui sortir de la poitrine. Celui qui se tenait devant lui était, sans le moindre doute, son propre fils — ce Kamekichi lui-même. L’enfant qui avait cinq ans trois ans plus tôt en avait maintenant huit, et avait bien grandi. Retenant la vague d’émotion qui montait en lui, Kumagoro demanda doucement.<br><strong>Kumagoro :</strong> « Ta mère va bien ? »<br><strong>Kamekichi :</strong> « Oui, elle va bien. J’aide dans une boutique maintenant. »</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECRET GIFT]</span>Kumagoro sortit son porte-monnaie et pressa dans la main de Kamekichi tout l’argent qu’il possédait.<br><strong>Kumagoro :</strong> « Tiens — achète-toi quelque chose de bon à manger avec ça. Et achète aussi quelque chose de gentil pour ta mère. »<br><strong>Kamekichi :</strong> « Wouah, autant que ça ? Monsieur, qui êtes-vous ? »<br><strong>Kumagoro :</strong> « Peu importe qui je suis. Mais écoute, petit — ne dis rien de ceci à ta mère, d’accord ? Tu n’as pas besoin de dire qui te l’a donné ni rien de tout ça. »<br>Kamekichi, l’air un peu perplexe, inclina poliment la tête et partit en courant, tout heureux. Kumagoro resta là à regarder longtemps le petit dos de son fils s’éloigner, essuyant les larmes qui lui montaient aux yeux.</p>
+                <p id="line-fr-7"><span class="text-xs font-bold text-stone-400 block mb-1">[REUNION]</span>Quand Kamekichi rentra chez lui, débordant de joie, il déversa l’argent qu’on venait de lui donner devant Otoku.<br><strong>Kamekichi :</strong> « Maman, regarde ! Achetons quelque chose de délicieux avec ça ! »<br><strong>Otoku :</strong> « Mon Dieu, c’est une somme énorme. Qui donc t’a donné ça ? »<br><strong>Kamekichi :</strong> « Eh bien, il m’a dit de ne pas le dire… mais il m’a regardé très longtemps, puis m’a demandé, très gentiment, si maman allait bien. »<br>En écoutant cela, un certain pressentiment commença à naître dans la poitrine d’Otoku. Ce regard, ce ton de voix — c’était incontestablement celui de Kumagoro, cet homme qu’elle ne pouvait jamais tout à fait oublier. Des larmes qu’elle ne pouvait plus retenir jaillirent des yeux d’Otoku.<br><strong>Otoku :</strong> « Kamekichi, si tu revois cette personne, dis-le-moi. Dis-lui… dis-lui que ta mère aimerait le revoir aussi. »<br>Quelques jours plus tard, guidé par Kamekichi, Kumagoro se retrouva enfin face à face avec Otoku. Debout l’un devant l’autre pour la première fois en trois ans, aucun des deux ne put parler pendant un long moment — ils restèrent simplement silencieux, les larmes coulant. En regardant cela, Kamekichi, l’air un peu perplexe mais quelque part heureux, n’arrêtait pas de regarder tour à tour l’un et l’autre.<br><strong>Kumagoro :</strong> « Je suis désolé. Me laisserais-tu essayer à nouveau, une fois de plus ? »<br><strong>Otoku :</strong> « Pour Kamekichi aussi… oui. Recommençons. »<br>Et c’est ainsi que, grâce à ce petit enfant devenu leur agrafe, les trois membres de cette famille séparée furent heureusement réunis, retrouvant enfin leur place.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Bueno, se dice a menudo que «un hijo es la grapa que mantiene unida a una familia». Significa que, sin importar cuánto se rompa un matrimonio, un solo hijo entre una pareja puede a veces volver a unirlos. Hoy les contaré una entrañable historia humana, la de un artesano que cayó en la bebida y en los brazos de otra mujer, a quien su propio hijo le dará una segunda oportunidad.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[KUMAGORO'S FALL]</span>Había una vez un carpintero, hábil con las manos pero maldecido con debilidad por la bebida. Se llamaba Kumagoro. Él y su esposa Otoku tenían un dulce hijito de cinco años llamado Kamekichi, y aunque pobres, la familia vivía feliz. Pero en cierto momento, Kumagoro empezó a beber todas las noches, y pronto se hizo íntimo de una camarera del vecindario. Dejó de poner el corazón en su trabajo, y el poco dinero que ganaba iba directo a esa mujer. Cuando volvía a casa, se desquitaba con Otoku y Kamekichi.<br><strong>Otoku:</strong> «¿No puedes parar de una vez? ¿Tienes idea de lo solo que se siente Kamekichi?»<br><strong>Kumagoro:</strong> «Cállate. No te metas en los asuntos de un marido.»</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[OTOKU'S DECISION]</span>Una noche, después de que esto hubiera durado un tiempo, Kumagoro, borracho, finalmente levantó la mano contra Otoku. Al ver esto, el pequeño Kamekichi rompió a llorar como si algo se hubiera encendido dentro de él. Esa noche, tras una larga reflexión silenciosa, Otoku tomó su decisión.<br><strong>Otoku:</strong> «Ya no puedo seguir contigo. Kamekichi y yo nos vamos.»<br><strong>Kumagoro:</strong> «¿Qu-qué estás diciendo? ¿Cómo van a comer sin mí?»<br><strong>Otoku:</strong> «Por difícil que sea, tomar la mano de Kamekichi y arreglárnoslas solos es mucho mejor que seguir con esta vida.»<br>Otoku tomó a Kamekichi de la mano y dejó la casa ese mismo día. Dicen que todos en el vecindario simpatizaron en silencio con ella.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[LONELINESS AND REGRET]</span>Una vez que su esposa e hijo se fueron, Kumagoro al principio hizo de tripas corazón, pero cada vez que volvía a su habitación vacía, la vista del lugar donde solían estar las sandalias del pequeño Kamekichi, o el recuerdo del olor de la sopa de miso de Otoku, le hacían llorar. No podía concentrarse en el trabajo, y su bebida solo empeoraba. Pero una mañana, mirándose al espejo con una resaca terrible, Kumagoro quedó impactado por la visión de su propio rostro demacrado.<br><strong>Kumagoro:</strong> «Qué demonios estoy haciendo…»<br>A partir de ese día, dejó de beber de golpe, sacó de nuevo sus herramientas de carpintero y volvió a trabajar en serio.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[YEARS OF HARD WORK]</span>Pasaron tres años. Habiendo dejado por completo la bebida y entregándose a un trabajo honesto, Kumagoro había recuperado su reputación como un carpintero aún mejor que antes. Su maestro artesano confiaba en él, y se dice que incluso había tomado un aprendiz propio. Pero en su corazón, Otoku y Kamekichi nunca estaban lejos de sus pensamientos.<br><strong>Kumagoro:</strong> «Me pregunto cómo estarán esos dos por estos días. Si al menos pudiera ver a Kamekichi, aunque fuera una vez…»<br>Pensando así, Kumagoro, todavía solo, pasaba sus días con honestidad, aunque con una soledad callada que nunca lo abandonaba del todo.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[A CHANCE REUNION]</span>Un día, de camino a casa desde el trabajo, la mirada de Kumagoro se posó en un niño que vendía cometas frente a una tienda. Mirando más de cerca, ese rostro, esa complexión, algo le resultaba familiar. Vacilante, lo llamó.<br><strong>Kumagoro:</strong> «Oye, muchacho. ¿Cómo te llamas?»<br><strong>Niño:</strong> «Me llamo Kamekichi.»<br>El corazón de Kumagoro casi se le sale del pecho. El que estaba frente a él era, sin duda alguna, su propio hijo, ese mismo Kamekichi. El niño que tenía cinco años tres años atrás ahora tenía ocho, y había crecido bastante. Conteniendo la ola de emoción que crecía dentro de él, Kumagoro preguntó con suavidad.<br><strong>Kumagoro:</strong> «¿Tu madre está bien?»<br><strong>Kamekichi:</strong> «Sí, está bien. Ahora ayudo en una tienda.»</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SECRET GIFT]</span>Kumagoro sacó su cartera y puso todo el dinero que tenía en la mano de Kamekichi.<br><strong>Kumagoro:</strong> «Toma, cómprate algo rico de comer con esto. Y cómprale también algo lindo a tu madre.»<br><strong>Kamekichi:</strong> «Vaya, ¿tanto? Señor, ¿quién es usted?»<br><strong>Kumagoro:</strong> «No importa quién soy. Pero escucha, muchacho, no le digas nada de esto a tu madre, ¿de acuerdo? No hace falta que digas quién te lo dio ni nada de eso.»<br>Kamekichi, con expresión algo perpleja, hizo una reverencia educada y se fue corriendo, feliz. Kumagoro se quedó mirando la pequeña espalda de su hijo alejarse durante largo rato, secándose las lágrimas que le brotaban de los ojos.</p>
+                <p id="line-es-7"><span class="text-xs font-bold text-stone-400 block mb-1">[REUNION]</span>Cuando Kamekichi llegó a casa, encantado, dejó caer el dinero que acababan de darle justo delante de Otoku.<br><strong>Kamekichi:</strong> «¡Mamá, mira! ¡Compremos algo delicioso con esto!»<br><strong>Otoku:</strong> «Cielos, es muchísimo dinero. ¿Quién te dio esto?»<br><strong>Kamekichi:</strong> «Bueno, me dijo que no lo dijera… pero me miró durante muchísimo rato, y luego me preguntó, con mucha dulzura, si mamá estaba bien.»<br>Mientras escuchaba, cierto presentimiento comenzó a agitarse en el pecho de Otoku. Esa mirada, ese tono de voz, era inconfundiblemente el de Kumagoro, aquel hombre que nunca pudo olvidar del todo. Lágrimas que ya no pudo contener brotaron de los ojos de Otoku.<br><strong>Otoku:</strong> «Kamekichi, si vuelves a ver a esa persona, avísame. Dile… dile que tu madre también quisiera verlo.»<br>Unos días después, guiado por Kamekichi, Kumagoro finalmente se encontró cara a cara con Otoku de nuevo. De pie el uno frente al otro por primera vez en tres años, ninguno de los dos pudo hablar durante largo rato: simplemente permanecieron en silencio, con lágrimas cayendo. Al ver esto, Kamekichi, con expresión algo desconcertada pero de algún modo feliz, no dejaba de mirar alternadamente a uno y a otro.<br><strong>Kumagoro:</strong> «Lo siento. ¿Me dejarías intentarlo de nuevo, una vez más?»<br><strong>Otoku:</strong> «También por Kamekichi… sí. Empecemos de nuevo.»<br>Y así, gracias a aquel pequeño niño que se convirtió en su grapa, los tres miembros de esa familia separada se reunieron felizmente, de vuelta en el lugar que les correspondía.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 8;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②熊五郎の乱れ","③お徳の決意","④独りぼっちの後悔","⑤腕を取り戻して","⑥亀吉との再会","⑦小遣いと言い付け","⑧母への告白と再会"];
+        const partNamesEn = ["① Prologue","② Kumagoro's fall","③ Otoku's decision","④ Loneliness and regret","⑤ Years of hard work","⑥ A chance reunion","⑦ The secret gift","⑧ Reunion"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦","⑧"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p8.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

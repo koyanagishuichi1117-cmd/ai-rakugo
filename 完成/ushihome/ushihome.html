@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牛ほめ - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.9 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">牛ほめ</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Ushihome / Praising the Cow</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②父の稽古</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③座敷を褒めそこなう</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④台所の柱と牛小屋へ</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤牛をほめる</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class="v1">一席<rt>いっせき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">人<rt>ひと</rt></ruby>を<ruby class="v1">褒<rt>ほ</rt></ruby>めるというのは、なかなか<ruby class="v1">難<rt>むずか</rt></ruby>しいものでございましてね。<ruby class="v1">心<rt>こころ</rt></ruby>にもないお<ruby class="v2">世辞<rt>せじ</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べたところで、すぐに<ruby class="v2">見抜<rt>みぬ</rt></ruby>かれてしまう。かと<ruby class="v1">思<rt>おも</rt></ruby>えば、<ruby class="v1">案外<rt>あんがい</rt></ruby>、<ruby class="v1">不器用<rt>ぶきよう</rt></ruby>な<ruby class="v1">褒<rt>ほ</rt></ruby>め<ruby class="v1">言葉<rt>ことば</rt></ruby>のほうが、<ruby class="v1">相手<rt>あいて</rt></ruby>の<ruby class="v1">心<rt>こころ</rt></ruby>に<ruby class="v1">届<rt>とど</rt></ruby>くこともある。<ruby class="v1">今日<rt>きょう</rt></ruby>は、そんな<ruby class="v1">褒<rt>ほ</rt></ruby>め<ruby class="v1">言葉<rt>ことば</rt></ruby>をめぐる、<ruby class="v1">少々<rt>しょうしょう</rt></ruby>おっちょこちょいな<ruby class="v1">若者<rt>わかもの</rt></ruby>のお<ruby class="v1">噺<rt>はなし</rt></ruby>を、<ruby class="v1">一席<rt>いっせき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【父の稽古】</span>
+                    なんでもこの<ruby class="v2">与太郎<rt>よたろう</rt></ruby>という<ruby class="v1">若者<rt>わかもの</rt></ruby>、<ruby class="v1">少々<rt>しょうしょう</rt></ruby>のんびりというか、おつむのほうがいささか<ruby class="v1">心<rt>こころ</rt></ruby>もとない。ある<ruby class="v1">日<rt>ひ</rt></ruby>、おとっつぁんが<ruby class="v2">与太郎<rt>よたろう</rt></ruby>を<ruby class="v1">呼<rt>よ</rt></ruby>びつけました。<br><strong>父：</strong>「これ<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">伯父<rt>おじ</rt></ruby>さんが、このたび<ruby class="v1">新<rt>あたら</rt></ruby>しいお<ruby class="v1">家<rt>うち</rt></ruby>を<ruby class="v1">建<rt>た</rt></ruby>てなすった。<ruby class="v1">祝<rt>いわ</rt></ruby>いを<ruby class="v1">言<rt>い</rt></ruby>いに<ruby class="v1">行<rt>い</rt></ruby>っておいで」<br><strong>与太郎：</strong>「へえ、<ruby class="v1">行<rt>い</rt></ruby>ってもいいけど、おいら、<ruby class="v1">何<rt>なに</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>えばいいんだい？」<br><strong>父：</strong>「ばか、ただ<ruby class="v1">行<rt>い</rt></ruby>くだけじゃいけない。お<ruby class="v2">世辞<rt>せじ</rt></ruby>のひとつも<ruby class="v1">言<rt>い</rt></ruby>うもんだ。よし、<ruby class="v1">教<rt>おし</rt></ruby>えてやるから、よく<ruby class="v1">聞<rt>き</rt></ruby>いておけ」<br><strong>父：</strong>「まず、お<ruby class="v1">座敷<rt>ざしき</rt></ruby>に<ruby class="v1">通<rt>とお</rt></ruby>されたら、<ruby class="v1">柱<rt>はしら</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、こう<ruby class="v1">言<rt>い</rt></ruby>うんだ。「<ruby class="v1">結構<rt>けっこう</rt></ruby>な<ruby class="v2">檜<rt>ひのき</rt></ruby>の<ruby class="v1">柱<rt>はしら</rt></ruby>で、<ruby class="v1">一<rt>ひと</rt></ruby>つも<ruby class="v2">節<rt>ふし</rt></ruby>がございませんな」」<br><strong>与太郎：</strong>「けっこうな、ひのきの、はしらで……ふしがない……」<br><strong>父：</strong>「そうだ。<ruby class="v1">次<rt>つぎ</rt></ruby>に、<ruby class="v1">天井<rt>てんじょう</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、「<ruby class="v1">天井<rt>てんじょう</rt></ruby>は、<ruby class="v2">薩摩<rt>さつま</rt></ruby>の<ruby class="v1">杉<rt>すぎ</rt></ruby>の<ruby class="v2">柾目板<rt>まさめいた</rt></ruby>で、<ruby class="v1">実<rt>じつ</rt></ruby>にきれいに<ruby class="v1">張<rt>は</rt></ruby>ってございますな」と<ruby class="v1">言<rt>い</rt></ruby>うんだ」<br><strong>与太郎：</strong>「てんじょうは、さつまの、すぎの……なんだっけ」<br><strong>父：</strong>「まさめいただ。それから、<ruby class="v1">台所<rt>だいどころ</rt></ruby>の<ruby class="v1">柱<rt>はしら</rt></ruby>に<ruby class="v1">割<rt>わ</rt></ruby>れ<ruby class="v1">目<rt>め</rt></ruby>があったら、「この<ruby class="v1">割<rt>わ</rt></ruby>れ<ruby class="v1">目<rt>め</rt></ruby>は、<ruby class="v1">銭<rt>ぜに</rt></ruby>を<ruby class="v1">貼<rt>は</rt></ruby>っておくと、<ruby class="v1">模様<rt>もよう</rt></ruby>になって、かえって<ruby class="v2">粋<rt>いき</rt></ruby>でございますな」と<ruby class="v1">言<rt>い</rt></ruby>っておやり」<br><strong>与太郎：</strong>「<ruby class="v1">銭<rt>ぜに</rt></ruby>を<ruby class="v1">貼<rt>は</rt></ruby>る……なるほど」<br><strong>父：</strong>「<ruby class="v1">最後<rt>さいご</rt></ruby>に、<ruby class="v1">牛小屋<rt>うしごや</rt></ruby>の<ruby class="v1">牛<rt>うし</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>たら、これが<ruby class="v1">肝心<rt>かんじん</rt></ruby>だ。「この<ruby class="v1">牛<rt>うし</rt></ruby>はたいそう<ruby class="v1">立派<rt>りっぱ</rt></ruby>で、これなら<ruby class="v1">後<rt>うし</rt></ruby>ろに<ruby class="v1">火除<rt>ひよ</rt></ruby>けの『<ruby class="v2">火桶<rt>ひおけ</rt></ruby>』をお<ruby class="v1">作<rt>つく</rt></ruby>りになるとよろしゅうございます」と<ruby class="v1">言<rt>い</rt></ruby>うんだぞ。これは<ruby class="v1">伯父<rt>おじ</rt></ruby>さんも<ruby class="v1">喜<rt>よろこ</rt></ruby>ぶ、<ruby class="v1">大事<rt>だいじ</rt></ruby>な<ruby class="v1">文句<rt>もんく</rt></ruby>だからな」<br><strong>与太郎：</strong>「ひおけ、ひおけ……よし、<ruby class="v1">覚<rt>おぼ</rt></ruby>えた」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【伯父さんの家で、座敷を褒めそこなう】</span>
+                    <ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">勇<rt>いさ</rt></ruby>んで<ruby class="v1">伯父<rt>おじ</rt></ruby>さんの<ruby class="v1">家<rt>いえ</rt></ruby>に<ruby class="v1">出<rt>で</rt></ruby>かけてまいりました。<br><strong>与太郎：</strong>「<ruby class="v1">伯父<rt>おじ</rt></ruby>さん、<ruby class="v1">今日<rt>きょう</rt></ruby>は。おとっつぁんに<ruby class="v1">言<rt>い</rt></ruby>われて、お<ruby class="v1">祝<rt>いわ</rt></ruby>いに<ruby class="v1">来<rt>き</rt></ruby>たよ」<br><strong>伯父：</strong>「おお、これは<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、よく<ruby class="v1">来<rt>き</rt></ruby>たな。まあ<ruby class="v1">上<rt>あ</rt></ruby>がっておくれ」<br>お<ruby class="v1">座敷<rt>ざしき</rt></ruby>に<ruby class="v1">通<rt>とお</rt></ruby>された<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">教<rt>おそ</rt></ruby>わった<ruby class="v1">文句<rt>もんく</rt></ruby>を<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>そうとしますが、あいにく<ruby class="v1">頭<rt>あたま</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>がすっかりこんがらがっております。<br><strong>与太郎：</strong>「えー、この……<ruby class="v1">天井<rt>てんじょう</rt></ruby>の<ruby class="v1">柱<rt>はしら</rt></ruby>は、<ruby class="v1">結構<rt>けっこう</rt></ruby>な<ruby class="v2">節<rt>ふし</rt></ruby>が、ひとつもございませんで、<ruby class="v2">檜<rt>ひのき</rt></ruby>の……いや、<ruby class="v1">柾目<rt>まさめ</rt></ruby>の……とにかく、たいそうきれいでございますな」<br><strong>伯父：</strong>「はて、なんのことやら<ruby class="v1">分<rt>わ</rt></ruby>からんが……まあ、<ruby class="v1">褒<rt>ほ</rt></ruby>めてくれておるのだろうな」<br><strong>与太郎：</strong>「それから、あの、<ruby class="v1">天井<rt>てんじょう</rt></ruby>は<ruby class="v2">薩摩<rt>さつま</rt></ruby>の<ruby class="v1">何<rt>なに</rt></ruby>かで、<ruby class="v1">実<rt>じつ</rt></ruby>に、ふしがなくて……いや、これは<ruby class="v1">柱<rt>はしら</rt></ruby>で<ruby class="v1">言<rt>い</rt></ruby>ったんだったか……」<br><ruby class="v1">伯父<rt>おじ</rt></ruby>、<ruby class="v1">苦笑<rt>にがわら</rt></ruby>いをしながらも、<ruby class="v2">与太郎<rt>よたろう</rt></ruby>の<ruby class="v1">一生懸命<rt>いっしょうけんめい</rt></ruby>な<ruby class="v1">様子<rt>ようす</rt></ruby>に<ruby class="v1">免<rt>めん</rt></ruby>じて、<ruby class="v1">聞<rt>き</rt></ruby>き<ruby class="v1">流<rt>なが</rt></ruby>しております。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【台所の柱と牛小屋へ】</span>
+                    <ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">台所<rt>だいどころ</rt></ruby>に<ruby class="v1">案内<rt>あんない</rt></ruby>されると、ふと<ruby class="v1">柱<rt>はしら</rt></ruby>の<ruby class="v1">割<rt>わ</rt></ruby>れ<ruby class="v1">目<rt>め</rt></ruby>に<ruby class="v1">目<rt>め</rt></ruby>をとめました。<br><strong>与太郎：</strong>「あ、そうだ。<ruby class="v1">伯父<rt>おじ</rt></ruby>さん、この<ruby class="v1">柱<rt>はしら</rt></ruby>の<ruby class="v1">割<rt>わ</rt></ruby>れ<ruby class="v1">目<rt>め</rt></ruby>は、<ruby class="v1">銭<rt>ぜに</rt></ruby>を<ruby class="v1">貼<rt>は</rt></ruby>っておくと、<ruby class="v1">模様<rt>もよう</rt></ruby>になって、かえって<ruby class="v2">粋<rt>いき</rt></ruby>でございますな」<br><strong>伯父：</strong>「おや、これは<ruby class="v1">感心<rt>かんしん</rt></ruby>。よく<ruby class="v1">気<rt>き</rt></ruby>づいたな、<ruby class="v2">与太郎<rt>よたろう</rt></ruby>」<br>これだけは、どうやらうまく<ruby class="v1">言<rt>い</rt></ruby>えたようで、<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、すっかり<ruby class="v1">得意<rt>とくい</rt></ruby>になりました。<br><strong>伯父：</strong>「そういえば、<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">裏<rt>うら</rt></ruby>の<ruby class="v1">牛小屋<rt>うしごや</rt></ruby>も<ruby class="v1">見<rt>み</rt></ruby>ていくかい。この<ruby class="v1">間<rt>あいだ</rt></ruby>、<ruby class="v1">良<rt>よ</rt></ruby>い<ruby class="v1">牛<rt>うし</rt></ruby>を<ruby class="v1">買<rt>か</rt></ruby>ったんだ」<br><strong>与太郎：</strong>「<ruby class="v1">牛<rt>うし</rt></ruby>……あ、そうだ、<ruby class="v1">牛<rt>うし</rt></ruby>のことも、おとっつぁんに<ruby class="v1">教<rt>おそ</rt></ruby>わったんだった」<br><ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">大急<rt>おおいそ</rt></ruby>ぎで<ruby class="v1">裏<rt>うら</rt></ruby>の<ruby class="v1">牛小屋<rt>うしごや</rt></ruby>へと<ruby class="v1">向<rt>む</rt></ruby>かいました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【牛をほめる】</span>
+                    <ruby class="v1">牛小屋<rt>うしごや</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>った<ruby class="v2">与太郎<rt>よたろう</rt></ruby>、<ruby class="v1">教<rt>おそ</rt></ruby>わった<ruby class="v1">文句<rt>もんく</rt></ruby>を、<ruby class="v1">今度<rt>こんど</rt></ruby>こそはと、<ruby class="v1">一生懸命<rt>いっしょうけんめい</rt></ruby>に<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>します。<br><strong>与太郎：</strong>「<ruby class="v1">伯父<rt>おじ</rt></ruby>さん、この<ruby class="v1">牛<rt>うし</rt></ruby>は……えーと、たいそう<ruby class="v1">立派<rt>りっぱ</rt></ruby>で……これなら<ruby class="v1">後<rt>うし</rt></ruby>ろに、<ruby class="v1">火除<rt>ひよ</rt></ruby>けの、<ruby class="v2">火桶<rt>ひおけ</rt></ruby>を、お<ruby class="v1">作<rt>つく</rt></ruby>りになると、よろしゅうございます」<br><ruby class="v1">伯父<rt>おじ</rt></ruby>、これを<ruby class="v1">聞<rt>き</rt></ruby>いて、はたと<ruby class="v1">手<rt>て</rt></ruby>を<ruby class="v1">打<rt>う</rt></ruby>ちました。<br><strong>伯父：</strong>「おお、これはよく<ruby class="v1">言<rt>い</rt></ruby>った！ <ruby class="v2">与太郎<rt>よたろう</rt></ruby>、お<ruby class="v1">前<rt>まえ</rt></ruby>、よくぞ<ruby class="v1">気<rt>き</rt></ruby>づいてくれた」<br><strong>与太郎：</strong>「へ？ あの、これ、おとっつぁんに<ruby class="v1">教<rt>おそ</rt></ruby>わった<ruby class="v1">通<rt>とお</rt></ruby>りに<ruby class="v1">言<rt>い</rt></ruby>っただけだけど……」<br><strong>伯父：</strong>「なんでもいい、これは<ruby class="v1">本当<rt>ほんとう</rt></ruby>にありがたい<ruby class="v1">忠告<rt>ちゅうこく</rt></ruby>だ。<ruby class="v1">新<rt>あたら</rt></ruby>しい<ruby class="v1">牛小屋<rt>うしごや</rt></ruby>は<ruby class="v1">木<rt>き</rt></ruby>も<ruby class="v1">新<rt>あたら</rt></ruby>しく、<ruby class="v1">乾<rt>かわ</rt></ruby>いておるから、<ruby class="v1">火<rt>ひ</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>やすい。<ruby class="v1">後<rt>うし</rt></ruby>ろに<ruby class="v1">火除<rt>ひよ</rt></ruby>けを<ruby class="v1">作<rt>つく</rt></ruby>っておけば、なるほど<ruby class="v1">安心<rt>あんしん</rt></ruby>というものだ」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">伯父<rt>おじ</rt></ruby>さん、すっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>して、<ruby class="v2">与太郎<rt>よたろう</rt></ruby>に<ruby class="v1">小遣<rt>こづか</rt></ruby>いを<ruby class="v1">握<rt>にぎ</rt></ruby>らせました。<br><strong>伯父：</strong>「よし、これは<ruby class="v1">褒美<rt>ほうび</rt></ruby>だ。<ruby class="v1">取<rt>と</rt></ruby>っておきなさい」<br><strong>与太郎：</strong>「へえ、ありがとう。……あれ、<ruby class="v1">伯父<rt>おじ</rt></ruby>さん、なんでおいらの<ruby class="v1">言<rt>い</rt></ruby>ったことだけ、そんなに<ruby class="v1">喜<rt>よろこ</rt></ruby>んでくれるんだい？ <ruby class="v1">柱<rt>はしら</rt></ruby>や<ruby class="v1">天井<rt>てんじょう</rt></ruby>のことは、ちっとも<ruby class="v1">喜<rt>よろこ</rt></ruby>んでくれなかったのに」<br><strong>伯父：</strong>「そりゃそうだ。<ruby class="v1">柱<rt>はしら</rt></ruby>や<ruby class="v1">天井<rt>てんじょう</rt></ruby>のことは、なにを<ruby class="v1">言<rt>い</rt></ruby>ってるんだかさっぱり<ruby class="v1">分<rt>わ</rt></ruby>からなかったからな。だが、<ruby class="v1">牛<rt>うし</rt></ruby>のことだけは、はっきり<ruby class="v1">分<rt>わ</rt></ruby>かった」<br><strong>与太郎：</strong>「へえ、そういうもんかね」<br><strong>伯父：</strong>「うむ。もっとも、お<ruby class="v1">前<rt>まえ</rt></ruby>の<ruby class="v1">頭<rt>あたま</rt></ruby>にも、ちょいと<ruby class="v1">割<rt>わ</rt></ruby>れ<ruby class="v1">目<rt>め</rt></ruby>があるようじゃで、<ruby class="v1">銭<rt>ぜに</rt></ruby>でも<ruby class="v1">貼<rt>は</rt></ruby>っておくと、よろしゅうございますな」<br>というわけで、<ruby class="v1">覚<rt>おぼ</rt></ruby>えたての<ruby class="v2">世辞<rt>せじ</rt></ruby>が、<ruby class="v1">思<rt>おも</rt></ruby>わぬところで<ruby class="v1">役<rt>やく</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>つという、めでたいお<ruby class="v1">噺<rt>はなし</rt></ruby>、これにてお<ruby class="v1">開<rt>ひら</rt></ruby>きとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Praising someone is a surprisingly difficult art. String together flattery you don't really mean, and it gets seen through in an instant. And yet, sometimes it's the clumsiest, most awkward compliment that ends up reaching a person's heart. Today's tale is about exactly that — a rather scatterbrained young man and his adventures with words of praise.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER'S LESSON IN FLATTERY]</span>Now, this young man Yotaro was, well, rather easygoing, or to put it plainly, not the sharpest tool in the shed. One day his father called him over.<br><strong>Father:</strong> "Listen, Yotaro. Your uncle's just built himself a new house. Go over and offer your congratulations."<br><strong>Yotaro:</strong> "Sure, I can go, but what am I supposed to say?"<br><strong>Father:</strong> "Idiot, you can't just show up empty-handed. You've got to offer a compliment or two. Fine, I'll teach you — listen carefully."<br><strong>Father:</strong> "First, once you're shown into the main room, look at the pillar and say this: 'What a splendid cypress pillar — not a single knot in it.'"<br><strong>Yotaro:</strong> "Splendid... cypress... pillar... no knots..."<br><strong>Father:</strong> "That's it. Next, look up at the ceiling and say: 'What fine straight-grained cedar boards from Satsuma — laid so beautifully.'"<br><strong>Yotaro:</strong> "Ceiling... Satsuma... cedar... what was it again..."<br><strong>Father:</strong> "Straight-grained boards. And then, if there's a crack in the kitchen pillar, tell him: 'This crack, if you paste a coin over it, becomes quite a stylish little pattern.'"<br><strong>Yotaro:</strong> "Paste a coin over it... I see."<br><strong>Father:</strong> "And finally, when you see the cow in the barn — this is the most important part. Say: 'This is a truly splendid cow. You really ought to build a fire-guard box behind it.' Your uncle will be especially pleased with this one, so don't forget it."<br><strong>Yotaro:</strong> "Fire-guard box, fire-guard box... all right, got it."</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MAN FUMBLES THE COMPLIMENTS]</span>Full of eager spirit, Yotaro set off for his uncle's house.<br><strong>Yotaro:</strong> "Afternoon, uncle! Pop told me to come by and offer congratulations."<br><strong>Uncle:</strong> "Well, well, Yotaro, good of you to come. Come in, come in."<br>Shown into the main room, Yotaro tried to recall the phrases he'd been taught, but unfortunately his head was already a hopeless tangle.<br><strong>Yotaro:</strong> "Um, this... the pillar of the ceiling has a splendid knot, not a single one, made of cypress... no wait, straight-grain... anyway, it's awfully pretty."<br><strong>Uncle:</strong> "Hm, I haven't the faintest idea what you mean... but well, I suppose you're complimenting it somehow."<br><strong>Yotaro:</strong> "And then, um, the ceiling is made of some Satsuma something, really no knots at all... no wait, was that the pillar..."<br>The uncle gave a wry smile, but out of consideration for how earnestly Yotaro was trying, he simply let it all wash over him.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE KITCHEN PILLAR, THEN OFF TO THE BARN]</span>When Yotaro was shown to the kitchen, his eye happened to fall on a crack in the pillar there.<br><strong>Yotaro:</strong> "Oh, right! Uncle, this crack — if you paste a coin over it, it becomes quite a stylish little pattern, doesn't it."<br><strong>Uncle:</strong> "Well now, that's rather clever. Good eye, Yotaro."<br>This one, at least, he seemed to have gotten right, and Yotaro swelled with pride.<br><strong>Uncle:</strong> "Say, Yotaro, care to see the cow barn out back too? I bought a fine cow just the other day."<br><strong>Yotaro:</strong> "A cow... oh, that's right, Pop taught me something about a cow too!"<br>Yotaro hurried off toward the barn out back as fast as his legs would carry him.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[PRAISING THE COW]</span>Standing in front of the barn, Yotaro strained with all his might to recall the words he'd been taught, determined to get it right this time.<br><strong>Yotaro:</strong> "Uncle, this cow is... um, truly splendid... and you really ought to build a fire-guard box behind it."<br>Hearing this, the uncle clapped his hands in sudden realization.<br><strong>Uncle:</strong> "Oh, well said! Yotaro, I'm impressed you noticed that."<br><strong>Yotaro:</strong> "Huh? Well, I just said exactly what Pop taught me..."<br><strong>Uncle:</strong> "Never mind that, this is genuinely excellent advice. The barn's new wood is still dry, so it catches fire easily. Building a fire-guard behind it really would set my mind at ease."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Thoroughly impressed, the uncle pressed some pocket money into Yotaro's hand.<br><strong>Uncle:</strong> "There, that's your reward. Keep it."<br><strong>Yotaro:</strong> "Wow, thanks. ...Hey wait, uncle, why are you so pleased with only the thing I said about the cow? You weren't pleased at all about the pillar or the ceiling."<br><strong>Uncle:</strong> "Well, of course. I hadn't the faintest idea what you were talking about with the pillar or the ceiling. But the thing about the cow — that one I understood perfectly."<br><strong>Yotaro:</strong> "Huh, is that how it works."<br><strong>Uncle:</strong> "Indeed. Though I dare say there's a bit of a crack in that head of yours too — might be worth pasting a coin over it."<br>And so, with this happy tale of freshly learned flattery proving useful in the most unexpected way, I'll bring this story to its close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Complimenter quelqu'un est un art étonnamment difficile. Enchaînez des flatteries que vous ne pensez pas vraiment, et cela se voit tout de suite. Et pourtant, parfois, c'est le compliment le plus maladroit qui touche le cœur d'une personne. L'histoire d'aujourd'hui parle justement de cela : un jeune homme un peu écervelé et ses aventures avec les mots de louange.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER'S LESSON IN FLATTERY]</span>Ce jeune homme, Yotaro, était plutôt du genre nonchalant, ou pour dire les choses franchement, pas la lumière la plus vive de la pièce. Un jour, son père l'appela.<br><strong>Père :</strong> « Écoute, Yotaro. Ton oncle vient de se faire construire une nouvelle maison. Va lui présenter tes félicitations. »<br><strong>Yotaro :</strong> « D'accord, je peux y aller, mais qu'est-ce que je suis censé dire ? »<br><strong>Père :</strong> « Idiot, tu ne peux pas y aller les mains vides. Il faut offrir un ou deux compliments. Bon, je vais t'apprendre — écoute bien. »<br><strong>Père :</strong> « D'abord, une fois qu'on t'aura fait entrer dans la pièce principale, regarde le pilier et dis ceci : 'Quel splendide pilier de cyprès — pas un seul nœud.' »<br><strong>Yotaro :</strong> « Splendide... cyprès... pilier... pas de nœud... »<br><strong>Père :</strong> « C'est ça. Ensuite, regarde le plafond et dis : 'Quelles belles planches de cèdre à grain droit de Satsuma — posées avec tant de beauté.' »<br><strong>Yotaro :</strong> « Plafond... Satsuma... cèdre... c'était quoi déjà... »<br><strong>Père :</strong> « Planches à grain droit. Et puis, s'il y a une fissure dans le pilier de la cuisine, dis-lui : 'Cette fissure, si on colle une pièce dessus, ça devient un joli motif élégant.' »<br><strong>Yotaro :</strong> « Coller une pièce dessus... je vois. »<br><strong>Père :</strong> « Et enfin, quand tu verras la vache à l'étable — c'est le plus important. Dis : 'Voilà une vache vraiment splendide. Vous devriez vraiment construire un coffre pare-feu derrière elle.' Ton oncle sera particulièrement content de celle-là, alors ne l'oublie pas. »<br><strong>Yotaro :</strong> « Coffre pare-feu, coffre pare-feu... bon, c'est noté. »</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MAN FUMBLES THE COMPLIMENTS]</span>Plein d'entrain, Yotaro partit pour la maison de son oncle.<br><strong>Yotaro :</strong> « Bonjour, mon oncle ! Papa m'a dit de venir vous féliciter. »<br><strong>Oncle :</strong> « Eh bien, Yotaro, quelle bonne visite. Entre, entre. »<br>Une fois introduit dans la pièce principale, Yotaro essaya de se rappeler les phrases apprises, mais malheureusement sa tête était déjà un fouillis sans espoir.<br><strong>Yotaro :</strong> « Euh, ce... le pilier du plafond a un splendide nœud, pas un seul, en cyprès... non attendez, à grain droit... enfin bref, c'est terriblement joli. »<br><strong>Oncle :</strong> « Hmm, je n'ai pas la moindre idée de ce que tu veux dire... mais bon, je suppose que tu essaies de complimenter quelque chose. »<br><strong>Yotaro :</strong> « Et puis, euh, le plafond est fait d'un certain Satsuma, vraiment aucun nœud du tout... non attendez, c'était le pilier... »<br>L'oncle eut un sourire crispé, mais par égard pour les efforts sincères de Yotaro, il laissa simplement passer.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE KITCHEN PILLAR, THEN OFF TO THE BARN]</span>Quand on fit entrer Yotaro dans la cuisine, son regard tomba justement sur une fissure du pilier.<br><strong>Yotaro :</strong> « Ah, c'est vrai ! Mon oncle, cette fissure, si vous collez une pièce dessus, ça devient un joli motif élégant, n'est-ce pas. »<br><strong>Oncle :</strong> « Tiens donc, c'est plutôt astucieux. Bon œil, Yotaro. »<br>Celle-là, au moins, il semblait l'avoir bien dite, et Yotaro se gonfla de fierté.<br><strong>Oncle :</strong> « Au fait, Yotaro, ça te dirait de voir l'étable derrière aussi ? J'ai acheté une belle vache l'autre jour. »<br><strong>Yotaro :</strong> « Une vache... ah oui, c'est vrai, papa m'a aussi appris quelque chose sur une vache ! »<br>Yotaro se précipita vers l'étable à l'arrière aussi vite que ses jambes le lui permettaient.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[PRAISING THE COW]</span>Debout devant l'étable, Yotaro se creusa la tête de toutes ses forces pour se rappeler les mots qu'on lui avait appris, bien décidé à réussir cette fois.<br><strong>Yotaro :</strong> « Mon oncle, cette vache est... euh, vraiment splendide... et vous devriez vraiment construire un coffre pare-feu derrière elle. »<br>En entendant cela, l'oncle frappa dans ses mains, frappé d'une soudaine prise de conscience.<br><strong>Oncle :</strong> « Oh, bien dit ! Yotaro, je suis impressionné que tu aies remarqué ça. »<br><strong>Yotaro :</strong> « Hein ? Ben, j'ai juste dit exactement ce que papa m'a appris... »<br><strong>Oncle :</strong> « Peu importe, c'est vraiment un excellent conseil. Le bois neuf de l'étable est encore sec, alors le feu y prend facilement. Construire un pare-feu derrière rassurerait vraiment mon esprit. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Tout à fait impressionné, l'oncle glissa un peu d'argent de poche dans la main de Yotaro.<br><strong>Oncle :</strong> « Tiens, voilà ta récompense. Garde-la. »<br><strong>Yotaro :</strong> « Oh, merci. ...Attendez, mon oncle, pourquoi êtes-vous si content seulement de ce que j'ai dit sur la vache ? Vous n'étiez pas content du tout pour le pilier ou le plafond. »<br><strong>Oncle :</strong> « Eh bien, évidemment. Je n'avais pas la moindre idée de ce dont tu parlais avec le pilier ou le plafond. Mais la chose sur la vache, celle-là, je l'ai parfaitement comprise. »<br><strong>Yotaro :</strong> « Ah bon, c'est comme ça que ça marche. »<br><strong>Oncle :</strong> « En effet. Quoique j'oserais dire qu'il y a aussi une petite fissure dans cette tête à toi... ça vaudrait peut-être la peine d'y coller une pièce. »<br>Et voilà, avec cette joyeuse histoire d'une flatterie tout juste apprise qui se révèle utile de la façon la plus inattendue, je vais clore ce récit.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Elogiar a alguien es un arte sorprendentemente difícil. Enhebre halagos que no siente de verdad, y se le descubrirá al instante. Y sin embargo, a veces es el cumplido más torpe el que termina llegando al corazón de una persona. La historia de hoy trata justamente de eso: un joven bastante despistado y sus aventuras con las palabras de elogio.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[FATHER'S LESSON IN FLATTERY]</span>Este joven, Yotaro, era más bien despreocupado, o para decirlo sin rodeos, no era el más brillante. Un día su padre lo llamó.<br><strong>Padre:</strong> «Escucha, Yotaro. Tu tío acaba de construirse una casa nueva. Ve a felicitarlo.»<br><strong>Yotaro:</strong> «Bueno, puedo ir, pero ¿qué se supone que debo decir?»<br><strong>Padre:</strong> «Idiota, no puedes ir con las manos vacías. Hay que ofrecer uno o dos cumplidos. Bien, te voy a enseñar, escucha con atención.»<br><strong>Padre:</strong> «Primero, en cuanto te hagan pasar a la sala principal, mira el pilar y di esto: 'Qué espléndido pilar de ciprés, sin un solo nudo.'»<br><strong>Yotaro:</strong> «Espléndido... ciprés... pilar... sin nudos...»<br><strong>Padre:</strong> «Eso es. Luego, mira el techo y di: 'Qué hermosas tablas de cedro de grano recto de Satsuma, colocadas con tanta belleza.'»<br><strong>Yotaro:</strong> «Techo... Satsuma... cedro... ¿qué era?...»<br><strong>Padre:</strong> «Tablas de grano recto. Y luego, si hay una grieta en el pilar de la cocina, dile: 'Esta grieta, si le pega una moneda encima, se convierte en un bonito adorno elegante.'»<br><strong>Yotaro:</strong> «Pegarle una moneda encima... ya veo.»<br><strong>Padre:</strong> «Y finalmente, cuando veas la vaca en el establo, esto es lo más importante. Di: 'Esta es una vaca verdaderamente espléndida. Debería construir una caja contra incendios detrás de ella.' Tu tío estará especialmente contento con esto, así que no lo olvides.»<br><strong>Yotaro:</strong> «Caja contra incendios, caja contra incendios... bien, entendido.»</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE YOUNG MAN FUMBLES THE COMPLIMENTS]</span>Lleno de entusiasmo, Yotaro partió hacia la casa de su tío.<br><strong>Yotaro:</strong> «¡Buenas tardes, tío! Papá me dijo que viniera a felicitarlo.»<br><strong>Tío:</strong> «Vaya, vaya, Yotaro, qué bueno que viniste. Pasa, pasa.»<br>Una vez en la sala principal, Yotaro intentó recordar las frases que le habían enseñado, pero desgraciadamente ya tenía la cabeza hecha un lío sin remedio.<br><strong>Yotaro:</strong> «Eh, este... el pilar del techo tiene un espléndido nudo, ni uno solo, de ciprés... no espere, de grano recto... en fin, es tremendamente bonito.»<br><strong>Tío:</strong> «Hmm, no tengo la menor idea de qué quieres decir... pero bueno, supongo que estás elogiando algo.»<br><strong>Yotaro:</strong> «Y luego, eh, el techo está hecho de un tal Satsuma, de verdad sin ningún nudo... no espere, ¿eso era el pilar?...»<br>El tío sonrió con resignación, pero por consideración al esfuerzo sincero de Yotaro, simplemente dejó que todo pasara.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE KITCHEN PILLAR, THEN OFF TO THE BARN]</span>Cuando llevaron a Yotaro a la cocina, su mirada cayó justo en una grieta del pilar.<br><strong>Yotaro:</strong> «¡Ah, es verdad! Tío, esta grieta, si le pega una moneda encima, se convierte en un bonito adorno elegante, ¿no le parece?»<br><strong>Tío:</strong> «Vaya, qué astuto. Buen ojo, Yotaro.»<br>Esta al menos parecía haberla dicho bien, y Yotaro se hinchó de orgullo.<br><strong>Tío:</strong> «Por cierto, Yotaro, ¿quieres ver también el establo de atrás? Compré una vaca excelente el otro día.»<br><strong>Yotaro:</strong> «Una vaca... ah, es verdad, papá también me enseñó algo sobre una vaca!»<br>Yotaro corrió hacia el establo de atrás tan rápido como sus piernas se lo permitían.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[PRAISING THE COW]</span>De pie frente al establo, Yotaro se esforzó con todas sus fuerzas por recordar las palabras que le habían enseñado, decidido a acertar esta vez.<br><strong>Yotaro:</strong> «Tío, esta vaca es... eh, verdaderamente espléndida... y de verdad debería construir una caja contra incendios detrás de ella.»<br>Al oír esto, el tío dio una palmada, sorprendido por una repentina revelación.<br><strong>Tío:</strong> «¡Oh, bien dicho! Yotaro, me impresiona que te dieras cuenta de eso.»<br><strong>Yotaro:</strong> «¿Eh? Bueno, solo dije exactamente lo que papá me enseñó...»<br><strong>Tío:</strong> «No importa, es un consejo verdaderamente excelente. La madera nueva del establo todavía está seca, así que el fuego prende con facilidad. Construir un cortafuegos detrás realmente me tranquilizaría.»</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Completamente impresionado, el tío le puso algo de dinero de bolsillo en la mano a Yotaro.<br><strong>Tío:</strong> «Toma, esa es tu recompensa. Guárdatela.»<br><strong>Yotaro:</strong> «Vaya, gracias. ...Espere, tío, ¿por qué está tan contento solo con lo que dije de la vaca? No estaba nada contento con lo del pilar o el techo.»<br><strong>Tío:</strong> «Bueno, claro. No tenía la menor idea de qué hablabas con lo del pilar o el techo. Pero lo de la vaca, eso sí lo entendí perfectamente.»<br><strong>Yotaro:</strong> «Vaya, así que así funciona.»<br><strong>Tío:</strong> «Así es. Aunque me atrevería a decir que también hay una pequeña grieta en esa cabeza tuya... valdría la pena pegarle una moneda encima.»<br>Y así, con esta alegre historia de un halago recién aprendido que resulta útil de la manera más inesperada, doy por concluido este relato.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②父の稽古","③座敷を褒めそこなう","④台所の柱と牛小屋へ","⑤牛をほめる","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② Father's lesson in flattery","③ The young man fumbles the compliments","④ The kitchen pillar, then off to the barn","⑤ Praising the cow","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

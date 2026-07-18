@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>道灌 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.12 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">道灌</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Doukan / Lord Dokan</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②大家さんに頼む</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③太田道灌の逸話</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④実の一つだになきぞ悲しき</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤覚えた話を使ってみる</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、ちょいとした<ruby class="v1">物知<rt>ものし</rt></ruby>りというのは、<ruby class="v2">重宝<rt>ちょうほう</rt></ruby>なものでございましてね。<ruby class="v1">酒<rt>さけ</rt></ruby>の<ruby class="v1">席<rt>せき</rt></ruby>なんぞでちょいと<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いた<ruby class="v2">故事<rt>こじ</rt></ruby>のひとつも<ruby class="v1">披露<rt>ひろう</rt></ruby>すりゃ、「こいつぁできる」なんて<ruby class="v1">一目<rt>いちもく</rt></ruby><ruby class="v1">置<rt>お</rt></ruby>かれる。ただし、うろ<ruby class="v1">覚<rt>おぼ</rt></ruby>えのまま<ruby class="v1">中途半端<rt>ちゅうとはんぱ</rt></ruby>に<ruby class="v1">使<rt>つか</rt></ruby>おうものなら、かえって<ruby class="v1">恥<rt>はじ</rt></ruby>をかくことにもなりかねません。とある<ruby class="v1">長屋<rt>ながや</rt></ruby>に、<ruby class="v2">無学<rt>むがく</rt></ruby>を<ruby class="v1">笑<rt>わら</rt></ruby>われて<ruby class="v1">悔<rt>くや</rt></ruby>しい<ruby class="v1">思<rt>おも</rt></ruby>いをした、<ruby class="v1">熊<rt>くま</rt></ruby>さんという<ruby class="v1">男<rt>おとこ</rt></ruby>がおりまして、これが<ruby class="v1">大家<rt>おおや</rt></ruby>さんのところへ「なにか<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いた<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">教<rt>おし</rt></ruby>えてくれ」と<ruby class="v1">頼<rt>たの</rt></ruby>みに<ruby class="v1">行<rt>い</rt></ruby>くところから、お<ruby class="v1">話<rt>はなし</rt></ruby>が<ruby class="v1">始<rt>はじ</rt></ruby>まります。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【大家さんに頼む】</span>
+                    <ruby class="v1">熊<rt>くま</rt></ruby>さんが<ruby class="v1">大家<rt>おおや</rt></ruby>さんのところへ<ruby class="v1">駆<rt>か</rt></ruby>け<ruby class="v1">込<rt>こ</rt></ruby>んでまいりました。<br><strong>熊さん：</strong>「<ruby class="v1">大家<rt>おおや</rt></ruby>さん、<ruby class="v1">聞<rt>き</rt></ruby>いてくださいよ。この<ruby class="v1">間<rt>あいだ</rt></ruby>、<ruby class="v1">寄合<rt>よりあい</rt></ruby>で<ruby class="v1">何<rt>なに</rt></ruby>にも<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いたことが<ruby class="v1">言<rt>い</rt></ruby>えなくて、みんなに<ruby class="v1">笑<rt>わら</rt></ruby>われちまったんですよ。<ruby class="v1">悔<rt>くや</rt></ruby>しいったらありゃしない。」<br><strong>大家：</strong>「ほう、それはとんだ<ruby class="v1">災難<rt>さいなん</rt></ruby>だったな。」<br><strong>熊さん：</strong>「そこで<ruby class="v1">頼<rt>たの</rt></ruby>みなんですがね、<ruby class="v1">大家<rt>おおや</rt></ruby>さんは<ruby class="v1">物知<rt>ものし</rt></ruby>りだ。<ruby class="v1">何<rt>なに</rt></ruby>か<ruby class="v1">一<rt>ひと</rt></ruby>つ、<ruby class="v1">賢<rt>かしこ</rt></ruby>そうに<ruby class="v1">聞<rt>き</rt></ruby>こえる<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">教<rt>おし</rt></ruby>えちゃもらえませんか。」<br><strong>大家：</strong>「よかろう、それなら<ruby class="v1">一<rt>ひと</rt></ruby>つ、いい<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">教<rt>おし</rt></ruby>えてやろう。<ruby class="v2">太田道灌<rt>おおたどうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>の、<ruby class="v1">山吹<rt>やまぶき</rt></ruby>の<ruby class="v1">話<rt>はなし</rt></ruby>というのがあってな。」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【太田道灌の逸話】</span>
+                    <strong>大家：</strong>「むかし、<ruby class="v2">太田道灌<rt>おおたどうかん</rt></ruby>という<ruby class="v1">武将<rt>ぶしょう</rt></ruby>がいてな。ある<ruby class="v1">日<rt>ひ</rt></ruby>、<ruby class="v1">鷹狩<rt>たかが</rt></ruby>りに<ruby class="v1">出<rt>で</rt></ruby>ていたところ、にわかに<ruby class="v1">雨<rt>あめ</rt></ruby>が<ruby class="v1">降<rt>ふ</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>してしまった。<ruby class="v1">道灌<rt>どうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>は<ruby class="v2">蓑<rt>みの</rt></ruby>を<ruby class="v1">持<rt>も</rt></ruby>っていなかったので、<ruby class="v1">近<rt>ちか</rt></ruby>くのみすぼらしい<ruby class="v1">小屋<rt>こや</rt></ruby>に<ruby class="v1">立<rt>た</rt></ruby>ち<ruby class="v1">寄<rt>よ</rt></ruby>って、そこにいた<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">娘<rt>むすめ</rt></ruby>に『<ruby class="v2">蓑<rt>みの</rt></ruby>を<ruby class="v1">貸<rt>か</rt></ruby>してくれ』と<ruby class="v1">頼<rt>たの</rt></ruby>んだそうだ。ところがその<ruby class="v1">娘<rt>むすめ</rt></ruby>は<ruby class="v1">何<rt>なに</rt></ruby>も<ruby class="v1">言<rt>い</rt></ruby>わず、<ruby class="v1">黙<rt>だま</rt></ruby>って<ruby class="v1">一<rt>ひと</rt></ruby><ruby class="v1">枝<rt>えだ</rt></ruby>の<ruby class="v1">山吹<rt>やまぶき</rt></ruby>の<ruby class="v1">花<rt>はな</rt></ruby>を<ruby class="v1">差<rt>さ</rt></ruby>し<ruby class="v1">出<rt>だ</rt></ruby>したそうでな。」<br><strong>熊さん：</strong>「へぇ、<ruby class="v2">蓑<rt>みの</rt></ruby>を<ruby class="v1">貸<rt>か</rt></ruby>してくれって<ruby class="v1">言<rt>い</rt></ruby>ったのに、なんで<ruby class="v1">花<rt>はな</rt></ruby>なんか<ruby class="v1">渡<rt>わた</rt></ruby>すんです？<ruby class="v1">馬鹿<rt>ばか</rt></ruby>な<ruby class="v1">娘<rt>むすめ</rt></ruby>ですね。」<br><strong>大家：</strong>「まぁ<ruby class="v1">慌<rt>あわ</rt></ruby>てるな。<ruby class="v1">道灌<rt>どうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>もお<ruby class="v1">前<rt>まえ</rt></ruby>と<ruby class="v1">同<rt>おな</rt></ruby>じで、その<ruby class="v1">場<rt>ば</rt></ruby>では<ruby class="v1">意味<rt>いみ</rt></ruby>がわからず、ぷりぷり<ruby class="v1">怒<rt>おこ</rt></ruby>って<ruby class="v1">帰<rt>かえ</rt></ruby>ったそうだ。」
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【実の一つだになきぞ悲しき】</span>
+                    <strong>熊さん：</strong>「それで、その<ruby class="v1">花<rt>はな</rt></ruby>にはどういう<ruby class="v1">意味<rt>いみ</rt></ruby>があったんです？」<br><strong>大家：</strong>「<ruby class="v1">後<rt>のち</rt></ruby>になって<ruby class="v1">家来<rt>けらい</rt></ruby>に<ruby class="v1">聞<rt>き</rt></ruby>いて、<ruby class="v1">道灌<rt>どうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>もようやく<ruby class="v1">気<rt>き</rt></ruby>づいたそうだ。<ruby class="v2">兼明親王<rt>かねあきらしんのう</rt></ruby>の<ruby class="v1">古<rt>ふる</rt></ruby>い<ruby class="v1">歌<rt>うた</rt></ruby>に、『<ruby class="v2">七重<rt>ななえ</rt></ruby><ruby class="v2">八重<rt>やえ</rt></ruby><ruby class="v1">花<rt>はな</rt></ruby>は<ruby class="v1">咲<rt>さ</rt></ruby>けども<ruby class="v1">山吹<rt>やまぶき</rt></ruby>の<ruby class="v1">実<rt>み</rt></ruby>の<ruby class="v1">一<rt>ひと</rt></ruby>つだになきぞ<ruby class="v1">悲<rt>かな</rt></ruby>しき』というのがあってな。<ruby class="v1">山吹<rt>やまぶき</rt></ruby>の<ruby class="v1">花<rt>はな</rt></ruby>は、いくつ<ruby class="v1">咲<rt>さ</rt></ruby>いても<ruby class="v1">実<rt>み</rt></ruby>が<ruby class="v1">一<rt>ひと</rt></ruby>つもならない。その『<ruby class="v1">実<rt>み</rt></ruby>』と、<ruby class="v2">蓑<rt>みの</rt></ruby><ruby class="v1">笠<rt>がさ</rt></ruby>の『<ruby class="v2">蓑<rt>みの</rt></ruby>』をかけて、『うちにはお<ruby class="v1">貸<rt>か</rt></ruby>しできる<ruby class="v2">蓑<rt>みの</rt></ruby>の<ruby class="v1">一<rt>ひと</rt></ruby>つもございません』と、それはそれは<ruby class="v1">奥<rt>おく</rt></ruby>ゆかしく、<ruby class="v1">遠回<rt>とおまわ</rt></ruby>しにお<ruby class="v1">断<rt>ことわ</rt></ruby>りしていたわけだ。」<br><strong>熊さん：</strong>「へぇ〜、そりゃあ<ruby class="v1">粋<rt>いき</rt></ruby>な<ruby class="v1">断<rt>ことわ</rt></ruby>り<ruby class="v1">方<rt>かた</rt></ruby>だ。」<br><strong>大家：</strong>「<ruby class="v1">道灌<rt>どうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>もそこに<ruby class="v2">感服<rt>かんぷく</rt></ruby>してな。<ruby class="v1">貧<rt>まず</rt></ruby>しい<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">娘<rt>むすめ</rt></ruby>ですら<ruby class="v1">古歌<rt>こか</rt></ruby>を<ruby class="v2">諳<rt>そら</rt></ruby>んじているというのに、<ruby class="v1">自分<rt>じぶん</rt></ruby>は<ruby class="v1">武将<rt>ぶしょう</rt></ruby>のくせに<ruby class="v1">歌<rt>うた</rt></ruby>の<ruby class="v1">道<rt>みち</rt></ruby>にうとかったと<ruby class="v1">恥<rt>は</rt></ruby>じ<ruby class="v1">入<rt>い</rt></ruby>り、それからというもの<ruby class="v2">歌道<rt>かどう</rt></ruby>の<ruby class="v1">勉強<rt>べんきょう</rt></ruby>に<ruby class="v1">励<rt>はげ</rt></ruby>んで、のちには<ruby class="v1">立派<rt>りっぱ</rt></ruby>な<ruby class="v1">歌人<rt>かじん</rt></ruby>にもなったという、まぁそういう<ruby class="v1">話<rt>はなし</rt></ruby>だ。」
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【覚えた話を使ってみる】</span>
+                    <ruby class="v1">熊<rt>くま</rt></ruby>さんはすっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>してしまいましてね。<br><strong>熊さん：</strong>「こいつぁいい<ruby class="v1">話<rt>はなし</rt></ruby>だ！これを<ruby class="v1">今度<rt>こんど</rt></ruby>の<ruby class="v1">寄合<rt>よりあい</rt></ruby>で<ruby class="v1">披露<rt>ひろう</rt></ruby>すりゃ、みんな<ruby class="v1">俺<rt>おれ</rt></ruby>を<ruby class="v1">見直<rt>みなお</rt></ruby>すに<ruby class="v1">違<rt>ちが</rt></ruby>いねぇ！」<br>と、<ruby class="v1">大家<rt>おおや</rt></ruby>さんの<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">頭<rt>あたま</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>でなんとか<ruby class="v1">覚<rt>おぼ</rt></ruby>え<ruby class="v1">込<rt>こ</rt></ruby>んで、<ruby class="v2">意気揚々<rt>いきようよう</rt></ruby>と<ruby class="v1">家<rt>いえ</rt></ruby>へ<ruby class="v1">帰<rt>かえ</rt></ruby>りました。すると<ruby class="v1">折<rt>おり</rt></ruby>あしく、その<ruby class="v1">帰<rt>かえ</rt></ruby>り<ruby class="v1">道<rt>みち</rt></ruby>でにわか<ruby class="v1">雨<rt>あめ</rt></ruby>に<ruby class="v1">降<rt>ふ</rt></ruby>られましてね。<ruby class="v1">傘<rt>かさ</rt></ruby>も<ruby class="v2">蓑<rt>みの</rt></ruby>も<ruby class="v1">持<rt>も</rt></ruby>っていない<ruby class="v1">熊<rt>くま</rt></ruby>さんは「これぞ<ruby class="v1">絶好<rt>ぜっこう</rt></ruby>の<ruby class="v1">機会<rt>きかい</rt></ruby>だ」とばかりに、<ruby class="v1">近<rt>ちか</rt></ruby>くの<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">戸<rt>と</rt></ruby>を<ruby class="v1">叩<rt>たた</rt></ruby>いて、<ruby class="v1">傘<rt>かさ</rt></ruby>を<ruby class="v1">借<rt>か</rt></ruby>りようとしたのでございます。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">戸<rt>と</rt></ruby>を<ruby class="v1">開<rt>あ</rt></ruby>けたのは、その<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">娘<rt>むすめ</rt></ruby>さんでございました。<br><strong>熊さん：</strong>「すまねぇが、<ruby class="v1">傘<rt>かさ</rt></ruby>を<ruby class="v1">一本<rt>いっぽん</rt></ruby><ruby class="v1">貸<rt>か</rt></ruby>してもらえねぇか。」<br>すると<ruby class="v1">娘<rt>むすめ</rt></ruby>さん、たまたま<ruby class="v1">庭<rt>にわ</rt></ruby>に<ruby class="v1">咲<rt>さ</rt></ruby>いていた<ruby class="v1">山吹<rt>やまぶき</rt></ruby>の<ruby class="v1">枝<rt>えだ</rt></ruby>を<ruby class="v1">一<rt>ひと</rt></ruby>つ<ruby class="v1">折<rt>お</rt></ruby>って、<ruby class="v1">黙<rt>だま</rt></ruby>って<ruby class="v1">差<rt>さ</rt></ruby>し<ruby class="v1">出<rt>だ</rt></ruby>しました。<ruby class="v1">熊<rt>くま</rt></ruby>さんは「おっ、これぞまさに<ruby class="v1">道灌<rt>どうかん</rt></ruby><ruby class="v1">公<rt>こう</rt></ruby>の<ruby class="v2">故事<rt>こじ</rt></ruby>そのままだ」と<ruby class="v1">勇<rt>いさ</rt></ruby>み<ruby class="v1">立<rt>た</rt></ruby>ちまして、さっそく<ruby class="v1">教<rt>おそ</rt></ruby>わったばかりの<ruby class="v2">故事<rt>こじ</rt></ruby>を<ruby class="v1">披露<rt>ひろう</rt></ruby>しようといたしましたが……<br><strong>熊さん：</strong>「えぇ〜と、たしか……『<ruby class="v2">七重<rt>ななえ</rt></ruby><ruby class="v2">八重<rt>やえ</rt></ruby><ruby class="v1">花<rt>はな</rt></ruby>は<ruby class="v1">咲<rt>さ</rt></ruby>けども、<ruby class="v1">実<rt>み</rt></ruby>の<ruby class="v1">一<rt>ひと</rt></ruby>つも<ruby class="v1">貸<rt>か</rt></ruby>さぬとは……いや、<ruby class="v2">蓑<rt>みの</rt></ruby>が<ruby class="v1">一<rt>ひと</rt></ruby>つも<ruby class="v1">悲<rt>かな</rt></ruby>しいとは……』<ruby class="v1">畜生<rt>ちくしょう</rt></ruby>、どうもうまく<ruby class="v1">出<rt>で</rt></ruby>てこねぇ！」<br>と、しどろもどろになった<ruby class="v1">挙句<rt>あげく</rt></ruby>、<br><strong>熊さん：</strong>「まぁいいや！とにかく<ruby class="v1">花<rt>はな</rt></ruby>なんぞいらねぇんだよ、こちとら<ruby class="v1">傘<rt>かさ</rt></ruby>を<ruby class="v1">貸<rt>か</rt></ruby>してくれって<ruby class="v1">言<rt>い</rt></ruby>ってるんだ！<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いたつもりかもしれねぇが、こっちはずぶ<ruby class="v1">濡<rt>ぬ</rt></ruby>れになっちまうじゃねぇか！」<br>と、すっかり<ruby class="v1">怒<rt>おこ</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>す<ruby class="v1">始末<rt>しまつ</rt></ruby>。<ruby class="v1">習<rt>なら</rt></ruby>いたての<ruby class="v2">故事<rt>こじ</rt></ruby>も<ruby class="v1">台無<rt>だいな</rt></ruby>し、せっかくの<ruby class="v2">風流<rt>ふうりゅう</rt></ruby>も<ruby class="v1">丸<rt>まる</rt></ruby>つぶれ。<ruby class="v1">賢<rt>かしこ</rt></ruby>そうに<ruby class="v1">見<rt>み</rt></ruby>せようとして、かえって<ruby class="v2">墓穴<rt>ぼけつ</rt></ruby>を<ruby class="v1">掘<rt>ほ</rt></ruby>ってしまったという、なんともお<ruby class="v1">粗末<rt>そまつ</rt></ruby>なオチでございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Now, having a bit of learning up your sleeve is a handy thing indeed. Drop some clever bit of history at a drinking party, and people will look at you with newfound respect. But try to use half-remembered knowledge carelessly, and you might just embarrass yourself instead. In a certain tenement lived a man named Kuma-san, who'd been mocked once too often for his lack of learning, and it stung. Our story begins as he marches off to see his landlord to ask for some clever bit of wisdom he could show off.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE LANDLORD]</span>Kuma-san came rushing into the landlord's place.<br><strong>Kuma:</strong> "Landlord, you gotta hear this. At the neighborhood meeting the other day, I couldn't think of one clever thing to say, and everyone laughed at me. I've never been so mortified."<br><strong>Landlord:</strong> "Well now, that sounds like quite the ordeal."<br><strong>Kuma:</strong> "So here's what I'm asking — you're a learned man. Could you teach me some story that'll make me sound clever?"<br><strong>Landlord:</strong> "Very well, let me tell you a good one then. There's a tale about Lord Ōta Dōkan and a branch of yamabuki blossoms."</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TALE OF LORD DOKAN]</span><strong>Landlord:</strong> "Long ago, there was a military commander named Ōta Dōkan. One day, while out hawking, he was caught in a sudden downpour. Having no straw raincoat with him, he stopped at a shabby little hut nearby and asked the young girl there to lend him one. But instead of answering, the girl silently held out a single branch of yamabuki blossoms."<br><strong>Kuma:</strong> "Huh? He asked for a raincoat and she handed him flowers? What a foolish girl."<br><strong>Landlord:</strong> "Now hold on. Lord Dōkan was just like you — he had no idea what it meant at the time, and stormed off in a huff."</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE POEM EXPLAINED]</span><strong>Kuma:</strong> "So what did those flowers actually mean?"<br><strong>Landlord:</strong> "Later on, he asked one of his retainers, and Lord Dōkan finally understood. There's an old poem by Prince Kaneakira that goes: 'Though it blooms in sevenfold, eightfold petals, the yamabuki bears not even a single seed — how sad.' The yamabuki flower, no matter how many blossoms it puts out, never bears any fruit — no 'mi,' meaning seed. And that word 'mi' is a pun on the 'mino' of a straw raincoat. So she was saying, ever so elegantly and indirectly: 'We don't have even a single raincoat to lend you.'"<br><strong>Kuma:</strong> "Huh, that's a pretty stylish way to turn someone down."<br><strong>Landlord:</strong> "Lord Dōkan was deeply humbled by it too. Here was a girl from a poor household who could recite classical poetry from memory, while he, a mighty warrior, knew nothing of the way of poetry. Ashamed of himself, he threw himself into studying poetry from that day on, and eventually became a fine poet in his own right. That's the whole story."</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING OUT THE BORROWED TALE]</span>Kuma-san was thoroughly impressed.<br><strong>Kuma:</strong> "Now that's a good story! If I tell this one at the next neighborhood meeting, everyone's bound to think much more highly of me!"<br>He somehow crammed the landlord's tale into his head and headed home in high spirits. As luck would have it, on the way home he got caught in a sudden shower. Having neither umbrella nor raincoat, Kuma-san thought, "What a perfect opportunity!" and knocked on the door of a nearby house to ask for an umbrella to borrow.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>It was the daughter of the house who opened the door.<br><strong>Kuma:</strong> "Sorry to bother you, but could I borrow an umbrella?"<br>The girl, as it happened, snapped off a branch of yamabuki blossoms growing in the garden and silently held it out to him. Kuma-san's eyes lit up. "Oh ho, this is exactly like the story of Lord Dōkan!" he thought, delighted, and eagerly tried to recite the tale he'd just learned...<br><strong>Kuma:</strong> "Umm, let's see... 'Though it blooms in sevenfold, eightfold petals, not one single seed will it lend...' no wait, 'not even one raincoat, how sad...' Dammit, it's not coming out right!"<br>After thoroughly tangling himself up, he finally blurted:<br><strong>Kuma:</strong> "Ah, forget it! I don't want any flowers — I asked you to lend me an umbrella! Maybe you think you're being clever, but I'm the one who's going to get soaked!"<br>And with that, he stormed off in a huff. His freshly learned bit of culture, utterly wasted; the elegant gesture, completely lost on him. In trying to look clever, he'd only dug himself a deeper hole — and that, rather pathetically, was the punchline of this tale.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Voyez-vous, avoir un peu de savoir en réserve, c'est bien pratique. Sortez une anecdote historique bien tournée lors d'un banquet, et les gens vous regarderont avec un respect tout neuf. Mais utilisez maladroitement un savoir à moitié retenu, et vous risquez plutôt de vous couvrir de ridicule. Dans un certain logement vivait un homme nommé Kuma-san, qui avait été moqué un peu trop souvent pour son manque d'instruction, et cela le vexait profondément. Notre histoire commence alors qu'il se rend chez son propriétaire pour lui demander quelque anecdote raffinée dont il pourrait se vanter.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE LANDLORD]</span>Kuma-san se précipita chez le propriétaire.<br><strong>Kuma :</strong> « Propriétaire, il faut que vous entendiez ça. À la réunion de quartier l'autre jour, je n'ai rien trouvé d'intelligent à dire, et tout le monde s'est moqué de moi. Jamais je n'ai été aussi mortifié. »<br><strong>Propriétaire :</strong> « Eh bien, ça semble avoir été toute une épreuve. »<br><strong>Kuma :</strong> « Alors voilà ce que je vous demande — vous êtes un homme instruit. Pourriez-vous m'apprendre une histoire qui me ferait paraître intelligent ? »<br><strong>Propriétaire :</strong> « Très bien, laisse-moi t'en raconter une bonne alors. Il y a une histoire sur le seigneur Ōta Dōkan et une branche de fleurs de yamabuki. »</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TALE OF LORD DOKAN]</span><strong>Propriétaire :</strong> « Il y a longtemps, il y avait un chef militaire nommé Ōta Dōkan. Un jour, alors qu'il chassait au faucon, une averse soudaine le surprit. N'ayant pas de manteau de paille sur lui, il s'arrêta dans une pauvre petite cabane et demanda à la jeune fille présente de lui en prêter un. Mais au lieu de répondre, la fille lui tendit silencieusement une simple branche de fleurs de yamabuki. »<br><strong>Kuma :</strong> « Hein ? Il demande un manteau et elle lui donne des fleurs ? Quelle fille stupide. »<br><strong>Propriétaire :</strong> « Attends un peu. Le seigneur Dōkan était exactement comme toi — il ne comprit pas ce que cela signifiait sur le moment, et repartit furieux. »</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE POEM EXPLAINED]</span><strong>Kuma :</strong> « Alors, que signifiaient réellement ces fleurs ? »<br><strong>Propriétaire :</strong> « Plus tard, il interrogea l'un de ses vassaux, et le seigneur Dōkan comprit enfin. Il existe un vieux poème du prince Kaneakira qui dit : 'Bien qu'elle fleurisse en pétales multiples, la fleur de yamabuki ne porte pas même une seule graine — quelle tristesse.' La fleur de yamabuki, peu importe combien elle fleurit, ne donne jamais de fruit — pas un seul 'mi', c'est-à-dire graine. Et ce mot 'mi' est un jeu de mots avec le 'mino' du manteau de paille. Elle disait donc, avec une élégance toute discrète : 'Nous n'avons pas même un seul manteau à vous prêter.' »<br><strong>Kuma :</strong> « Ah, voilà une façon bien élégante de refuser. »<br><strong>Propriétaire :</strong> « Le seigneur Dōkan en fut lui aussi profondément touché. Voilà qu'une fille d'une famille pauvre pouvait réciter la poésie classique de mémoire, alors que lui, puissant guerrier, ne connaissait rien à l'art de la poésie. Honteux, il se consacra dès lors à l'étude de la poésie, et devint par la suite un poète accompli. Voilà toute l'histoire. »</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING OUT THE BORROWED TALE]</span>Kuma-san était profondément impressionné.<br><strong>Kuma :</strong> « Ça, c'est une bonne histoire ! Si je raconte ça à la prochaine réunion de quartier, tout le monde va sûrement me voir d'un meilleur œil ! »<br>Il enfonça tant bien que mal l'histoire du propriétaire dans sa tête et rentra chez lui plein d'entrain. Par un hasard malheureux, sur le chemin du retour, une averse soudaine le surprit. N'ayant ni parapluie ni manteau, Kuma-san se dit : « Quelle occasion parfaite ! » et frappa à la porte d'une maison voisine pour emprunter un parapluie.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Ce fut la fille de la maison qui ouvrit la porte.<br><strong>Kuma :</strong> « Désolé de vous déranger, mais pourriez-vous me prêter un parapluie ? »<br>La jeune fille, comme il se trouve, cassa une branche de fleurs de yamabuki qui poussait dans le jardin et la lui tendit en silence. Les yeux de Kuma-san s'illuminèrent. « Oh là là, c'est exactement comme l'histoire du seigneur Dōkan ! » pensa-t-il, ravi, et il tenta avec empressement de réciter l'histoire qu'il venait d'apprendre...<br><strong>Kuma :</strong> « Euh, voyons voir... 'Bien qu'elle fleurisse en pétales multiples, elle ne prêtera pas même une seule graine...' non attendez, 'pas même un seul manteau, quelle tristesse...' Zut, ça ne sort pas bien ! »<br>Après s'être complètement emmêlé les pinceaux, il finit par lâcher :<br><strong>Kuma :</strong> « Ah, laisse tomber ! Je ne veux pas de fleurs — je t'ai demandé de me prêter un parapluie ! Tu crois peut-être faire preuve de raffinement, mais c'est moi qui vais me faire tremper ! »<br>Et sur ce, il repartit furieux. Son savoir tout juste appris, complètement gâché ; le geste élégant, totalement perdu pour lui. En essayant de paraître intelligent, il n'avait fait que se creuser un trou plus profond — et voilà, plutôt pathétique, la chute de cette histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Verán, tener un poco de sabiduría guardada resulta muy útil. Suelte una anécdota histórica ingeniosa en una fiesta con bebida, y la gente lo mirará con renovado respeto. Pero use ese conocimiento a medias de forma descuidada, y podría terminar avergonzándose en su lugar. En cierta vivienda vivía un hombre llamado Kuma-san, que había sido objeto de burlas demasiadas veces por su falta de estudios, y aquello le dolía. Nuestra historia comienza cuando va a ver a su casero para pedirle alguna anécdota ingeniosa con la que presumir.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[ASKING THE LANDLORD]</span>Kuma-san corrió hacia la casa del casero.<br><strong>Kuma:</strong> "Casero, tiene que escuchar esto. En la reunión del vecindario el otro día, no se me ocurrió nada ingenioso que decir, y todos se rieron de mí. Nunca me había sentido tan avergonzado."<br><strong>Casero:</strong> "Vaya, eso suena a toda una prueba."<br><strong>Kuma:</strong> "Por eso le pido esto — usted es un hombre culto. ¿Podría enseñarme alguna historia que me haga parecer inteligente?"<br><strong>Casero:</strong> "Muy bien, entonces déjame contarte una buena. Hay una historia sobre el señor Ōta Dōkan y una rama de flores de yamabuki."</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TALE OF LORD DOKAN]</span><strong>Casero:</strong> "Hace mucho tiempo, hubo un comandante militar llamado Ōta Dōkan. Un día, mientras cazaba con halcones, lo sorprendió un chaparrón repentino. Como no llevaba capa de paja, se detuvo en una humilde choza cercana y le pidió a la joven que había allí que le prestara una. Pero en lugar de responder, la muchacha le tendió en silencio una simple rama de flores de yamabuki."<br><strong>Kuma:</strong> "¿Eh? ¿Le pide una capa y ella le da flores? Qué muchacha tan tonta."<br><strong>Casero:</strong> "Espera un momento. El señor Dōkan era igual que tú — no entendió el significado en ese momento, y se marchó furioso."</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE POEM EXPLAINED]</span><strong>Kuma:</strong> "Entonces, ¿qué significaban en realidad esas flores?"<br><strong>Casero:</strong> "Más tarde, le preguntó a uno de sus vasallos, y el señor Dōkan por fin lo entendió. Hay un viejo poema del príncipe Kaneakira que dice: 'Aunque florece en pétalos múltiples, el yamabuki no da ni una sola semilla — qué triste.' La flor de yamabuki, por muchas flores que dé, nunca produce fruto — ni un solo 'mi', es decir, semilla. Y esa palabra 'mi' es un juego de palabras con el 'mino' de la capa de paja. Así que ella estaba diciendo, con toda elegancia e indirecta: 'No tenemos ni una sola capa que prestarle.'"<br><strong>Kuma:</strong> "Vaya, qué manera tan elegante de rechazar a alguien."<br><strong>Casero:</strong> "El señor Dōkan quedó profundamente conmovido también. Resulta que una muchacha de una familia pobre podía recitar poesía clásica de memoria, mientras que él, un poderoso guerrero, no sabía nada del camino de la poesía. Avergonzado de sí mismo, se dedicó desde entonces a estudiar poesía, y con el tiempo se convirtió en un poeta excelente. Esa es toda la historia."</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[TRYING OUT THE BORROWED TALE]</span>Kuma-san quedó profundamente impresionado.<br><strong>Kuma:</strong> "¡Vaya que es una buena historia! ¡Si la cuento en la próxima reunión del vecindario, seguro que todos me verán con mejores ojos!"<br>Metió como pudo la historia del casero en su cabeza y volvió a casa animadísimo. Por una casualidad desafortunada, de camino a casa lo sorprendió un chaparrón repentino. Sin paraguas ni capa, Kuma-san pensó: "¡Qué ocasión perfecta!", y llamó a la puerta de una casa cercana para pedir prestado un paraguas.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[PUNCHLINE]</span>Fue la hija de la casa quien abrió la puerta.<br><strong>Kuma:</strong> "Disculpe la molestia, ¿podría prestarme un paraguas?"<br>La muchacha, casualmente, cortó una rama de flores de yamabuki que crecía en el jardín y se la tendió en silencio. A Kuma-san se le iluminaron los ojos. "Vaya, esto es exactamente como la historia del señor Dōkan", pensó encantado, e intentó con entusiasmo recitar la historia que acababa de aprender...<br><strong>Kuma:</strong> "Ejem, a ver... 'Aunque florece en pétalos múltiples, no prestará ni una sola semilla...' no espera, 'ni siquiera una capa, qué triste...' Maldición, no me sale bien!"<br>Después de enredarse por completo, finalmente soltó:<br><strong>Kuma:</strong> "¡Ah, olvídalo! No quiero flores — ¡te pedí que me prestaras un paraguas! Puede que creas que estás siendo elegante, pero soy yo el que se va a empapar!"<br>Y con eso, se marchó furioso. Su cultura recién aprendida, completamente desperdiciada; el gesto elegante, totalmente perdido para él. Al intentar parecer inteligente, sólo había cavado un hoyo más profundo para sí mismo — y ese, bastante patético, fue el final de esta historia.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②大家さんに頼む","③太田道灌の逸話","④実の一つだになきぞ悲しき","⑤覚えた話を使ってみる","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② Asking the landlord","③ The tale of lord dokan","④ The poem explained","⑤ Trying out the borrowed tale","⑥ Punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>青菜 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 青菜 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。夏の暑い盛りには色々な商売がございますが、中でも一番辛いのは、この植木屋のような、外で体を使う仕事でございますね。<break time=\"500ms\"/>炎天下、汗水垂らして働くというのは、口で言うほど楽なものじゃございません。<break time=\"400ms\"/>そこへいくと、大きな屋敷にお住まいの旦那様というのは、涼しいお座敷でお酒など召し上がりながら、涼しい顔をしていらっしゃる。<break time=\"500ms\"/>同じ人間でも、住む世界が違うと、言葉遣いから物腰まで、まるで別物でございましてね。今日はそんな、庭師と、ある品のいいご隠居さんとの一幕を、一つお付き合い願いましょう。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②庭師、招かれる", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">夏の日、ある大きなお屋敷の庭で、植木屋が汗だくになって仕事をしております。そこへ、その家のご隠居が縁側から声をかけます。<break time=\"500ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">おい、精が出るね。今日はまた一段と暑いが、少し休んでいきなさい。<break time=\"500ms\"/></prosody><prosody rate=\"110%\" pitch=\"+1st\">植木屋は恐縮しながらも、ありがたく縁側に腰を下ろします。ご隠居は品よく微笑みながら、<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">まあ、こう暑くては仕事にならないだろう。ちょいと、涼んでいきなさい。<break time=\"500ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">と、家の中へと誘い入れます。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p3', title:"③酒肴のもてなし", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">座敷に上げてもらった植木屋の前に、ご隠居は冷たい酒と、鯉の洗いだの、気の利いた肴を並べさせます。植木屋はこんな上等なもてなしを受けたことがなく、恐縮しきり。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">いや旦那様、あたしのようなものには勿体のうございます。<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">なに、遠慮はいらないよ。今日はゆっくりしていきなさい。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">ご隠居の言葉遣いも、酒の出し方も、いちいち品があって、植木屋はすっかり感心してしまいます。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p4', title:"④青菜を所望", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">ひとしきり酒を酌み交わした後、ご隠居はふと思い出したように、奥にいる女房へ声をかけます。<break time=\"400ms\"/></prosody><prosody rate=\"90%\" pitch=\"-1st\">おい、あれをこれへ持っておいで。ほら、青菜を茹でたのがあったろう。<break time=\"500ms\"/></prosody><prosody rate=\"104%\" pitch=\"0st\">すると奥から出てきた女房、亭主の傍まで来て、そっと耳打ちをする。実は、その青菜はもう無くなっていて、家にはもう一切れも残っていない。<break time=\"500ms\"/>だが、それをそのまま「もうございません」と言ってしまっては、あまりに色気がない。植木屋の手前もある、さあ、ここでこの女房、どう切り抜けるか。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤判じ物の趣向", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"0st\">そこで女房は、澄まし顔でこう申し上げます。<break time=\"400ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">旦那様、その青菜はゆうべ、義経にしてしまいました。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">植木屋はきょとんとしますが、ご隠居はにっこり笑って、<break time=\"350ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">ああ、義経ならば、鞍馬へ、お帰りか。<break time=\"450ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">はい、弁慶もお供をして、跡形もなく。<break time=\"500ms\"/></prosody><prosody rate=\"106%\" pitch=\"0st\">要するに、青菜は義経のように姿を消して跡形もございません。つまりもう、ございませんということを、義経が奥州へ落ち延びて行方をくらました故事にかけて、上品に伝えているのでございます。<break time=\"500ms\"/>ご隠居はこれはうまいことを言うと大喜び。植木屋はこの気の利いたやり取りに、すっかり感心してしまいます。<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+1st\">はあ〜、これはいい。あたしも今度、家でひとつやってみよう。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥植木屋、我が家で真似する", ssml:true, text:"<speak><prosody rate=\"110%\" pitch=\"0st\">すっかり感心した植木屋、そそくさと家へ帰ると、女房をつかまえて、<break time=\"400ms\"/></prosody><prosody rate=\"120%\" pitch=\"+2st\">おい、今夜、友達を呼ぶから、お前、さっきの旦那の家のようにやってくれ。<break time=\"400ms\"/></prosody><prosody rate=\"110%\" pitch=\"0st\">と、あの気の利いたやり取りを、一から仕込み始めます。<break time=\"400ms\"/></prosody><prosody rate=\"122%\" pitch=\"+2st\">いいか、おれが『おい、あれをこれへ持っておいで、青菜があったろう』と言ったら、お前は奥の四畳半にでも隠れていて、『旦那様、その青菜は義経にしてしまいました』と言うんだ。<break time=\"450ms\"/></prosody><prosody rate=\"115%\" pitch=\"-1st\">へえ？何のことだかさっぱりわかりませんよ。<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">と首をかしげますが、亭主に急かされて仕方なく、狭い押し入れの中に押し込まれ、出番を待つことになります。折悪しく、その日は輪をかけて蒸し暑い一日でございました。<break time=\"600ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦サゲ", ssml:true, text:"<speak><prosody rate=\"110%\" pitch=\"0st\">やがて友達が訪ねてきて、植木屋は見よう見まねの酒宴を始めます。ところが、いざその青菜の件を切り出そうにも、酒に酔った勢いもあって、肝心の掛け声をすっかり忘れてしまう始末。<break time=\"500ms\"/></prosody><prosody rate=\"125%\" pitch=\"+2st\">え〜っと、なんだったかな…おい、あれだ、あれを持ってこい、あの…義経ぁ!<break time=\"400ms\"/></prosody><prosody rate=\"108%\" pitch=\"0st\">と、しどろもどろになりながら、ようやく大声で叫びます。すると、狭い押し入れの中で、あまりの暑さと待ちくたびれとで、すっかり逆上せ上がっていた女房、襖をがらりと開けて、汗だくの顔を突き出すと、こう怒鳴ります。<break time=\"500ms\"/></prosody><prosody rate=\"130%\" pitch=\"+2st\">旦那様、その義経も弁慶も、この暑さでとうに音を上げて、とっくに逃げ出しちまいましたよ! それより早く、あたしを此処から出しておくれよ!<break time=\"600ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">というわけで、色気も何もあったものではございません。<break time=\"800ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Well now, let me tell you a story. In the heat of summer there are all sorts of trades, but among the hardest is surely that of the gardener — out under the blazing sun, working up a sweat with nothing but his own two hands. It's no small thing to labor like that in the beating sun. And then there's the master of some grand house, sipping cool sake in a shaded room, looking perfectly composed. Same species, different worlds — their speech, their bearing, everything about them is like night and day. Today let's follow one such scene: a gardener, and a refined old master of a fine house." },
+    { id:'p2', title:"②庭師、招かれる", ssml:false, text:"On a summer day, a gardener is drenched in sweat, working away in the garden of a grand house. From the veranda, the old master of the house calls out to him. \"Well now, you're really putting your back into it. It's especially hot today — come rest a while.\" The gardener, feeling rather embarrassed, gratefully sits down on the veranda step. The master smiles with quiet elegance. \"Now really, it's too hot to get anything done. Come in and cool off a bit.\" And with that, he invites the gardener inside." },
+    { id:'p3', title:"③酒肴のもてなし", ssml:false, text:"Once seated in the parlor, the gardener finds cold sake, sliced carp, and all manner of tasty little dishes laid out before him by the master's order. He's never received such fine hospitality in his life and can hardly contain his embarrassment. \"Oh no, sir, this is far too much for someone like me.\" \"Nonsense, no need to be shy. Take your time today.\" Everything about the master — his choice of words, the way he pours the sake — carries such refinement that the gardener is thoroughly impressed." },
+    { id:'p4', title:"④青菜を所望", ssml:false, text:"After they'd shared cup after cup of sake, the master suddenly seemed to remember something and called toward the back of the house, where his wife was. \"Say, bring that out here, would you? You know, we had some greens boiled up.\" His wife came out, walked over close to her husband, and quietly whispered in his ear. The truth was, the greens were long gone — not a single leaf left in the house. But simply saying \"there aren't any left\" would be far too plain, too graceless, especially with the gardener right there watching. So now — how will this wife manage to slip out of it?" },
+    { id:'p5', title:"⑤判じ物の趣向", ssml:false, text:"So the wife, with a perfectly composed face, announces: \"My dear, those greens turned into Yoshitsune last night.\" The gardener is baffled, but the master breaks into a delighted smile. \"Ah, if it's Yoshitsune, I suppose he's gone home to Kurama, has he?\" \"Yes, and Benkei went along with him — not a trace left behind.\" In other words: \"the greens have vanished without a trace, just like Yoshitsune,\" a graceful way of saying \"there are none left,\" borrowing the old legend of the fugitive general Yoshitsune fleeing north and disappearing entirely. The master claps with delight at the clever wordplay, and the gardener is utterly won over by it. \"Ohh, now that's marvelous. I've got to try that at home myself sometime.\"" },
+    { id:'p6', title:"⑥植木屋、我が家で真似する", ssml:false, text:"Thoroughly impressed, the gardener hurries home and grabs hold of his wife. \"Listen, I'm having a friend over tonight, and you're going to do just what that master's house did.\" And he starts drilling her, from scratch, in that clever little exchange. \"Now listen close: when I say, 'Hey, bring that out here, we had some greens, didn't we?' — you're going to hide in the back room, and say, 'My dear, those greens turned into Yoshitsune.'\" \"Huh? I haven't the foggiest idea what you're talking about,\" she says, tilting her head — but hurried along by her husband, she has no choice but to be shoved into the cramped closet to wait for her cue. As bad luck would have it, that day was even more stifling and humid than the one before." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"Before long the friend arrives, and the gardener starts up his own clumsy imitation of a drinking party. But when the moment comes to bring up the matter of the \"greens,\" the drink has gone to his head, and he completely forgets the crucial cue line. \"Er... what was it again... hey, that thing, bring me that thing, that... Yoshitsune-uh!\" he finally blurts out at the top of his lungs, tripping over his own words. And at that, from inside the cramped closet — utterly overheated from the stifling air and worn out from waiting so long — his wife flings the sliding door open, thrusts out her sweat-drenched face, and bellows: \"Sir! Both that Yoshitsune and that Benkei gave up from the heat ages ago and ran off already! Now quit stalling and let me out of here!\" And so, needless to say, there wasn't a shred of refinement left in the whole affair. And that, ladies and gentlemen, is the punchline." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Eh bien, laissez-moi vous conter une histoire. En plein été, il existe mille métiers, mais l'un des plus rudes reste celui du jardinier, dehors sous le soleil brûlant, suant à grosses gouttes. Ce n'est pas rien de trimer ainsi sous un ciel de feu. Et pendant ce temps, le maître d'une grande demeure sirote son saké bien frais dans une pièce fraîche, l'air parfaitement serein. Même espèce humaine, mais des mondes différents — jusque dans les manières de parler et de se tenir, tout les sépare. Aujourd'hui, suivons donc un jardinier et un vieux maître raffiné." },
+    { id:'p2', title:"②庭師、招かれる", ssml:false, text:"Un jour d'été, un jardinier, trempé de sueur, s'active dans le jardin d'une grande demeure. Depuis la véranda, le vieux maître de maison l'interpelle. « Eh bien, tu y mets du cœur. Il fait particulièrement chaud aujourd'hui, viens donc te reposer un peu. » Le jardinier, un peu gêné, s'assoit avec gratitude sur le rebord de la véranda. Le maître sourit avec une élégance tranquille. « Franchement, il fait trop chaud pour travailler. Viens donc te rafraîchir à l'intérieur. » Et il l'invite ainsi à entrer." },
+    { id:'p3', title:"③酒肴のもてなし", ssml:false, text:"Une fois installé dans le salon, le jardinier découvre du saké bien frais, de la carpe tranchée et toutes sortes de bons petits plats disposés devant lui sur ordre du maître. Il n'a jamais reçu pareil accueil de sa vie et peine à cacher sa gêne. « Oh non, monsieur, c'est bien trop pour quelqu'un comme moi. » « Allons, pas de gêne. Prends ton temps aujourd'hui. » Tout, chez le maître — le choix des mots, la façon de servir le saké — respire un tel raffinement que le jardinier en reste tout impressionné." },
+    { id:'p4', title:"④青菜を所望", ssml:false, text:"Après avoir partagé coupe sur coupe de saké, le maître sembla soudain se souvenir de quelque chose et appela vers le fond de la maison, où se trouvait son épouse. « Dis donc, apporte-moi cela, tu veux ? Tu sais, les légumes verts qu'on avait fait bouillir. » Son épouse sortit, s'approcha tout près de son mari et lui chuchota quelque chose à l'oreille. En vérité, il n'y avait plus une seule feuille de légume dans la maison. Mais dire simplement « il n'y en a plus » manquerait cruellement d'élégance, surtout devant le jardinier. Alors, comment cette épouse va-t-elle se tirer d'affaire ?" },
+    { id:'p5', title:"⑤判じ物の趣向", ssml:false, text:"Alors l'épouse, le visage parfaitement impassible, annonce : « Mon cher, ces légumes se sont changés en Yoshitsune hier soir. » Le jardinier reste perplexe, mais le maître éclate d'un sourire ravi. « Ah, s'il s'agit de Yoshitsune, je suppose qu'il est rentré à Kurama, n'est-ce pas ? » « Oui, et Benkei l'a accompagné — sans laisser la moindre trace. » Autrement dit : « les légumes ont disparu sans laisser de trace, tout comme Yoshitsune », une façon élégante de dire qu'il n'en reste plus, empruntant la légende du général fugitif Yoshitsune fuyant vers le nord et disparaissant à jamais. Le maître applaudit, ravi de ce trait d'esprit, et le jardinier en reste complètement conquis. « Ah, voilà qui est splendide. Il faudra que j'essaie ça chez moi, un de ces jours. »" },
+    { id:'p6', title:"⑥植木屋、我が家で真似する", ssml:false, text:"Complètement conquis, le jardinier se précipite chez lui et attrape sa femme. « Écoute, je reçois un ami ce soir, et tu vas faire exactement comme dans la maison de ce maître. » Et il se met à lui enseigner, de zéro, ce fameux échange plein d'esprit. « Écoute bien : quand je dirai « Eh, apporte-moi cela, on avait des légumes verts, non ? », tu te cacheras dans la pièce du fond et tu diras « Mon cher, ces légumes se sont changés en Yoshitsune. » » « Hein ? Je ne comprends absolument rien à ce que tu racontes », dit-elle en penchant la tête — mais pressée par son mari, elle n'a d'autre choix que de se glisser dans l'étroit placard pour attendre son signal. Par malchance, ce jour-là était encore plus étouffant et humide que la veille." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"L'ami ne tarde pas à arriver, et le jardinier se lance dans sa maladroite imitation d'un banquet. Mais au moment crucial d'amener le sujet des « légumes verts », l'alcool lui est monté à la tête, et il oublie complètement la réplique essentielle. « Euh... c'était quoi déjà... eh, ce truc, apporte-moi ce truc, ce... Yoshitsune-euh ! » finit-il par hurler, s'emmêlant les mots. Et alors, depuis l'intérieur de l'étroit placard — complètement en surchauffe à cause de l'air étouffant et épuisée d'avoir tant attendu — sa femme ouvre brusquement la porte coulissante, sort son visage trempé de sueur et beugle : « Monsieur ! Ce Yoshitsune et ce Benkei ont abandonné à cause de la chaleur il y a bien longtemps et se sont déjà enfuis ! Alors arrête de tergiverser et fais-moi sortir d'ici ! » Et ainsi, inutile de dire qu'il ne restait plus la moindre once de raffinement dans toute cette affaire. Et voilà, mesdames et messieurs, la chute de l'histoire." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Bueno, déjenme contarles una historia. En pleno verano hay toda clase de oficios, pero uno de los más duros es sin duda el del jardinero, trabajando bajo el sol abrasador, empapado en sudor. No es poca cosa deslomarse así bajo un cielo de fuego. Mientras tanto, el amo de una gran mansión bebe su sake bien frío en una habitación fresca, con expresión serena. Los mismos seres humanos, pero mundos distintos — hasta en el habla y los modales, son como el día y la noche. Hoy sigamos, pues, a un jardinero y a un refinado anciano señor." },
+    { id:'p2', title:"②庭師、招かれる", ssml:false, text:"Un día de verano, un jardinero, empapado en sudor, trabaja en el jardín de una gran mansión. Desde la veranda, el viejo amo de la casa lo llama. «Vaya, le pones ganas. Hoy hace especialmente calor, ven a descansar un rato.» El jardinero, algo apenado, se sienta agradecido en el borde de la veranda. El amo sonríe con tranquila elegancia. «De verdad, hace demasiado calor para trabajar. Entra a refrescarte un poco.» Y así lo invita a pasar." },
+    { id:'p3', title:"③酒肴のもてなし", ssml:false, text:"Una vez sentado en la sala, el jardinero encuentra sake bien frío, carpa en rodajas y toda clase de deliciosos platillos dispuestos ante él por orden del amo. Nunca en su vida ha recibido tal hospitalidad y apenas puede disimular su vergüenza. «Oh no, señor, esto es demasiado para alguien como yo.» «Vamos, no hace falta ser tímido. Tómate tu tiempo hoy.» Todo en el amo —la elección de las palabras, la manera de servir el sake— desprende tal refinamiento que el jardinero queda completamente impresionado." },
+    { id:'p4', title:"④青菜を所望", ssml:false, text:"Tras compartir copa tras copa de sake, el amo pareció recordar algo de pronto y llamó hacia el fondo de la casa, donde estaba su esposa. «Oye, trae aquello, ¿quieres? Ya sabes, las verduras que habíamos hervido.» Su esposa salió, se acercó a su marido y le susurró algo al oído. La verdad era que ya no quedaba ni una hoja de verdura en toda la casa. Pero decir simplemente «ya no queda» sería demasiado vulgar, sobre todo con el jardinero delante. Así que, ¿cómo se las arreglará esta esposa para salir del paso?" },
+    { id:'p5', title:"⑤判じ物の趣向", ssml:false, text:"Entonces la esposa, con expresión perfectamente serena, anuncia: «Querido, esas verduras se convirtieron en Yoshitsune anoche.» El jardinero queda desconcertado, pero el amo esboza una sonrisa encantada. «Ah, si es Yoshitsune, supongo que habrá vuelto a Kurama, ¿no?» «Sí, y Benkei lo acompañó, sin dejar rastro alguno.» Es decir: «las verduras han desaparecido sin dejar rastro, igual que Yoshitsune», una manera elegante de decir que ya no queda ninguna, tomando prestada la leyenda del general fugitivo Yoshitsune huyendo hacia el norte y desapareciendo por completo. El amo aplaude encantado ante el ingenioso juego de palabras, y el jardinero queda totalmente cautivado por él. «Ah, esto sí que es magnífico. Tendré que probarlo en mi propia casa alguna vez.»" },
+    { id:'p6', title:"⑥植木屋、我が家で真似する", ssml:false, text:"Completamente impresionado, el jardinero corre a casa y agarra a su esposa. «Escucha, esta noche viene un amigo, y tú vas a hacer exactamente lo mismo que en la casa de aquel amo.» Y se pone a enseñarle, desde cero, ese ingenioso intercambio. «Escucha bien: cuando yo diga «Oye, trae eso, teníamos verduras, ¿no?», tú te esconderás en el cuarto del fondo y dirás «Querido, esas verduras se convirtieron en Yoshitsune.»» «¿Eh? No entiendo absolutamente nada de lo que dices», responde ella ladeando la cabeza — pero apurada por su marido, no tiene más remedio que meterse en el estrecho armario a esperar su turno. Para colmo de males, aquel día era aún más sofocante y húmedo que el anterior." },
+    { id:'p7', title:"⑦サゲ", ssml:false, text:"El amigo no tarda en llegar, y el jardinero se lanza a su torpe imitación de un banquete. Pero cuando llega el momento crucial de sacar el tema de las «verduras», el alcohol ya se le ha subido a la cabeza y olvida por completo la frase clave. «Eh... ¿qué era... oye, esa cosa, tráeme esa cosa, ese... Yoshitsune-eh!» termina gritando a todo pulmón, trabándose con las palabras. Y entonces, desde el interior del estrecho armario —completamente sofocada por el aire agobiante y agotada de tanto esperar— su esposa abre de golpe la puerta corrediza, saca su rostro empapado en sudor y ruge: «¡Señor! ¡Ese Yoshitsune y ese Benkei se rindieron ante el calor hace rato y ya se escaparon! ¡Así que deja de perder el tiempo y sácame de aquí!» Y así, no hace falta decir que no quedó ni pizca de refinamiento en todo el asunto. Y ese, damas y caballeros, es el remate del cuento." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>猫の皿 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; cursor: pointer; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 猫の皿 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:'①まくら', ssml:true, text:'<speak><prosody rate="95%" pitch="-1st">え〜、一席申し上げますが。<break time="600ms"/>むかしから、こっとうてぇものは、<break time="300ms"/>知ってる者と知らない者とでは、えらい違いがございましてね。<break time="500ms"/>めきき<break time="50ms"/>てぇのは一つのさいのうでございまして、<break time="300ms"/>見る目があれば、とんでもないお宝が、ごく安い値段で手に入ることもあるんでございますよ。<break time="700ms"/></prosody></speak>' },
+  { id:'p2', title:'②茶店に立ち寄る', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">さて、ある旅の男がね、かいどうすじの古びたちゃみせに立ち寄りましてね。<break time="400ms"/>ひと休みしながらお茶を一杯もらおうってんで、えんだいに腰を下ろしておりますとね。<break time="500ms"/>ふと気がつきますと、<break time="300ms"/>店のすみのほうで一匹の猫がね、飯を食べておりまして。<break time="400ms"/></prosody><prosody rate="112%" pitch="-1st">ところがその猫が食べている器を見ますとね、<break time="400ms"/>こりゃあただの器じゃない……<break time="600ms"/>なんとも古めかしい、じょうとうな皿でございまして。<break time="500ms"/>男はめききでしたから、すぐにわかりましたよ。<break time="300ms"/>こりゃあそうとうなねうちものだ、と。<break time="500ms"/></prosody></speak>' },
+  { id:'p3', title:'③目利きの男・発見', ssml:true, text:'<speak><prosody rate="112%" pitch="0st">男は内心おどろきながらも、<break time="300ms"/>顔には出さずに、さりげなく店のおやじに声をかけましてね。<break time="400ms"/></prosody><prosody rate="118%" pitch="+1st">ちょっとすまないが、そこの猫を売ってくれないか？<break time="300ms"/>俺ぁ猫好きでね、飼いたいんだよ。<break time="400ms"/></prosody><prosody rate="112%" pitch="-1st">店主は特に気にする様子もなくてね。<break time="300ms"/></prosody><prosody rate="115%" pitch="-2st">そうですかい、でもこの猫はうちの大事な猫でしてね。<break time="300ms"/>そうそう売るわけには参りませんが。<break time="400ms"/></prosody><prosody rate="118%" pitch="+1st">そこをなんとか頼むよ。<break time="200ms"/>にひゃくもん出そう。<break time="300ms"/></prosody><prosody rate="115%" pitch="-2st">にひゃくもん……。<break time="400ms"/>まあ、それじゃあしょうがない、お売りしますか。<break time="400ms"/></prosody><prosody rate="112%" pitch="0st"><break time="300ms"/>ってんで猫を売ってもらうことになりましてね。<break time="400ms"/></prosody></speak>' },
+  { id:'p4', title:'④皿も一緒に', ssml:true, text:'<speak><prosody rate="118%" pitch="+1st">ありがとう。<break time="200ms"/>そうだ、ついでにあの猫の飯入れに使ってる皿もくれないか？<break time="300ms"/>猫にはなじみの器がいいだろうから。<break time="400ms"/></prosody><prosody rate="112%" pitch="-2st">へぇ、あの皿でございますか。<break time="600ms"/></prosody><prosody rate="115%" pitch="-2st">あれはちょっと……お売りするわけにはいきませんな。<break time="500ms"/></prosody><prosody rate="120%" pitch="+1st">なんでだい？ただのお皿じゃないか。<break time="300ms"/>猫と一緒にくれりゃあいいじゃないか。<break time="300ms"/></prosody><prosody rate="110%" pitch="-2st">いや、あの皿は売れませんよ。<break time="400ms"/>なにしろあの皿のおかげで、<break time="300ms"/>今まで猫がなんじゅっぴきも売れましたんでね。<break time="800ms"/></prosody></speak>' },
+  { id:'p5', title:'⑤オチ', ssml:true, text:'<speak><break time="1000ms"/><prosody rate="110%" pitch="0st">男は、はっとしまして。<break time="500ms"/>すでに店主は、皿の値打ちを知っておりまして。<break time="400ms"/>その皿をえさ入れに使って猫を売り続けていたんでございます。<break time="600ms"/>猫を買いに来た目利きの客に、<break time="300ms"/>皿ごと売ってしまわないよう、<break time="300ms"/>上手く立ち回っておったわけでございますな。<break time="800ms"/></prosody></speak>' },
+  { id:'p6', title:'⑥サゲ', ssml:true, text:'<speak><prosody rate="108%" pitch="-1st">目利きが目利きに会った、<break time="400ms"/>というお話でございまして。<break time="500ms"/></prosody><prosody rate="105%" pitch="-2st">猫の皿、でございます。<break time="400ms"/>どうもありがとうございました。</prosody></speak>' }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:'①Prologue', ssml:false, text:'Let me tell you a story. In the world of antiques, everything depends on whether you know what you are looking at. A true connoisseur can spot a priceless treasure where others see only junk. And sometimes, that eye for value leads to a most unexpected encounter.' },
+    { id:'p2', title:'②The Teahouse', ssml:false, text:'One day, a well-traveled man stopped at an old roadside teahouse to rest his feet. As he settled onto the bench and sipped his tea, he noticed a cat eating its meal in the corner of the shop. But it was not the cat that caught his eye. It was the bowl the cat was eating from — an exquisite, ancient piece of pottery that any dealer would recognize immediately. This is no ordinary dish, he thought. This could be worth a fortune.' },
+    { id:'p3', title:'③The Connoisseur Spots It', ssml:false, text:'The man kept his expression perfectly calm. Casually, he called out to the shopkeeper. Say, would you sell me that cat? I am rather fond of cats and would love to keep one. The shopkeeper shrugged. Well, it is our cat, so I would not normally sell it. But the man pressed on. Come now, I will give you two hundred mon for it. The shopkeeper paused. Two hundred mon... alright then, I suppose I can let it go.' },
+    { id:'p4', title:'④And the Dish Too', ssml:false, text:'Wonderful! Oh, and while I am at it — could you throw in that dish the cat eats from? Cats do best with familiar bowls, you know. The shopkeeper hesitated. That dish... I am afraid I cannot sell that. Why ever not? It is just a plain old dish, is it not? Just give it to me with the cat. No no, that dish is not for sale. You see, thanks to that dish, I have managed to sell dozens of cats over the years.' },
+    { id:'p5', title:'⑤The Realization', ssml:false, text:'The man froze. The shopkeeper had known all along. He had been using that priceless dish as a cat bowl, deliberately drawing in sharp-eyed dealers who recognized its value — and then selling them the cat while keeping the dish safely out of reach. The hunter had become the hunted.' },
+    { id:'p6', title:'⑥Curtain', ssml:false, text:'A connoisseur had met his match. And that, ladies and gentlemen, is The Cat\'s Plate. Thank you very much!' }
+  ],
+  'fr': [
+    { id:'p1', title:'①Prologue', ssml:false, text:'Permettez-moi de vous conter une histoire. Dans le monde des antiquites, tout depend du regard que l on pose sur les choses. Un vrai connaisseur peut reperer un tresor inestimable la ou d autres ne voient que de la pacotille. Et parfois, cet oeil affute mene a une rencontre des plus inattendues.' },
+    { id:'p2', title:'②La maison de the', ssml:false, text:'Un jour, un homme experimente s arreta dans une vieille maison de the au bord de la route pour se reposer. Installe sur le banc, savourant son the, il remarqua un chat qui mangeait dans un coin de la boutique. Mais ce n etait pas le chat qui retint son attention. C etait le bol dans lequel le chat mangeait — une piece de poterie ancienne et raffinee que tout marchand aurait reconnue instantanement. Ce n est pas un bol ordinaire, pensa-t-il. Cela pourrait valoir une fortune.' },
+    { id:'p3', title:'③Le connaisseur decouvre', ssml:false, text:'L homme garda une expression parfaitement neutre. Il interpella nonchalamment le patron. Dites-moi, accepteriez-vous de me vendre ce chat ? Je suis tres amateur de chats et j aimerais en avoir un. Le patron haussa les epaules. C est notre chat, je ne le vendrais pas normalement. Mais l homme insista. Allons, je vous en donne deux cents mon. Le patron marqua une pause. Deux cents mon... soit, je peux le laisser partir.' },
+    { id:'p4', title:'④Et l assiette aussi', ssml:false, text:'Parfait ! Oh, et pendant que j y suis — pourriez-vous me donner aussi le bol dans lequel mange le chat ? Les chats s habituent a leur gamelle, vous savez. Le patron hesita. Ce bol... je crains de ne pouvoir le vendre. Pourquoi donc ? Ce n est qu un vulgaire bol, non ? Donnez-le moi avec le chat. Non non, ce bol n est pas a vendre. Voyez-vous, grace a ce bol, j ai reussi a vendre des dizaines de chats au fil des annees.' },
+    { id:'p5', title:'⑤La revelation', ssml:false, text:'L homme se figea. Le patron savait depuis le debut. Il utilisait cette assiette de valeur inestimable comme gamelle pour chat, attirant deliberement les marchands avertis qui en reconnaissaient la valeur — puis leur vendait le chat tout en gardant precieusement l assiette hors de portee. Le chasseur etait devenu le gibier.' },
+    { id:'p6', title:'⑥Rideau', ssml:false, text:'Un connaisseur avait trouve son maitre. Et voila, mesdames et messieurs — L Assiette du Chat. Merci infiniment !' }
+  ],
+  'es': [
+    { id:'p1', title:'①Prólogo', ssml:false, text:'Dejenme contarles una historia. En el mundo de las antiguedades, todo depende de si sabes lo que estas mirando. Un verdadero conocedor puede detectar un tesoro invaluable donde otros solo ven basura. Y a veces, ese ojo avizor lleva a un encuentro de lo mas inesperado.' },
+    { id:'p2', title:'②La casa de te', ssml:false, text:'Un dia, un hombre experimentado se detuvo en una antigua casa de te al borde del camino para descansar. Mientras estaba sentado en el banco tomando su te, noto un gato comiendo en un rincon de la tienda. Pero no fue el gato lo que llamo su atencion. Fue el cuenco del que comia el gato — una exquisita pieza de ceramica antigua que cualquier comerciante reconoceria al instante. Esto no es un cuenco ordinario, penso. Podria valer una fortuna.' },
+    { id:'p3', title:'③El conocedor lo descubre', ssml:false, text:'El hombre mantuvo una expresion perfectamente tranquila. Con toda naturalidad, llamo al tendero. Oiga, me venderia ese gato? Soy muy aficionado a los gatos y me gustaria tener uno. El tendero se encogio de hombros. Es nuestro gato, normalmente no lo venderia. Pero el hombre insistio. Vamos, le doy doscientos mon. El tendero hizo una pausa. Doscientos mon... de acuerdo, supongo que puedo dejarlo ir.' },
+    { id:'p4', title:'④Y el plato tambien', ssml:false, text:'Magnifico! Ah, y ya que estamos — podria darme tambien ese cuenco del que come el gato? Los gatos se acostumbran a sus cuencos, ya sabe. El tendero dudó. Ese cuenco... me temo que no puedo venderlo. Por que no? No es mas que un cuenco corriente, verdad? Demelo junto con el gato. No no, ese cuenco no esta a la venta. Vera usted, gracias a ese cuenco he conseguido vender decenas de gatos a lo largo de los anos.' },
+    { id:'p5', title:'⑤La revelacion', ssml:false, text:'El hombre se quedo paralizado. El tendero lo habia sabido desde el principio. Habia estado usando ese invaluable plato como cuenco para el gato, atrayendo deliberadamente a los entendidos que reconocian su valor — y luego les vendia el gato mientras mantenia el plato a salvo fuera de su alcance. El cazador se habia convertido en presa.' },
+    { id:'p6', title:'⑥Telon', ssml:false, text:'Un conocedor habia encontrado la horma de su zapato. Y eso, senoras y senores, es El Plato del Gato. Muchas gracias!' }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 18;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return null; }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) { console.error(data); return null; }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+  if (!b64) { status.textContent = '❌ エラー'; status.className = 'part-status error'; return; }
+  allAudio[`ja-${p.id}`] = b64;
+  const audio = document.getElementById(`ja-audio-${p.id}`);
+  audio.src = 'data:audio/mp3;base64,' + b64;
+  status.textContent = '✅ 完成！';
+  status.className = 'part-status done';
+  document.getElementById(`ja-play-${p.id}`).disabled = false;
+  document.getElementById(`ja-dl-${p.id}`).disabled = false;
+  updateJaProgress();
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

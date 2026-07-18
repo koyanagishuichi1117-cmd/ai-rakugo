@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>文七元結 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 文七元結 TTS ジェネレーター</h1>
+<p class="subtitle">全8パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全8パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全8パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（24ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（32ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">え〜、一席申し上げますが。人には持って生まれた性分というものがございましてね、腕は確かでも、博打だけはどうにもやめられないという困った人がいる一方、親のため、家族のためなら己の身を投げ出しても構わないという、健気な人もいるものでございます。<break time=\"500ms\"/>今日申し上げますのは、そんな博打好きの左官の親方と、その親孝行な娘、そして見ず知らずの若者との間に結ばれた、不思議な情の糸のお噺、文七元結でございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p2', title:"②左官長兵衛", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">本所に長兵衛という左官の親方がおりました。腕は江戸でも指折りというほどの職人なのですが、これがどうにも博打好きでいけません。<break time=\"400ms\"/>仕事の稼ぎはそっくり博打場に消えてしまい、女房子供に満足な飯も食わせられぬという有様。<break time=\"400ms\"/>ある年の暮れ、借金取りが次から次へと押し寄せる中、長兵衛の一人娘、お久という十七になる娘が、こっそり家を抜け出しました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p3', title:"③お久の決意", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"-1st\">お久は父の博打狂いと、家の困窮ぶりに、もう黙って見ていられなくなったのでございます。吉原は佐野槌という見世の女将のもとを訪ね、<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"0st\">どうかわたしを買ってくださいまし。その代わり、このお金で父を助けてやってください<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">と、身を売って作った五十両というお金を差し出そうとします。女将はお久の孝行心にすっかり感じ入り、すぐさま長兵衛を呼びつけました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p4', title:"④女将の意見", ssml:true, text:"<speak><prosody rate=\"105%\" pitch=\"0st\">女将は長兵衛を座敷に座らせると、きつく意見をいたします。<break time=\"300ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">お前さんの娘は、親のために自分の身を売ろうというんだよ。この気持ちがわかるかい。<break time=\"500ms\"/></prosody><prosody rate=\"95%\" pitch=\"-1st\">長兵衛は娘の決意を知って、恥じ入るやら情けないやらで涙が止まりません。<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">女将は五十両という金を渡しながら、このお金は来年の大晦日まで待ってあげる。それまでにきっちり耳を揃えて返しにおいで。その代わり、二度と博打には手を出すんじゃないよ。もし約束を破ったら、お久は店に出すからね<break time=\"500ms\"/></prosody><prosody rate=\"100%\" pitch=\"-1st\">と、きつく言い含めました。長兵衛はその金を懐に、雪の降る中を家路につきます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p5', title:"⑤吾妻橋", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"-1st\">娘の命とも言える五十両を胸に抱え、長兵衛はすっかり酔ったような心持ちで吾妻橋に差し掛かります。<break time=\"400ms\"/>ふと見ると、欄干から今にも身を投げようとしている若い男がいる。<break time=\"500ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">慌てて抱きとめて訳を聞くと、これは近江屋という店の手代で文七という若者。得意先で受け取った五十両というお金を、帰り道でどこかに落としてしまい、主人に合わせる顔がないと死のうとしていたのでございます。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p6', title:"⑥五十両を投げ渡す", ssml:true, text:"<speak><prosody rate=\"100%\" pitch=\"-1st\">長兵衛は文七の話を聞いて、はたと考え込みます。自分の五十両も、明日をも知れぬ命の娘が身を売って作った金。だが、この若者もまた、金がないばかりに死のうとしている。<break time=\"500ms\"/></prosody><prosody rate=\"118%\" pitch=\"+1st\">知らねえ、そんなこたぁ知らねえが……これを持ってけ!<break time=\"400ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">と、長兵衛は懐の五十両を文七の胸元に叩きつけるように押し付けます。<break time=\"300ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">おれの名なんぞ聞くんじゃねえ。早く帰って主人に詫びを入れな!<break time=\"400ms\"/></prosody><prosody rate=\"98%\" pitch=\"-1st\">そう言い捨てると、振り返りもせず闇の中へ姿を消してしまいました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p7', title:"⑦近江屋のどんでん返し", ssml:true, text:"<speak><prosody rate=\"108%\" pitch=\"0st\">実は文七が落としたと思い込んでいた五十両は、得意先に忘れてきただけのもので、ちゃんと近江屋に届けられておりました。<break time=\"400ms\"/>それを知らずに大金を持って帰ってきた文七を見て、主人の近江屋卯兵衛はびっくり仰天。<break time=\"400ms\"/></prosody><prosody rate=\"115%\" pitch=\"+1st\">お前、その金はどうしたんだ<break time=\"300ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と問い詰めると、文七は吾妻橋での一部始終を語ります。<break time=\"400ms\"/>話を聞いた卯兵衛も、その見ず知らずの左官の心意気にすっかり感じ入り、<break time=\"300ms\"/></prosody><prosody rate=\"103%\" pitch=\"0st\">その人を探し出して、ちゃんとお礼をしなければならない<break time=\"400ms\"/></prosody><prosody rate=\"105%\" pitch=\"0st\">と、方々に手を尽くして探し始めました。<break time=\"700ms\"/></prosody></speak>" },
+  { id:'p8', title:"⑧大団円", ssml:true, text:"<speak><prosody rate=\"103%\" pitch=\"0st\">やがて近江屋の手の者が本所の長兵衛を探し当てます。卯兵衛は五十両を倍にして礼金として持たせ、さらに文七とお久の縁を取り持って、お久の身請けの金まで用立ててくれました。<break time=\"500ms\"/>文七とお久はめでたく夫婦となり、長兵衛もすっかり心を入れ替えて、二度と博打には手を出さなかったといいます。<break time=\"500ms\"/></prosody><prosody rate=\"92%\" pitch=\"-1st\">元結い問屋を任され、しっかり者の婿と孝行な娘に囲まれて、長兵衛は生涯、あの雪の晩の橋の上の出来事を、何よりの宝物として語り継いだそうでございます。<break time=\"900ms\"/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Let me tell you a story. People are born with all sorts of natures — some, however skilled with their hands, simply cannot break free from gambling, while others are so devoted to their parents and family that they would gladly throw away everything of their own. Today's tale traces a strange thread of human kindness binding together a plasterer addicted to gambling, his devoted daughter, and a young stranger — \"Bunshichi Motoyui.\"" },
+    { id:'p2', title:"②左官長兵衛", ssml:false, text:"In the Honjo district there lived a plasterer named Chōbei, a craftsman skilled enough to rank among the finest in Edo — but hopelessly addicted to gambling. Every penny he earned vanished straight into the gambling den, leaving his wife and children without so much as a proper meal. One year, as the New Year approached and debt collectors came pounding on the door one after another, Chōbei's only daughter, a seventeen-year-old girl named Ohisa, quietly slipped out of the house." },
+    { id:'p3', title:"③お久の決意", ssml:false, text:"Ohisa could no longer bear to watch silently as her father's gambling ruined the family. She went to see the madame of a brothel called Sanozuchi in the Yoshiwara pleasure quarter. Ohisa: \"Please, buy me. In exchange, use this money to save my father.\" She tried to hand over fifty ryō — the price of selling herself. The madame was deeply moved by Ohisa's devotion, and immediately sent for Chōbei." },
+    { id:'p4', title:"④女将の意見", ssml:false, text:"The madame sat Chōbei down and lectured him sternly. Madame: \"Your daughter is willing to sell herself for her parents' sake. Do you understand what that means?\" Learning of his daughter's resolve, Chōbei was overcome with shame and grief, unable to stop his tears. Handing over the fifty ryō, the madame said, Madame: \"I'll give you until next New Year's Eve to repay this in full. But in exchange, you must never touch gambling again. If you break your promise, Ohisa goes into service here for good.\" Sternly warned, Chōbei tucked the money inside his robe and set off for home through the falling snow." },
+    { id:'p5', title:"⑤吾妻橋", ssml:false, text:"Clutching the fifty ryō — as precious as his own daughter's life — Chōbei stumbled along in a daze toward Azuma Bridge. Glancing up, he saw a young man about to throw himself from the railing into the river. Rushing to hold him back, Chōbei learned the young man's story: he was Bunshichi, a clerk at the Ōmiya shop, who had lost fifty ryō entrusted to him by a client somewhere on the way home, and, unable to face his master, had resolved to die." },
+    { id:'p6', title:"⑥五十両を投げ渡す", ssml:false, text:"Chōbei fell into thought. His own fifty ryō had been raised by a daughter who might sell her very life for it. Yet here was another young man, ready to die simply for lack of money. Chōbei: \"I don't know, I don't know anything about it... but take this!\" He thrust the fifty ryō into Bunshichi's chest. Chōbei: \"Don't ask my name. Go home quickly and beg your master's forgiveness!\" With that, he turned and vanished into the darkness without looking back." },
+    { id:'p7', title:"⑦近江屋のどんでん返し", ssml:false, text:"As it turned out, the fifty ryō Bunshichi thought he'd lost had merely been left behind at the client's house, and had already been safely delivered to the Ōmiya shop. When Bunshichi returned home with this mysterious windfall, his master, Ōmiya Uhei, was utterly astonished. Uhei: \"Where on earth did this money come from?\" Pressed for an answer, Bunshichi told the whole story of Azuma Bridge. Deeply moved by the kindness of this unknown plasterer, Uhei declared, Uhei: \"We must find that man and properly thank him.\" And he set his people searching everywhere." },
+    { id:'p8', title:"⑧大団円", ssml:false, text:"Eventually, Ōmiya's men tracked Chōbei down in Honjo. Uhei repaid the fifty ryō twice over as thanks, and further arranged a marriage between Bunshichi and Ohisa, even providing the money to buy her freedom. Bunshichi and Ohisa were happily wed, and Chōbei, having truly reformed, never touched gambling again. Entrusted with a thriving cord-and-hairtie shop, surrounded by a dependable son-in-law and devoted daughter, Chōbei is said to have spent the rest of his life telling and retelling the story of that snowy night on the bridge as the greatest treasure of his life." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Laissez-moi vous raconter une histoire. Les gens naissent avec toutes sortes de tempéraments : certains, même habiles de leurs mains, ne peuvent tout simplement pas se libérer du jeu, tandis que d'autres sont si dévoués à leurs parents et à leur famille qu'ils sacrifieraient volontiers tout ce qu'ils possèdent. L'histoire d'aujourd'hui suit un étrange fil de bonté humaine qui relie un plâtrier accro au jeu, sa fille dévouée, et un jeune inconnu — « Bunshichi Motoyui »." },
+    { id:'p2', title:"②左官長兵衛", ssml:false, text:"Dans le quartier de Honjo vivait un plâtrier nommé Chōbei, un artisan assez habile pour compter parmi les meilleurs d'Edo — mais désespérément accro au jeu. Chaque sou qu'il gagnait filait droit à la maison de jeu, laissant sa femme et ses enfants sans repas convenable. Une année, à l'approche du Nouvel An, alors que les créanciers se pressaient à sa porte les uns après les autres, la fille unique de Chōbei, une jeune fille de dix-sept ans nommée Ohisa, se glissa discrètement hors de la maison." },
+    { id:'p3', title:"③お久の決意", ssml:false, text:"Ohisa ne pouvait plus supporter de regarder en silence son père ruiner la famille par le jeu. Elle alla voir la patronne d'une maison close appelée Sanozuchi, dans le quartier de plaisir de Yoshiwara. Ohisa : « Je vous en prie, achetez-moi. En échange, utilisez cet argent pour sauver mon père. » Elle tenta de lui remettre cinquante ryō — le prix de sa propre vente. La patronne, profondément touchée par le dévouement d'Ohisa, fit aussitôt venir Chōbei." },
+    { id:'p4', title:"④女将の意見", ssml:false, text:"La patronne fit asseoir Chōbei et le sermonna sévèrement. Patronne : « Ta fille est prête à se vendre pour ses parents. Comprends-tu ce que cela signifie ? » En apprenant la détermination de sa fille, Chōbei fut submergé de honte et de chagrin, incapable de retenir ses larmes. En lui tendant les cinquante ryō, la patronne dit : Patronne : « Je te donne jusqu'à la Saint-Sylvestre prochaine pour rembourser intégralement. Mais en échange, tu ne dois plus jamais toucher au jeu. Si tu romps ta promesse, Ohisa entrera ici pour de bon. » Sévèrement averti, Chōbei glissa l'argent dans son kimono et prit le chemin du retour sous la neige qui tombait." },
+    { id:'p5', title:"⑤吾妻橋", ssml:false, text:"Serrant contre lui les cinquante ryō — aussi précieux que la vie même de sa fille — Chōbei titubait, hagard, vers le pont Azuma. Levant les yeux, il vit un jeune homme sur le point de se jeter du parapet dans la rivière. Se précipitant pour le retenir, Chōbei apprit son histoire : il s'appelait Bunshichi, commis à la boutique Ōmiya, et avait perdu en chemin les cinquante ryō qu'un client lui avait confiés ; incapable d'affronter son maître, il avait décidé de mourir." },
+    { id:'p6', title:"⑥五十両を投げ渡す", ssml:false, text:"Chōbei resta un instant plongé dans ses pensées. Ses propres cinquante ryō avaient été réunis par une fille prête à vendre sa vie même. Et voilà qu'un autre jeune homme était prêt à mourir, simplement faute d'argent. Chōbei : « Je ne sais rien, je ne sais rien de tout ça... mais prends ça ! » Il enfonça les cinquante ryō contre la poitrine de Bunshichi. Chōbei : « Ne me demande pas mon nom. Rentre vite et demande pardon à ton maître ! » Sur ces mots, il tourna les talons et disparut dans l'obscurité sans se retourner." },
+    { id:'p7', title:"⑦近江屋のどんでん返し", ssml:false, text:"En réalité, les cinquante ryō que Bunshichi croyait avoir perdus avaient simplement été oubliés chez le client, et avaient déjà été livrés en toute sécurité à la boutique Ōmiya. Quand Bunshichi rentra avec cette somme mystérieuse, son maître, Ōmiya Uhei, fut complètement abasourdi. Uhei : « D'où diable vient cet argent ? » Pressé de répondre, Bunshichi raconta toute l'histoire du pont Azuma. Profondément touché par la bonté de cet inconnu plâtrier, Uhei déclara : Uhei : « Nous devons retrouver cet homme et le remercier comme il se doit. » Et il fit chercher partout." },
+    { id:'p8', title:"⑧大団円", ssml:false, text:"Finalement, les hommes d'Ōmiya retrouvèrent Chōbei à Honjo. Uhei rembourra les cinquante ryō au double en guise de remerciement, et arrangea en plus un mariage entre Bunshichi et Ohisa, fournissant même l'argent pour racheter sa liberté. Bunshichi et Ohisa se marièrent joyeusement, et Chōbei, véritablement transformé, ne toucha plus jamais au jeu. Confié à la tête d'une prospère boutique de cordons et nouets, entouré d'un gendre fiable et d'une fille dévouée, Chōbei aurait passé le reste de sa vie à raconter encore et encore cette nuit de neige sur le pont, comme le plus grand trésor de sa vie." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Permítanme contarles una historia. La gente nace con toda clase de temperamentos: algunos, por hábiles que sean con las manos, simplemente no pueden liberarse del vicio del juego, mientras que otros son tan devotos a sus padres y su familia que estarían dispuestos a sacrificarlo todo. La historia de hoy sigue un extraño hilo de bondad humana que une a un yesero adicto al juego, a su hija devota, y a un joven desconocido — \"Bunshichi Motoyui\"." },
+    { id:'p2', title:"②左官長兵衛", ssml:false, text:"En el barrio de Honjo vivía un yesero llamado Chōbei, un artesano lo bastante hábil como para contarse entre los mejores de Edo — pero desesperadamente adicto al juego. Cada moneda que ganaba iba directo a la casa de apuestas, dejando a su esposa e hijos sin una comida decente. Cierto año, al acercarse el Año Nuevo, mientras los cobradores de deudas llamaban a su puerta uno tras otro, la única hija de Chōbei, una joven de diecisiete años llamada Ohisa, salió a escondidas de la casa." },
+    { id:'p3', title:"③お久の決意", ssml:false, text:"Ohisa ya no podía soportar ver en silencio cómo el juego de su padre arruinaba a la familia. Fue a ver a la madama de un burdel llamado Sanozuchi, en el barrio de placer de Yoshiwara. Ohisa: \"Por favor, cómpreme. A cambio, use este dinero para salvar a mi padre.\" Intentó entregarle cincuenta ryō — el precio de venderse a sí misma. La madama, profundamente conmovida por la devoción de Ohisa, mandó llamar de inmediato a Chōbei." },
+    { id:'p4', title:"④女将の意見", ssml:false, text:"La madama sentó a Chōbei y lo reprendió con severidad. Madama: \"Tu hija está dispuesta a venderse por sus padres. ¿Entiendes lo que eso significa?\" Al conocer la determinación de su hija, Chōbei se llenó de vergüenza y pesar, incapaz de contener las lágrimas. Entregándole los cincuenta ryō, la madama dijo: Madama: \"Te doy hasta la próxima Nochevieja para devolverlo todo. Pero a cambio, no debes volver a tocar el juego nunca más. Si rompes tu promesa, Ohisa se quedará aquí para siempre.\" Severamente advertido, Chōbei guardó el dinero en su kimono y emprendió el camino a casa bajo la nieve que caía." },
+    { id:'p5', title:"⑤吾妻橋", ssml:false, text:"Apretando contra su pecho los cincuenta ryō — tan preciados como la vida misma de su hija — Chōbei caminaba aturdido hacia el puente Azuma. Al alzar la vista, vio a un joven a punto de arrojarse desde la baranda al río. Corriendo a detenerlo, Chōbei conoció su historia: se llamaba Bunshichi, dependiente de la tienda Ōmiya, y había perdido en el camino los cincuenta ryō que un cliente le había confiado; incapaz de enfrentar a su patrón, había decidido morir." },
+    { id:'p6', title:"⑥五十両を投げ渡す", ssml:false, text:"Chōbei quedó sumido en sus pensamientos. Sus propios cincuenta ryō habían sido reunidos por una hija dispuesta a vender su propia vida. Y ahora otro joven estaba dispuesto a morir simplemente por falta de dinero. Chōbei: \"No sé, no sé nada de eso... ¡pero toma esto!\" Empujó los cincuenta ryō contra el pecho de Bunshichi. Chōbei: \"No me preguntes mi nombre. ¡Vuelve rápido y pide perdón a tu patrón!\" Dicho esto, se dio la vuelta y desapareció en la oscuridad sin mirar atrás." },
+    { id:'p7', title:"⑦近江屋のどんでん返し", ssml:false, text:"En realidad, los cincuenta ryō que Bunshichi creía haber perdido simplemente se habían quedado olvidados en casa del cliente, y ya habían sido entregados sin problema a la tienda Ōmiya. Cuando Bunshichi volvió con esa misteriosa suma, su patrón, Ōmiya Uhei, quedó completamente atónito. Uhei: \"¿De dónde diablos salió este dinero?\" Presionado para responder, Bunshichi contó toda la historia del puente Azuma. Profundamente conmovido por la bondad de aquel yesero desconocido, Uhei declaró: Uhei: \"Debemos encontrar a ese hombre y agradecerle como es debido.\" Y mandó buscar por todas partes." },
+    { id:'p8', title:"⑧大団円", ssml:false, text:"Finalmente, los hombres de Ōmiya localizaron a Chōbei en Honjo. Uhei le devolvió los cincuenta ryō multiplicados por dos como agradecimiento, y además arregló un matrimonio entre Bunshichi y Ohisa, incluso aportando el dinero para comprar su libertad. Bunshichi y Ohisa se casaron felizmente, y Chōbei, verdaderamente reformado, no volvió a tocar el juego jamás. A cargo de una próspera tienda de cordones y lazos, rodeado de un yerno confiable y una hija devota, se dice que Chōbei pasó el resto de su vida contando una y otra vez la historia de aquella noche nevada en el puente, como el mayor tesoro de su vida." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 24;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

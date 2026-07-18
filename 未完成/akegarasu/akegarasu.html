@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>明烏 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.26 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">明烏</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Akegarasu / The Dawn Crow</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②若旦那と父の心配</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③二人の計略</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④動揺する若旦那</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤一夜明けての豹変</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥帰りたがらない若旦那</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、<ruby class='v1'>一席<rt>いっせき</rt></ruby><ruby class='v1'>申<rt>もう</rt></ruby>し<ruby class='v1'>上<rt>あ</rt></ruby>げます。「<ruby class='v2'>明烏<rt>あけがらす</rt></ruby>」という<ruby class='v1'>噺<rt>はなし</rt></ruby>は、<ruby class='v2'>堅物<rt>かたぶつ</rt></ruby>のお<ruby class='v1'>坊<rt>ぼっ</rt></ruby>ちゃんが、<ruby class='v1'>生<rt>う</rt></ruby>まれて<ruby class='v1'>初<rt>はじ</rt></ruby>めて<ruby class='v2'>吉原<rt>よしわら</rt></ruby>へ<ruby class='v1'>足<rt>あし</rt></ruby>を<ruby class='v1'>踏<rt>ふ</rt></ruby>み<ruby class='v1'>入<rt>い</rt></ruby>れる<ruby class='v1'>一席<rt>いっせき</rt></ruby>でございます。<ruby class='v1'>世<rt>よ</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>には、<ruby class='v1'>本<rt>ほん</rt></ruby>ばかり<ruby class='v1'>読<rt>よ</rt></ruby>んで<ruby class='v1'>育<rt>そだ</rt></ruby>って、<ruby class='v1'>世間知<rt>せけんし</rt></ruby>らずのまま<ruby class='v1'>大人<rt>おとな</rt></ruby>になってしまう<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>というのがいるもので。<ruby class='v1'>親<rt>おや</rt></ruby>から<ruby class='v1'>見<rt>み</rt></ruby>れば<ruby class='v1'>頼<rt>たの</rt></ruby>もしくもあり、また<ruby class='v1'>少々<rt>しょうしょう</rt></ruby><ruby class='v1'>心配<rt>しんぱい</rt></ruby>の<ruby class='v1'>種<rt>たね</rt></ruby>でもある。<ruby class='v1'>今日<rt>きょう</rt></ruby>はそんな<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>が、とんだところで<ruby class='v1'>一皮<rt>ひとかわ</rt></ruby>も<ruby class='v1'>二皮<rt>ふたかわ</rt></ruby>もむける、という<ruby class='v1'>愉快<rt>ゆかい</rt></ruby>な<ruby class='v1'>噺<rt>はなし</rt></ruby>を<ruby class='v1'>一<rt>ひと</rt></ruby>つ。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【若旦那と父の心配】</span>
+                    <ruby class='v1'>日本橋<rt>にほんばし</rt></ruby>の<ruby class='v1'>大店<rt>おおだな</rt></ruby>のご<ruby class='v1'>子息<rt>しそく</rt></ruby>、<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>さんという<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>がございます。この<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>さん、<ruby class='v1'>生<rt>う</rt></ruby>まれてこの<ruby class='v1'>方<rt>かた</rt></ruby>、<ruby class='v2'>吉原<rt>よしわら</rt></ruby>はおろか<ruby class='v1'>芝居見物<rt>しばいけんぶつ</rt></ruby>すら<ruby class='v1'>行<rt>い</rt></ruby>ったことがないという、<ruby class='v1'>大変<rt>たいへん</rt></ruby>な<ruby class='v2'>堅物<rt>かたぶつ</rt></ruby>。<ruby class='v1'>朝<rt>あさ</rt></ruby>から<ruby class='v1'>晩<rt>ばん</rt></ruby>まで<ruby class='v2'>論語<rt>ろんご</rt></ruby>だ<ruby class='v2'>孟子<rt>もうし</rt></ruby>だと<ruby class='v1'>本<rt>ほん</rt></ruby>ばかり<ruby class='v1'>読<rt>よ</rt></ruby>んでおりまして、<ruby class='v1'>遊<rt>あそ</rt></ruby>びらしい<ruby class='v1'>遊<rt>あそ</rt></ruby>びを<ruby class='v1'>知<rt>し</rt></ruby>りません。<ruby class='v1'>父親<rt>ちちおや</rt></ruby>の<ruby class='v1'>大旦那<rt>おおだんな</rt></ruby>、これを<ruby class='v1'>頼<rt>たの</rt></ruby>もしいと<ruby class='v1'>思<rt>おも</rt></ruby>う<ruby class='v1'>反面<rt>はんめん</rt></ruby>、「あんまり<ruby class='v1'>真面目<rt>まじめ</rt></ruby><ruby class='v1'>過<rt>す</rt></ruby>ぎるのも<ruby class='v1'>考<rt>かんが</rt></ruby>えものだ、いずれ<ruby class='v1'>身代<rt>しんだい</rt></ruby>を<ruby class='v1'>継<rt>つ</rt></ruby>ぐにしても、<ruby class='v1'>多少<rt>たしょう</rt></ruby>は<ruby class='v1'>世間<rt>せけん</rt></ruby>の<ruby class='v1'>水<rt>みず</rt></ruby>を<ruby class='v1'>潜<rt>くぐ</rt></ruby>らせておかんと、かえって<ruby class='v1'>危<rt>あぶ</rt></ruby>なっかしい」と<ruby class='v1'>案<rt>あん</rt></ruby>じておりました。そこで<ruby class='v1'>出入<rt>でい</rt></ruby>りの<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>と<ruby class='v2'>太助<rt>たすけ</rt></ruby>という<ruby class='v1'>二人<rt>ふたり</rt></ruby>の<ruby class='v1'>若<rt>わか</rt></ruby>い<ruby class='v1'>衆<rt>しゅう</rt></ruby>に、こっそり<ruby class='v1'>相談<rt>そうだん</rt></ruby>を<ruby class='v1'>持<rt>も</rt></ruby>ちかけます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【二人の計略】</span>
+                    「<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>を<ruby class='v1'>一<rt>ひと</rt></ruby>つ、<ruby class='v1'>遊<rt>あそ</rt></ruby>びの<ruby class='v1'>味<rt>あじ</rt></ruby>を<ruby class='v1'>覚<rt>おぼ</rt></ruby>えさせておくれ」と<ruby class='v1'>頼<rt>たの</rt></ruby>まれた<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>と<ruby class='v2'>太助<rt>たすけ</rt></ruby>、これはひと<ruby class='v1'>肌<rt>はだ</rt></ruby><ruby class='v1'>脱<rt>ぬ</rt></ruby>がねばと<ruby class='v1'>知恵<rt>ちえ</rt></ruby>を<ruby class='v1'>絞<rt>しぼ</rt></ruby>ります。まともに「<ruby class='v2'>吉原<rt>よしわら</rt></ruby>に<ruby class='v1'>行<rt>い</rt></ruby>こう」と<ruby class='v1'>誘<rt>さそ</rt></ruby>っても、<ruby class='v2'>堅物<rt>かたぶつ</rt></ruby>の<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>が<ruby class='v1'>承知<rt>しょうち</rt></ruby>するはずもございません。そこで<ruby class='v1'>二人<rt>ふたり</rt></ruby>、<ruby class='v1'>一計<rt>いっけい</rt></ruby>を<ruby class='v1'>案<rt>あん</rt></ruby>じまして、<br><strong>源兵衛：</strong>「<ruby class='v1'>日本堤<rt>にほんづつみ</rt></ruby>のお<ruby class='v2'>稲荷<rt>いなり</rt></ruby><ruby class='v1'>様<rt>さま</rt></ruby>に、お<ruby class='v2'>籠<rt>こも</rt></ruby>りのお<ruby class='v1'>参<rt>まい</rt></ruby>りに<ruby class='v1'>参<rt>まい</rt></ruby>りましょう。<ruby class='v1'>夜通<rt>よどお</rt></ruby>し<ruby class='v1'>祈願<rt>きがん</rt></ruby>すれば、<ruby class='v1'>商売繁盛<rt>しょうばいはんじょう</rt></ruby><ruby class='v1'>間違<rt>まちが</rt></ruby>いなし」<br>と<ruby class='v1'>持<rt>も</rt></ruby>ちかけました。<ruby class='v1'>信心深<rt>しんじんぶか</rt></ruby>い<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>、これにはまんまと<ruby class='v1'>乗<rt>の</rt></ruby>ってしまい、<br><strong>時次郎：</strong>「それはぜひ<ruby class='v1'>参<rt>まい</rt></ruby>りたい」<br>と、<ruby class='v1'>喜<rt>よろこ</rt></ruby>んで<ruby class='v1'>供<rt>とも</rt></ruby>に<ruby class='v1'>付<rt>つ</rt></ruby>いてまいります。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【動揺する若旦那】</span>
+                    ところが<ruby class='v1'>案内<rt>あんない</rt></ruby>されたのは、お<ruby class='v2'>稲荷<rt>いなり</rt></ruby><ruby class='v1'>様<rt>さま</rt></ruby>どころか<ruby class='v2'>吉原<rt>よしわら</rt></ruby>のお<ruby class='v1'>馴染<rt>なじ</rt></ruby>みの<ruby class='v1'>見世<rt>みせ</rt></ruby>。<ruby class='v1'>煌々<rt>こうこう</rt></ruby>と<ruby class='v1'>灯<rt>あか</rt></ruby>りの<ruby class='v1'>点<rt>つ</rt></ruby>いた<ruby class='v2'>廓<rt>くるわ</rt></ruby>の<ruby class='v1'>中<rt>なか</rt></ruby>、<ruby class='v1'>化粧<rt>けしょう</rt></ruby>をした<ruby class='v1'>女<rt>おんな</rt></ruby>たちがずらりと<ruby class='v1'>居並<rt>いなら</rt></ruby>ぶのを<ruby class='v1'>見<rt>み</rt></ruby>て、<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>は<ruby class='v1'>仰天<rt>ぎょうてん</rt></ruby>いたしました。<br><strong>時次郎：</strong>「これは<ruby class='v1'>一体<rt>いったい</rt></ruby>どういうことだ、こんな<ruby class='v2'>不埒<rt>ふらち</rt></ruby>な<ruby class='v1'>場所<rt>ばしょ</rt></ruby>に<ruby class='v1'>来<rt>く</rt></ruby>るとは<ruby class='v1'>聞<rt>き</rt></ruby>いていない」<br>と<ruby class='v1'>真<rt>ま</rt></ruby>っ<ruby class='v1'>青<rt>さお</rt></ruby>になって<ruby class='v1'>震<rt>ふる</rt></ruby>え<ruby class='v1'>出<rt>だ</rt></ruby>す<ruby class='v1'>始末<rt>しまつ</rt></ruby>。<br><strong>源兵衛：</strong>「さあさあ、<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>、お<ruby class='v1'>参<rt>まい</rt></ruby>りはこの<ruby class='v1'>奥<rt>おく</rt></ruby>で」<br>などと<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>たちにおだてられても、<ruby class='v1'>頑<rt>がん</rt></ruby>として<ruby class='v1'>動<rt>うご</rt></ruby>こうとせず、<br><strong>時次郎：</strong>「わたしは<ruby class='v1'>帰<rt>かえ</rt></ruby>る、こんなところにいられるものか」<br>と<ruby class='v1'>半<rt>はん</rt></ruby>べそをかいて<ruby class='v1'>騒<rt>さわ</rt></ruby>ぎ<ruby class='v1'>立<rt>た</rt></ruby>てます。それでもどうにか<ruby class='v1'>座敷<rt>ざしき</rt></ruby>に<ruby class='v1'>押<rt>お</rt></ruby>し<ruby class='v1'>込<rt>こ</rt></ruby>められ、<ruby class='v2'>浦里<rt>うらざと</rt></ruby>という<ruby class='v2'>花魁<rt>おいらん</rt></ruby>があてがわれることになりました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【一夜明けての豹変】</span>
+                    その<ruby class='v1'>晩<rt>ばん</rt></ruby>は<ruby class='v1'>震<rt>ふる</rt></ruby>えるばかりだった<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>でしたが、<ruby class='v1'>翌朝<rt>よくあさ</rt></ruby>になってみると、これがどうしたことでしょう。すっかり<ruby class='v1'>様子<rt>ようす</rt></ruby>が<ruby class='v1'>変<rt>か</rt></ruby>わっております。<ruby class='v2'>浦里<rt>うらざと</rt></ruby>の<ruby class='v1'>膝<rt>ひざ</rt></ruby>に<ruby class='v1'>頭<rt>あたま</rt></ruby>を<ruby class='v1'>乗<rt>の</rt></ruby>せ、すっかりくつろいだ<ruby class='v1'>顔<rt>かお</rt></ruby>つきで、<br><strong>時次郎：</strong>「いや、<ruby class='v2'>浦里<rt>うらざと</rt></ruby>、お<ruby class='v1'>前<rt>まえ</rt></ruby>のような<ruby class='v1'>優<rt>やさ</rt></ruby>しい<ruby class='v1'>人<rt>ひと</rt></ruby>には<ruby class='v1'>会<rt>あ</rt></ruby>ったことがない」<br>などと<ruby class='v1'>惚気<rt>のろけ</rt></ruby>る<ruby class='v1'>始末<rt>しまつ</rt></ruby>。<ruby class='v1'>昨夜<rt>ゆうべ</rt></ruby>あれほど<ruby class='v1'>嫌<rt>いや</rt></ruby>がっていた<ruby class='v2'>廓<rt>くるわ</rt></ruby>の<ruby class='v1'>空気<rt>くうき</rt></ruby>にも、もうすっかり<ruby class='v1'>馴染<rt>なじ</rt></ruby>んでしまった<ruby class='v1'>様子<rt>ようす</rt></ruby>。<ruby class='v1'>迎<rt>むか</rt></ruby>えに<ruby class='v1'>来<rt>き</rt></ruby>た<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>と<ruby class='v2'>太助<rt>たすけ</rt></ruby>が、<br><strong>源兵衛：</strong>「<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>、そろそろお<ruby class='v1'>店<rt>みせ</rt></ruby>が<ruby class='v1'>開<rt>あ</rt></ruby>きますし、そろそろお<ruby class='v1'>暇<rt>いとま</rt></ruby>いたしましょう」<br>と<ruby class='v1'>声<rt>こえ</rt></ruby>をかけても、<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>は<ruby class='v1'>聞<rt>き</rt></ruby>く<ruby class='v1'>耳<rt>みみ</rt></ruby>を<ruby class='v1'>持<rt>も</rt></ruby>ちません。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【帰りたがらない若旦那】</span>
+                    <strong>時次郎：</strong>「なんだ、お<ruby class='v1'>前<rt>まえ</rt></ruby>たちは。せっかく<ruby class='v2'>浦里<rt>うらざと</rt></ruby>といい<ruby class='v1'>心持<rt>こころも</rt></ruby>ちでいるのに、<ruby class='v1'>水<rt>みず</rt></ruby>を<ruby class='v1'>差<rt>さ</rt></ruby>すようなことを<ruby class='v1'>言<rt>い</rt></ruby>うな」<br>と、<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>、すっかり<ruby class='v1'>色男気取<rt>いろおとこきど</rt></ruby>りでございます。<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>と<ruby class='v2'>太助<rt>たすけ</rt></ruby>は<ruby class='v1'>困<rt>こま</rt></ruby>り<ruby class='v1'>果<rt>は</rt></ruby>てて、<br><strong>源兵衛：</strong>「<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>、<ruby class='v1'>大旦那様<rt>おおだんなさま</rt></ruby>が<ruby class='v1'>心配<rt>しんぱい</rt></ruby>しておいでですから」<br>となだめますが、<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>は<br><strong>時次郎：</strong>「なあに、<ruby class='v1'>少々<rt>しょうしょう</rt></ruby>くらい<ruby class='v1'>遅<rt>おく</rt></ruby>れたって<ruby class='v1'>構<rt>かま</rt></ruby>うものか。お<ruby class='v1'>前<rt>まえ</rt></ruby>たちだけ<ruby class='v1'>先<rt>さき</rt></ruby>に<ruby class='v1'>帰<rt>かえ</rt></ruby>ったらどうだ」<br>と、<ruby class='v1'>逆<rt>ぎゃく</rt></ruby>にのんびり<ruby class='v1'>構<rt>かま</rt></ruby>える<ruby class='v1'>始末<rt>しまつ</rt></ruby>。とうとう<ruby class='v1'>二人<rt>ふたり</rt></ruby>の<ruby class='v1'>方<rt>ほう</rt></ruby>が、<br><strong>源兵衛：</strong>「お<ruby class='v1'>願<rt>ねが</rt></ruby>いですから、<ruby class='v2'>若旦那<rt>わかだんな</rt></ruby>、<ruby class='v1'>早<rt>はや</rt></ruby>く<ruby class='v1'>帰<rt>かえ</rt></ruby>りましょう」<br>と、<ruby class='v1'>拝<rt>おが</rt></ruby>むように<ruby class='v1'>急<rt>せ</rt></ruby>かす<ruby class='v2'>羽目<rt>はめ</rt></ruby>になりました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    すっかり<ruby class='v1'>呆<rt>あき</rt></ruby>れた<ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>、<ruby class='v1'>思<rt>おも</rt></ruby>わずぼやきます。<br><strong>源兵衛：</strong>「まったく、<ruby class='v1'>無理<rt>むり</rt></ruby>やり<ruby class='v1'>連<rt>つ</rt></ruby>れてきたこっちが、こんなに<ruby class='v1'>帰<rt>かえ</rt></ruby>りを<ruby class='v1'>急<rt>せ</rt></ruby>かされるとは<ruby class='v1'>思<rt>おも</rt></ruby>いませんでしたよ」<br>すると<ruby class='v2'>時次郎<rt>ときじろう</rt></ruby>、<ruby class='v1'>涼<rt>すず</rt></ruby>しい<ruby class='v1'>顔<rt>かお</rt></ruby>で<ruby class='v1'>一言<rt>ひとこと</rt></ruby>。<br><strong>時次郎：</strong>「なあに、<ruby class='v1'>心配<rt>しんぱい</rt></ruby>するな。お<ruby class='v1'>前<rt>まえ</rt></ruby>たちは、また<ruby class='v1'>今度<rt>こんど</rt></ruby><ruby class='v1'>連<rt>つ</rt></ruby>れてきてくれればいい」<br><ruby class='v2'>源兵衛<rt>げんべえ</rt></ruby>と<ruby class='v2'>太助<rt>たすけ</rt></ruby>、<ruby class='v1'>顔<rt>かお</rt></ruby>を<ruby class='v1'>見合<rt>みあ</rt></ruby>わせて、「こりゃあ、とんだ<ruby class='v1'>果報者<rt>かほうもの</rt></ruby>を、とんだ<ruby class='v1'>一人前<rt>いちにんまえ</rt></ruby>にしちまった」と、ため<ruby class='v1'>息<rt>いき</rt></ruby>をつくのでございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Akegarasu, The Dawn Crow, is the tale of an uptight, bookish young man setting foot in Yoshiwara for the very first time in his life. You know the type, raised on nothing but books, growing into adulthood without a clue about the world. Parents find such sons reassuring in one sense, and a bit worrying in another. Today's tale is a delightful one about just such a young man, who ends up shedding his shell, not once but twice over, in the most unexpected of places.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHELTERED SON]</span>There was a young master named Tokijiro, son of a great merchant house in Nihonbashi. From the day he was born, this Tokijiro had never once set foot in Yoshiwara, nor even been to see a play, an almost impossibly serious young man. Morning to night he did nothing but read the Analects and Mencius, and had no idea what fun even meant. His father, the master of the house, found this reassuring in one way, but worried: being this earnest isn't entirely a good thing, even if he's to inherit the family business, if he never gets a taste of the world he'll be dangerously naive. So he quietly took aside two employees of the household, Genbei and Tasuke, and asked for their help.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SCHEME]</span>Teach the young master a taste for having fun, that was the request, and Genbei and Tasuke racked their brains, knowing this called for some real effort. Simply inviting him with let's go to Yoshiwara was never going to work on someone as straight-laced as Tokijiro. So they cooked up a scheme instead.<br><strong>Genbei:</strong> Let's go keep an all-night vigil praying at the Inari shrine on Nihon-zutsumi. Pray through the night and your business is guaranteed to prosper.<br>Devout as ever, Tokijiro fell for it completely.<br><strong>Tokijiro:</strong> By all means, I'd love to go.<br>And he happily tagged along.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BROUGHT TO YOSHIWARA]</span>But where they actually led him was not to any shrine, it was a familiar teahouse in Yoshiwara. Seeing the pleasure quarter ablaze with lantern light, rows of painted women lined up before him, Tokijiro was stunned.<br><strong>Tokijiro:</strong> What is the meaning of this? Nobody told me we were coming to such a disreputable place!<br>He turned pale and started shaking.<br><strong>Genbei:</strong> Now, now, young master, the prayers are held just this way, through here.<br>No amount of coaxing from Genbei and the others could get him to budge.<br><strong>Tokijiro:</strong> I'm going home! How could anyone stay in a place like this?<br>He kicked up a fuss, half in tears. Even so, they somehow got him settled into a room, where he was paired off with a courtesan named Urazato.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MORNING AFTER]</span>That night, Tokijiro did nothing but tremble, but by the next morning, something had changed entirely. There he was, head resting on Urazato's lap, looking utterly at ease.<br><strong>Tokijiro:</strong> Ah, Urazato, I've never met anyone as kind as you.<br>Gushing like a man head over heels. The very atmosphere of the pleasure quarter he'd so despised the night before, he now seemed completely at home in. When Genbei and Tasuke arrived to fetch him.<br><strong>Genbei:</strong> Young master, the shop will be opening soon, shall we be on our way?<br>Tokijiro wouldn't hear a word of it.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TABLES TURN]</span><strong>Tokijiro:</strong> What's gotten into you two? Don't go spoiling the mood, just when Urazato and I were having such a lovely time.<br>He'd become a regular ladies' man overnight. Genbei and Tasuke, at their wits' end, tried to soothe him.<br><strong>Genbei:</strong> Young master, your father will be worried.<br>But Tokijiro just waved them off.<br><strong>Tokijiro:</strong> Bah, what does it matter if we're a little late? Why don't you two go on home without me?<br>Settling in as if he had all the time in the world. In the end, it was the two of them who found themselves pleading.<br><strong>Genbei:</strong> Please, young master, let's hurry home!</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Utterly exasperated, Genbei couldn't help muttering.<br><strong>Genbei:</strong> Honestly, we're the ones who dragged him here, and now we're the ones begging him to hurry home.<br>Tokijiro, cool as can be, had just one thing to say.<br><strong>Tokijiro:</strong> Oh, don't worry about it. You two can just bring me again next time.<br>Genbei and Tasuke looked at each other and sighed: well, we certainly turned a lucky innocent into a real grown man, didn't we.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Akegarasu, Le Corbeau de l'Aube, c'est l'histoire d'un jeune homme guindé et studieux qui met les pieds à Yoshiwara pour la toute première fois de sa vie. Vous connaissez le genre, élevé uniquement dans les livres, devenu adulte sans la moindre idée du monde. Les parents trouvent ces fils-là rassurants d'un côté, et un peu inquiétants de l'autre. Voici aujourd'hui une histoire réjouissante sur un tel jeune homme, qui finit par se déniaiser, pas une fois mais deux, dans l'endroit le plus inattendu qui soit.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHELTERED SON]</span>Il y avait un jeune maître nommé Tokijiro, fils d'une grande maison de commerce de Nihonbashi. Depuis sa naissance, ce Tokijiro n'avait jamais mis les pieds à Yoshiwara, ni même assisté à une pièce de théâtre, un jeune homme d'un sérieux presque irréel. Du matin au soir, il ne faisait que lire les Entretiens de Confucius et Mencius, sans la moindre idée de ce qu'était s'amuser. Son père, le maître de maison, trouvait cela rassurant d'un côté, mais s'inquiétait : être aussi sérieux n'est pas forcément une bonne chose, même s'il doit hériter de l'affaire familiale, s'il ne goûte jamais au monde, il restera dangereusement naïf. Il prit donc discrètement à part deux employés de la maison, Genbei et Tasuke, pour leur demander de l'aide.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SCHEME]</span>Apprends au jeune maître le goût du plaisir, telle était la demande, et Genbei et Tasuke se creusèrent la tête, sachant que cela demanderait de vrais efforts. L'inviter simplement en disant allons à Yoshiwara n'aurait jamais fonctionné sur quelqu'un d'aussi rigide que Tokijiro. Ils montèrent donc un plan.<br><strong>Genbei :</strong> Allons faire une veillée de prière toute la nuit au sanctuaire Inari de Nihon-zutsumi. Prier toute la nuit garantit la prospérité des affaires.<br>Toujours aussi pieux, Tokijiro mordit à l'hameçon sans se douter de rien.<br><strong>Tokijiro :</strong> J'aimerais beaucoup y aller.<br>Et il les suivit de bon cœur.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BROUGHT TO YOSHIWARA]</span>Mais l'endroit où on le mena n'était en réalité aucun sanctuaire, c'était une maison de thé bien connue de Yoshiwara. En voyant le quartier illuminé de lanternes, des rangées de femmes fardées alignées devant lui, Tokijiro fut abasourdi.<br><strong>Tokijiro :</strong> Qu'est-ce que cela signifie ? Personne ne m'avait dit qu'on venait dans un endroit aussi scandaleux !<br>Il devint blanc comme un linge et se mit à trembler.<br><strong>Genbei :</strong> Allons, allons, jeune maître, les prières se font justement par ici, tout au fond.<br>Aucune flatterie de Genbei et des autres ne put le faire bouger.<br><strong>Tokijiro :</strong> Je rentre chez moi ! Comment pourrait-on rester dans un endroit pareil ?<br>Il fit une scène, à moitié en larmes. Malgré tout, on parvint à le pousser dans une chambre, où on lui attribua une courtisane nommée Urazato.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MORNING AFTER]</span>Cette nuit-là, Tokijiro n'avait fait que trembler, mais le lendemain matin, tout avait changé du tout au tout. Le voilà, la tête posée sur les genoux d'Urazato, l'air parfaitement à l'aise.<br><strong>Tokijiro :</strong> Ah, Urazato, je n'ai jamais rencontré personne d'aussi douce que toi.<br>Il roucoulait comme un homme éperdument amoureux. L'atmosphère même du quartier qu'il avait tant méprisée la veille lui semblait désormais tout à fait familière. Quand Genbei et Tasuke vinrent le chercher.<br><strong>Genbei :</strong> Jeune maître, la boutique va bientôt ouvrir, ne devrions-nous pas y aller ?<br>Tokijiro ne voulut rien entendre.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TABLES TURN]</span><strong>Tokijiro :</strong> Qu'est-ce qui vous prend, tous les deux ? N'allez pas gâcher l'ambiance, alors qu'Urazato et moi passions un si bon moment.<br>Il était devenu un vrai bourreau des cœurs du jour au lendemain. Genbei et Tasuke, à bout de patience, tentèrent de l'apaiser.<br><strong>Genbei :</strong> Jeune maître, votre père doit s'inquiéter.<br>Mais Tokijiro les écarta d'un geste.<br><strong>Tokijiro :</strong> Bah, qu'importe si on est un peu en retard ? Pourquoi ne rentrez-vous pas sans moi, tous les deux ?<br>S'installant comme s'il avait tout son temps. En fin de compte, ce furent eux qui durent supplier.<br><strong>Genbei :</strong> Je vous en prie, jeune maître, rentrons vite !</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Complètement dépassé, Genbei ne put s'empêcher de marmonner.<br><strong>Genbei :</strong> Franchement, c'est nous qui l'avons traîné ici de force, et voilà que c'est nous qui le supplions de rentrer vite.<br>Tokijiro, imperturbable, n'eut qu'une chose à répondre.<br><strong>Tokijiro :</strong> Oh, ne vous en faites pas. Vous n'aurez qu'à me ramener une prochaine fois.<br>Genbei et Tasuke se regardèrent et soupirèrent : eh bien, nous avons vraiment transformé un innocent chanceux en un homme fait, dis donc.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Akegarasu, El Cuervo del Amanecer, es la historia de un joven serio y aplicado que pisa Yoshiwara por primera vez en su vida. Ya conocen el tipo, criado solo entre libros, llegado a la adultez sin la menor idea del mundo. Los padres encuentran tranquilizador tener un hijo así, y a la vez algo preocupante. Hoy les traigo una historia deliciosa sobre un joven de ese tipo, que termina quitándose la coraza, no una sino dos veces, en el lugar más inesperado.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SHELTERED SON]</span>Había un joven señor llamado Tokijiro, hijo de una gran casa comercial de Nihonbashi. Desde que nació, este Tokijiro jamás había puesto un pie en Yoshiwara, ni siquiera había ido a ver una obra de teatro, un joven de una seriedad casi irreal. De la mañana a la noche no hacía más que leer las Analectas y a Mencio, sin la menor idea de lo que significaba divertirse. Su padre, el dueño de la casa, encontraba esto tranquilizador por un lado, pero se preocupaba: ser tan serio no es del todo bueno, aunque vaya a heredar el negocio familiar, si nunca prueba nada del mundo seguirá siendo peligrosamente ingenuo. Así que, en secreto, llamó aparte a dos empleados de la casa, Genbei y Tasuke, para pedirles ayuda.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE SCHEME]</span>Enséñenle al joven señor el gusto por divertirse, ese fue el encargo, y Genbei y Tasuke se rompieron la cabeza sabiendo que esto exigiría verdadero esfuerzo. Invitarlo simplemente con vamos a Yoshiwara jamás funcionaría con alguien tan rígido como Tokijiro. Así que tramaron un plan.<br><strong>Genbei:</strong> Vayamos a hacer una vigilia de oración toda la noche en el santuario Inari de Nihon-zutsumi. Rezar toda la noche garantiza la prosperidad del negocio.<br>Devoto como siempre, Tokijiro cayó de lleno.<br><strong>Tokijiro:</strong> Con mucho gusto iré.<br>Y los acompañó felizmente.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[BROUGHT TO YOSHIWARA]</span>Pero el lugar al que en realidad lo llevaron no era ningún santuario, sino una conocida casa de té de Yoshiwara. Al ver el barrio resplandeciente de faroles, hileras de mujeres maquilladas alineadas ante él, Tokijiro quedó atónito.<br><strong>Tokijiro:</strong> ¿Qué significa esto? ¡Nadie me dijo que veníamos a un lugar tan escandaloso!<br>Se puso pálido y comenzó a temblar.<br><strong>Genbei:</strong> Vamos, vamos, joven señor, las oraciones se hacen justo por aquí, al fondo.<br>Ningún halago de Genbei y los demás logró moverlo.<br><strong>Tokijiro:</strong> ¡Me voy a casa! ¿Cómo podría alguien quedarse en un lugar así?<br>Armó un escándalo, medio llorando. Aun así, de alguna manera lo metieron en una habitación, donde le asignaron una cortesana llamada Urazato.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MORNING AFTER]</span>Esa noche, Tokijiro no había hecho más que temblar, pero a la mañana siguiente todo había cambiado por completo. Ahí estaba, con la cabeza apoyada en el regazo de Urazato, con aspecto de estar completamente a gusto.<br><strong>Tokijiro:</strong> Ah, Urazato, nunca había conocido a alguien tan amable como tú.<br>Hablaba embelesado como un hombre perdidamente enamorado. La misma atmósfera del barrio que tanto había despreciado la noche anterior ahora le resultaba de lo más familiar. Cuando Genbei y Tasuke llegaron a buscarlo.<br><strong>Genbei:</strong> Joven señor, la tienda abrirá pronto, ¿deberíamos irnos?<br>Tokijiro no quiso escuchar ni una palabra.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE TABLES TURN]</span><strong>Tokijiro:</strong> ¿Qué les pasa a ustedes dos? No arruinen el ambiente, justo cuando Urazato y yo la estábamos pasando tan bien.<br>Se había convertido en todo un galán de la noche a la mañana. Genbei y Tasuke, ya sin paciencia, intentaron calmarlo.<br><strong>Genbei:</strong> Joven señor, su padre debe estar preocupado.<br>Pero Tokijiro los apartó con la mano.<br><strong>Tokijiro:</strong> Bah, ¿qué importa si llegamos un poco tarde? ¿Por qué no se van ustedes dos sin mí?<br>Acomodándose como si tuviera todo el tiempo del mundo. Al final, fueron ellos quienes terminaron suplicando.<br><strong>Genbei:</strong> ¡Por favor, joven señor, volvamos pronto a casa!</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Completamente exasperado, Genbei no pudo evitar murmurar.<br><strong>Genbei:</strong> Sinceramente, nosotros lo trajimos aquí a la fuerza, y ahora somos nosotros los que le rogamos que se apure a volver.<br>Tokijiro, imperturbable, solo tuvo una cosa que decir.<br><strong>Tokijiro:</strong> Ah, no se preocupen. La próxima vez simplemente tráiganme de nuevo.<br>Genbei y Tasuke se miraron y suspiraron: vaya, sí que convertimos a un inocente afortunado en todo un hombre hecho y derecho.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②若旦那と父の心配","③二人の計略","④動揺する若旦那","⑤一夜明けての豹変","⑥帰りたがらない若旦那","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The sheltered son","③ The scheme","④ Brought to yoshiwara","⑤ The morning after","⑥ The tables turn","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

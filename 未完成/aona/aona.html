@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>青菜 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.22 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">青菜</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Aona / The Greens</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p7.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                        <div class="part-dot" id="dot-6"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②庭師、招かれる</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③酒肴のもてなし</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④青菜を所望</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤判じ物の趣向</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥植木屋、我が家で真似する</button>
+                    <button onclick="playPart(6)" id="part-btn-6" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑦サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">夏<rt>なつ</rt></ruby>の<ruby class="v1">暑<rt>あつ</rt></ruby>い<ruby class="v1">盛<rt>さか</rt></ruby>りには<ruby class="v1">色々<rt>いろいろ</rt></ruby>な<ruby class="v1">商売<rt>しょうばい</rt></ruby>がございますが、<ruby class="v1">中<rt>なか</rt></ruby>でも一<ruby class="v1">番<rt>ばん</rt></ruby><ruby class="v1">辛<rt>つら</rt></ruby>いのは、この<ruby class="v2">植木屋<rt>うえきや</rt></ruby>のような、<ruby class="v1">外<rt>そと</rt></ruby>で<ruby class="v1">体<rt>からだ</rt></ruby>を<ruby class="v1">使<rt>つか</rt></ruby>う<ruby class="v1">仕事<rt>しごと</rt></ruby>でございますね。<br><ruby class="v2">炎天下<rt>えんてんか</rt></ruby>、<ruby class="v1">汗水<rt>あせみず</rt></ruby><ruby class="v1">垂<rt>た</rt></ruby>らして<ruby class="v1">働<rt>はたら</rt></ruby>くというのは、<ruby class="v1">口<rt>くち</rt></ruby>で<ruby class="v1">言<rt>い</rt></ruby>うほど<ruby class="v1">楽<rt>らく</rt></ruby>なものじゃございません。そこへいくと、<ruby class="v1">大<rt>おお</rt></ruby>きな<ruby class="v1">屋敷<rt>やしき</rt></ruby>にお<ruby class="v1">住<rt>す</rt></ruby>まいの<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>というのは、<ruby class="v1">涼<rt>すず</rt></ruby>しいお<ruby class="v1">座敷<rt>ざしき</rt></ruby>でお<ruby class="v1">酒<rt>さけ</rt></ruby>など<ruby class="v1">召<rt>め</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>がりながら、<ruby class="v1">涼<rt>すず</rt></ruby>しい<ruby class="v1">顔<rt>かお</rt></ruby>をしていらっしゃる。<br><ruby class="v1">同<rt>おな</rt></ruby>じ<ruby class="v1">人間<rt>にんげん</rt></ruby>でも、<ruby class="v1">住<rt>す</rt></ruby>む<ruby class="v1">世界<rt>せかい</rt></ruby>が<ruby class="v1">違<rt>ちが</rt></ruby>うと、<ruby class="v1">言葉遣<rt>ことばづか</rt></ruby>いから<ruby class="v2">物腰<rt>ものごし</rt></ruby>まで、まるで<ruby class="v1">別物<rt>べつもの</rt></ruby>でございましてね。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v2">庭師<rt>にわし</rt></ruby>と、ある<ruby class="v1">品<rt>しな</rt></ruby>のいいご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>さんとの一<ruby class="v1">幕<rt>まく</rt></ruby>を、一つお<ruby class="v1">付<rt>つ</rt></ruby>き<ruby class="v1">合<rt>あ</rt></ruby>い<ruby class="v1">願<rt>ねが</rt></ruby>いましょう。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【庭師、招かれる】</span>
+                    <ruby class="v1">夏<rt>なつ</rt></ruby>の<ruby class="v1">日<rt>ひ</rt></ruby>、ある<ruby class="v1">大<rt>おお</rt></ruby>きなお<ruby class="v1">屋敷<rt>やしき</rt></ruby>の<ruby class="v1">庭<rt>にわ</rt></ruby>で、<ruby class="v2">植木屋<rt>うえきや</rt></ruby>が<ruby class="v1">汗<rt>あせ</rt></ruby>だくになって<ruby class="v1">仕事<rt>しごと</rt></ruby>をしております。そこへ、その<ruby class="v1">家<rt>いえ</rt></ruby>のご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>が<ruby class="v2">縁側<rt>えんがわ</rt></ruby>から<ruby class="v1">声<rt>こえ</rt></ruby>をかけます。<br><strong>隠居：</strong>「おい、<ruby class="v2">精<rt>せい</rt></ruby>が<ruby class="v1">出<rt>で</rt></ruby>るね。<ruby class="v1">今日<rt>きょう</rt></ruby>はまた一<ruby class="v1">段<rt>だん</rt></ruby>と<ruby class="v1">暑<rt>あつ</rt></ruby>いが、<ruby class="v1">少<rt>すこ</rt></ruby>し<ruby class="v1">休<rt>やす</rt></ruby>んでいきなさい」<br><ruby class="v2">植木屋<rt>うえきや</rt></ruby>は<ruby class="v2">恐縮<rt>きょうしゅく</rt></ruby>しながらも、ありがたく<ruby class="v2">縁側<rt>えんがわ</rt></ruby>に<ruby class="v1">腰<rt>こし</rt></ruby>を<ruby class="v1">下<rt>お</rt></ruby>ろします。ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>は<ruby class="v1">品<rt>しな</rt></ruby>よく<ruby class="v1">微笑<rt>ほほえ</rt></ruby>みながら、<br><strong>隠居：</strong>「まあ、こう<ruby class="v1">暑<rt>あつ</rt></ruby>くては<ruby class="v1">仕事<rt>しごと</rt></ruby>にならないだろう。ちょいと、<ruby class="v1">涼<rt>すず</rt></ruby>んでいきなさい」<br>と、<ruby class="v1">家<rt>いえ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>へと<ruby class="v1">誘<rt>さそ</rt></ruby>い<ruby class="v1">入<rt>い</rt></ruby>れます。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【酒肴のもてなし】</span>
+                    <ruby class="v1">座敷<rt>ざしき</rt></ruby>に<ruby class="v1">上<rt>あ</rt></ruby>げてもらった<ruby class="v2">植木屋<rt>うえきや</rt></ruby>の<ruby class="v1">前<rt>まえ</rt></ruby>に、ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>は<ruby class="v1">冷<rt>つめ</rt></ruby>たい<ruby class="v1">酒<rt>さけ</rt></ruby>と、<ruby class="v2">鯉<rt>こい</rt></ruby>の<ruby class="v1">洗<rt>あら</rt></ruby>いだの、<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いた<ruby class="v2">肴<rt>さかな</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べさせます。<ruby class="v2">植木屋<rt>うえきや</rt></ruby>はこんな<ruby class="v1">上等<rt>じょうとう</rt></ruby>なもてなしを<ruby class="v1">受<rt>う</rt></ruby>けたことがなく、<ruby class="v2">恐縮<rt>きょうしゅく</rt></ruby>しきり。<br><strong>植木屋：</strong>「いや<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>、あたしのようなものには<ruby class="v1">勿体<rt>もったい</rt></ruby>のうございます」<br><strong>隠居：</strong>「なに、<ruby class="v1">遠慮<rt>えんりょ</rt></ruby>はいらないよ。<ruby class="v1">今日<rt>きょう</rt></ruby>はゆっくりしていきなさい」<br>ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>の<ruby class="v1">言葉遣<rt>ことばづか</rt></ruby>いも、<ruby class="v1">酒<rt>さけ</rt></ruby>の<ruby class="v1">出<rt>だ</rt></ruby>し<ruby class="v1">方<rt>かた</rt></ruby>も、いちいち<ruby class="v1">品<rt>しな</rt></ruby>があって、<ruby class="v2">植木屋<rt>うえきや</rt></ruby>はすっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>してしまいます。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【青菜を所望】</span>
+                    ひとしきり<ruby class="v1">酒<rt>さけ</rt></ruby>を<ruby class="v2">酌<rt>く</rt></ruby>み<ruby class="v1">交<rt>か</rt></ruby>わした<ruby class="v1">後<rt>あと</rt></ruby>、ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>はふと<ruby class="v1">思<rt>おも</rt></ruby>い<ruby class="v1">出<rt>だ</rt></ruby>したように、<ruby class="v1">奥<rt>おく</rt></ruby>にいる<ruby class="v1">女房<rt>にょうぼう</rt></ruby>へ<ruby class="v1">声<rt>こえ</rt></ruby>をかけます。<br><strong>隠居：</strong>「おい、あれをこれへ<ruby class="v1">持<rt>も</rt></ruby>っておいで。ほら、<ruby class="v1">青菜<rt>あおな</rt></ruby>を<ruby class="v1">茹<rt>ゆ</rt></ruby>でたのがあったろう」<br>すると<ruby class="v1">奥<rt>おく</rt></ruby>から<ruby class="v1">出<rt>で</rt></ruby>てきた<ruby class="v1">女房<rt>にょうぼう</rt></ruby>、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>の<ruby class="v1">傍<rt>そば</rt></ruby>まで<ruby class="v1">来<rt>き</rt></ruby>て、そっと<ruby class="v1">耳打<rt>みみう</rt></ruby>ちをする。<ruby class="v1">実<rt>じつ</rt></ruby>は、その<ruby class="v1">青菜<rt>あおな</rt></ruby>はもう<ruby class="v1">無<rt>な</rt></ruby>くなっていて、<ruby class="v1">家<rt>いえ</rt></ruby>にはもう一<ruby class="v1">切<rt>き</rt></ruby>れも<ruby class="v1">残<rt>のこ</rt></ruby>っていない。だが、それをそのまま「もうございません」と<ruby class="v1">言<rt>い</rt></ruby>ってしまっては、あまりに<ruby class="v1">色気<rt>いろけ</rt></ruby>がない。<ruby class="v2">植木屋<rt>うえきや</rt></ruby>の<ruby class="v1">手前<rt>てまえ</rt></ruby>もある、さあ、ここでこの<ruby class="v1">女房<rt>にょうぼう</rt></ruby>、どう<ruby class="v1">切<rt>き</rt></ruby>り<ruby class="v1">抜<rt>ぬ</rt></ruby>けるか。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【判じ物の趣向】</span>
+                    そこで<ruby class="v1">女房<rt>にょうぼう</rt></ruby>は、<ruby class="v2">澄<rt>す</rt></ruby>まし<ruby class="v1">顔<rt>がお</rt></ruby>でこう<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。<br><strong>女房：</strong>「<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>、その<ruby class="v1">青菜<rt>あおな</rt></ruby>はゆうべ、<ruby class="v2">義経<rt>よしつね</rt></ruby>にしてしまいました」<br><ruby class="v2">植木屋<rt>うえきや</rt></ruby>はきょとんとしますが、ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>はにっこり<ruby class="v1">笑<rt>わら</rt></ruby>って、<br><strong>隠居：</strong>「ああ、<ruby class="v2">義経<rt>よしつね</rt></ruby>ならば、<ruby class="v2">鞍馬<rt>くらま</rt></ruby>へ、お<ruby class="v1">帰<rt>かえ</rt></ruby>りか」<br><strong>女房：</strong>「はい、<ruby class="v2">弁慶<rt>べんけい</rt></ruby>もお<ruby class="v1">供<rt>とも</rt></ruby>をして、<ruby class="v1">跡形<rt>あとかた</rt></ruby>もなく」<br><ruby class="v1">要<rt>よう</rt></ruby>するに、「<ruby class="v1">青菜<rt>あおな</rt></ruby>は、<ruby class="v2">義経<rt>よしつね</rt></ruby>のように、<ruby class="v1">姿<rt>すがた</rt></ruby>を<ruby class="v1">消<rt>け</rt></ruby>して<ruby class="v1">跡形<rt>あとかた</rt></ruby>もございません」つまり「もう、ございません」ということを、<ruby class="v2">義経<rt>よしつね</rt></ruby>が<ruby class="v2">奥州<rt>おうしゅう</rt></ruby>へ<ruby class="v2">落<rt>お</rt></ruby>ち<ruby class="v2">延<rt>の</rt></ruby>びて<ruby class="v1">行方<rt>ゆくえ</rt></ruby>をくらました<ruby class="v2">故事<rt>こじ</rt></ruby>にかけて、<ruby class="v1">上品<rt>じょうひん</rt></ruby>に<ruby class="v1">伝<rt>つた</rt></ruby>えているのでございます。<br>ご<ruby class="v2">隠居<rt>いんきょ</rt></ruby>は「これはうまいことを<ruby class="v1">言<rt>い</rt></ruby>う」と<ruby class="v1">大喜<rt>おおよろこ</rt></ruby>び。<ruby class="v2">植木屋<rt>うえきや</rt></ruby>はこの<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いたやり<ruby class="v1">取<rt>と</rt></ruby>りに、すっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>してしまいます。<br><strong>植木屋：</strong>「はあ〜、これはいい。あたしも<ruby class="v1">今度<rt>こんど</rt></ruby>、<ruby class="v1">家<rt>うち</rt></ruby>でひとつやってみよう」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【植木屋、我が家で真似する】</span>
+                    すっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>した<ruby class="v2">植木屋<rt>うえきや</rt></ruby>、そそくさと<ruby class="v1">家<rt>いえ</rt></ruby>へ<ruby class="v1">帰<rt>かえ</rt></ruby>ると、<ruby class="v1">女房<rt>にょうぼう</rt></ruby>をつかまえて、<br><strong>植木屋：</strong>「おい、<ruby class="v1">今夜<rt>こんや</rt></ruby>、<ruby class="v1">友達<rt>ともだち</rt></ruby>を<ruby class="v1">呼<rt>よ</rt></ruby>ぶから、お<ruby class="v1">前<rt>まえ</rt></ruby>、さっきの<ruby class="v1">旦那<rt>だんな</rt></ruby>の<ruby class="v1">家<rt>うち</rt></ruby>のようにやってくれ」<br>と、あの<ruby class="v1">気<rt>き</rt></ruby>の<ruby class="v1">利<rt>き</rt></ruby>いたやり<ruby class="v1">取<rt>と</rt></ruby>りを、<ruby class="v1">一<rt>いち</rt></ruby>から<ruby class="v1">仕込<rt>しこ</rt></ruby>み<ruby class="v1">始<rt>はじ</rt></ruby>めます。<br><strong>植木屋：</strong>「いいか、おれが『おい、あれをこれへ<ruby class="v1">持<rt>も</rt></ruby>っておいで、<ruby class="v1">青菜<rt>あおな</rt></ruby>があったろう』と<ruby class="v1">言<rt>い</rt></ruby>ったら、お<ruby class="v1">前<rt>まえ</rt></ruby>は<ruby class="v1">奥<rt>おく</rt></ruby>の<ruby class="v2">四畳半<rt>よじょうはん</rt></ruby>にでも<ruby class="v1">隠<rt>かく</rt></ruby>れていて、『<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>、その<ruby class="v1">青菜<rt>あおな</rt></ruby>は<ruby class="v2">義経<rt>よしつね</rt></ruby>にしてしまいました』と<ruby class="v1">言<rt>い</rt></ruby>うんだ」<br><strong>女房：</strong>「へえ？<ruby class="v1">何<rt>なん</rt></ruby>のことだかさっぱりわかりませんよ」<br>と<ruby class="v1">首<rt>くび</rt></ruby>をかしげますが、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>に<ruby class="v1">急<rt>せ</rt></ruby>かされて<ruby class="v1">仕方<rt>しかた</rt></ruby>なく、<ruby class="v1">狭<rt>せま</rt></ruby>い<ruby class="v1">押<rt>お</rt></ruby>し<ruby class="v1">入<rt>い</rt></ruby>れの<ruby class="v1">中<rt>なか</rt></ruby>に<ruby class="v1">押<rt>お</rt></ruby>し<ruby class="v1">込<rt>こ</rt></ruby>まれ、<ruby class="v1">出番<rt>でばん</rt></ruby>を<ruby class="v1">待<rt>ま</rt></ruby>つことになります。<ruby class="v1">折悪<rt>おりあ</rt></ruby>しく、その<ruby class="v1">日<rt>ひ</rt></ruby>は<ruby class="v1">輪<rt>わ</rt></ruby>をかけて<ruby class="v1">蒸<rt>む</rt></ruby>し<ruby class="v1">暑<rt>あつ</rt></ruby>い一<ruby class="v1">日<rt>にち</rt></ruby>でございました。
+                </p>
+                <p id="line-6" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    やがて<ruby class="v1">友達<rt>ともだち</rt></ruby>が<ruby class="v1">訪<rt>たず</rt></ruby>ねてきて、<ruby class="v2">植木屋<rt>うえきや</rt></ruby>は<ruby class="v1">見<rt>み</rt></ruby>よう<ruby class="v1">見<rt>み</rt></ruby>まねの<ruby class="v2">酒宴<rt>しゅえん</rt></ruby>を<ruby class="v1">始<rt>はじ</rt></ruby>めます。ところが、いざその「<ruby class="v1">青菜<rt>あおな</rt></ruby>」の<ruby class="v1">件<rt>けん</rt></ruby>を<ruby class="v1">切<rt>き</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>そうにも、<ruby class="v1">酒<rt>さけ</rt></ruby>に<ruby class="v1">酔<rt>よ</rt></ruby>った<ruby class="v1">勢<rt>いきお</rt></ruby>いもあって、<ruby class="v1">肝心<rt>かんじん</rt></ruby>の<ruby class="v1">掛<rt>か</rt></ruby>け<ruby class="v1">声<rt>ごえ</rt></ruby>をすっかり<ruby class="v1">忘<rt>わす</rt></ruby>れてしまう<ruby class="v1">始末<rt>しまつ</rt></ruby>。<br><strong>植木屋：</strong>「え〜っと、なんだったかな…おい、あれだ、あれを<ruby class="v1">持<rt>も</rt></ruby>ってこい、あの…<ruby class="v2">義経<rt>よしつね</rt></ruby>ぁ!」<br>と、しどろもどろになりながら、ようやく<ruby class="v1">大声<rt>おおごえ</rt></ruby>で<ruby class="v1">叫<rt>さけ</rt></ruby>びます。すると、<ruby class="v1">狭<rt>せま</rt></ruby>い<ruby class="v1">押<rt>お</rt></ruby>し<ruby class="v1">入<rt>い</rt></ruby>れの<ruby class="v1">中<rt>なか</rt></ruby>で、あまりの<ruby class="v1">暑<rt>あつ</rt></ruby>さと<ruby class="v1">待<rt>ま</rt></ruby>ちくたびれとで、すっかり<ruby class="v2">逆上<rt>のぼ</rt></ruby>せ<ruby class="v1">上<rt>あ</rt></ruby>がっていた<ruby class="v1">女房<rt>にょうぼう</rt></ruby>、<ruby class="v2">襖<rt>ふすま</rt></ruby>をがらりと<ruby class="v1">開<rt>あ</rt></ruby>けて、<ruby class="v1">汗<rt>あせ</rt></ruby>だくの<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">突<rt>つ</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>すと、こう<ruby class="v1">怒鳴<rt>どな</rt></ruby>ります。<br><strong>女房：</strong>「<ruby class="v1">旦那様<rt>だんなさま</rt></ruby>、その<ruby class="v2">義経<rt>よしつね</rt></ruby>も<ruby class="v2">弁慶<rt>べんけい</rt></ruby>も、この<ruby class="v1">暑<rt>あつ</rt></ruby>さでとうに<ruby class="v1">音<rt>ね</rt></ruby>を<ruby class="v1">上<rt>あ</rt></ruby>げて、とっくに<ruby class="v1">逃<rt>に</rt></ruby>げ<ruby class="v1">出<rt>だ</rt></ruby>しちまいましたよ! それより<ruby class="v1">早<rt>はや</rt></ruby>く、あたしを<ruby class="v1">此処<rt>ここ</rt></ruby>から<ruby class="v1">出<rt>だ</rt></ruby>しておくれよ!」<br>というわけで、<ruby class="v1">色気<rt>いろけ</rt></ruby>も<ruby class="v1">何<rt>なに</rt></ruby>もあったものではございません。これがサゲでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Well now, let me tell you a story. In the heat of summer there are all sorts of trades, but among the hardest is surely that of the gardener — out under the blazing sun, working up a sweat with nothing but his own two hands. It's no small thing to labor like that in the beating sun. And then there's the master of some grand house, sipping cool sake in a shaded room, looking perfectly composed. Same species, different worlds — their speech, their bearing, everything about them is like night and day. Today let's follow one such scene: a gardener, and a refined old master of a fine house.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER IS INVITED IN]</span>On a summer day, a gardener is drenched in sweat, working away in the garden of a grand house. From the veranda, the old master of the house calls out to him. "Well now, you're really putting your back into it. It's especially hot today — come rest a while." The gardener, feeling rather embarrassed, gratefully sits down on the veranda step. The master smiles with quiet elegance. "Now really, it's too hot to get anything done. Come in and cool off a bit." And with that, he invites the gardener inside.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[COLD SAKE AND A REFINED WELCOME]</span>Once seated in the parlor, the gardener finds cold sake, sliced carp, and all manner of tasty little dishes laid out before him by the master's order. He's never received such fine hospitality in his life and can hardly contain his embarrassment. "Oh no, sir, this is far too much for someone like me." "Nonsense, no need to be shy. Take your time today." Everything about the master — his choice of words, the way he pours the sake — carries such refinement that the gardener is thoroughly impressed.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[A REQUEST FOR THE GREENS]</span>After they'd shared cup after cup of sake, the master suddenly seemed to remember something and called toward the back of the house, where his wife was. "Say, bring that out here, would you? You know, we had some greens boiled up." His wife came out, walked over close to her husband, and quietly whispered in his ear. The truth was, the greens were long gone — not a single leaf left in the house. But simply saying "there aren't any left" would be far too plain, too graceless, especially with the gardener right there watching. So now — how will this wife manage to slip out of it?</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CODED RIDDLE OF YOSHITSUNE AND BENKEI]</span>So the wife, with a perfectly composed face, announces: "My dear, those greens turned into Yoshitsune last night." The gardener is baffled, but the master breaks into a delighted smile. "Ah, if it's Yoshitsune, I suppose he's gone home to Kurama, has he?" "Yes, and Benkei went along with him — not a trace left behind." In other words: "the greens have vanished without a trace, just like Yoshitsune," a graceful way of saying "there are none left," borrowing the old legend of the fugitive general Yoshitsune fleeing north and disappearing entirely. The master claps with delight at the clever wordplay, and the gardener is utterly won over by it. "Ohh, now that's marvelous. I've got to try that at home myself sometime."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER TRIES IT AT HOME]</span>Thoroughly impressed, the gardener hurries home and grabs hold of his wife. "Listen, I'm having a friend over tonight, and you're going to do just what that master's house did." And he starts drilling her, from scratch, in that clever little exchange. "Now listen close: when I say, 'Hey, bring that out here, we had some greens, didn't we?' — you're going to hide in the back room, and say, 'My dear, those greens turned into Yoshitsune.'" "Huh? I haven't the foggiest idea what you're talking about," she says, tilting her head — but hurried along by her husband, she has no choice but to be shoved into the cramped closet to wait for her cue. As bad luck would have it, that day was even more stifling and humid than the one before.</p>
+                <p id="line-en-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Before long the friend arrives, and the gardener starts up his own clumsy imitation of a drinking party. But when the moment comes to bring up the matter of the "greens," the drink has gone to his head, and he completely forgets the crucial cue line. "Er... what was it again... hey, that thing, bring me that thing, that... Yoshitsune-uh!" he finally blurts out at the top of his lungs, tripping over his own words. And at that, from inside the cramped closet — utterly overheated from the stifling air and worn out from waiting so long — his wife flings the sliding door open, thrusts out her sweat-drenched face, and bellows: "Sir! Both that Yoshitsune and that Benkei gave up from the heat ages ago and ran off already! Now quit stalling and let me out of here!" And so, needless to say, there wasn't a shred of refinement left in the whole affair. And that, ladies and gentlemen, is the punchline.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Eh bien, laissez-moi vous conter une histoire. En plein été, il existe mille métiers, mais l'un des plus rudes reste celui du jardinier, dehors sous le soleil brûlant, suant à grosses gouttes. Ce n'est pas rien de trimer ainsi sous un ciel de feu. Et pendant ce temps, le maître d'une grande demeure sirote son saké bien frais dans une pièce fraîche, l'air parfaitement serein. Même espèce humaine, mais des mondes différents — jusque dans les manières de parler et de se tenir, tout les sépare. Aujourd'hui, suivons donc un jardinier et un vieux maître raffiné.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER IS INVITED IN]</span>Un jour d'été, un jardinier, trempé de sueur, s'active dans le jardin d'une grande demeure. Depuis la véranda, le vieux maître de maison l'interpelle. « Eh bien, tu y mets du cœur. Il fait particulièrement chaud aujourd'hui, viens donc te reposer un peu. » Le jardinier, un peu gêné, s'assoit avec gratitude sur le rebord de la véranda. Le maître sourit avec une élégance tranquille. « Franchement, il fait trop chaud pour travailler. Viens donc te rafraîchir à l'intérieur. » Et il l'invite ainsi à entrer.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[COLD SAKE AND A REFINED WELCOME]</span>Une fois installé dans le salon, le jardinier découvre du saké bien frais, de la carpe tranchée et toutes sortes de bons petits plats disposés devant lui sur ordre du maître. Il n'a jamais reçu pareil accueil de sa vie et peine à cacher sa gêne. « Oh non, monsieur, c'est bien trop pour quelqu'un comme moi. » « Allons, pas de gêne. Prends ton temps aujourd'hui. » Tout, chez le maître — le choix des mots, la façon de servir le saké — respire un tel raffinement que le jardinier en reste tout impressionné.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[A REQUEST FOR THE GREENS]</span>Après avoir partagé coupe sur coupe de saké, le maître sembla soudain se souvenir de quelque chose et appela vers le fond de la maison, où se trouvait son épouse. « Dis donc, apporte-moi cela, tu veux ? Tu sais, les légumes verts qu'on avait fait bouillir. » Son épouse sortit, s'approcha tout près de son mari et lui chuchota quelque chose à l'oreille. En vérité, il n'y avait plus une seule feuille de légume dans la maison. Mais dire simplement « il n'y en a plus » manquerait cruellement d'élégance, surtout devant le jardinier. Alors, comment cette épouse va-t-elle se tirer d'affaire ?</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CODED RIDDLE OF YOSHITSUNE AND BENKEI]</span>Alors l'épouse, le visage parfaitement impassible, annonce : « Mon cher, ces légumes se sont changés en Yoshitsune hier soir. » Le jardinier reste perplexe, mais le maître éclate d'un sourire ravi. « Ah, s'il s'agit de Yoshitsune, je suppose qu'il est rentré à Kurama, n'est-ce pas ? » « Oui, et Benkei l'a accompagné — sans laisser la moindre trace. » Autrement dit : « les légumes ont disparu sans laisser de trace, tout comme Yoshitsune », une façon élégante de dire qu'il n'en reste plus, empruntant la légende du général fugitif Yoshitsune fuyant vers le nord et disparaissant à jamais. Le maître applaudit, ravi de ce trait d'esprit, et le jardinier en reste complètement conquis. « Ah, voilà qui est splendide. Il faudra que j'essaie ça chez moi, un de ces jours. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER TRIES IT AT HOME]</span>Complètement conquis, le jardinier se précipite chez lui et attrape sa femme. « Écoute, je reçois un ami ce soir, et tu vas faire exactement comme dans la maison de ce maître. » Et il se met à lui enseigner, de zéro, ce fameux échange plein d'esprit. « Écoute bien : quand je dirai « Eh, apporte-moi cela, on avait des légumes verts, non ? », tu te cacheras dans la pièce du fond et tu diras « Mon cher, ces légumes se sont changés en Yoshitsune. » » « Hein ? Je ne comprends absolument rien à ce que tu racontes », dit-elle en penchant la tête — mais pressée par son mari, elle n'a d'autre choix que de se glisser dans l'étroit placard pour attendre son signal. Par malchance, ce jour-là était encore plus étouffant et humide que la veille.</p>
+                <p id="line-fr-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>L'ami ne tarde pas à arriver, et le jardinier se lance dans sa maladroite imitation d'un banquet. Mais au moment crucial d'amener le sujet des « légumes verts », l'alcool lui est monté à la tête, et il oublie complètement la réplique essentielle. « Euh... c'était quoi déjà... eh, ce truc, apporte-moi ce truc, ce... Yoshitsune-euh ! » finit-il par hurler, s'emmêlant les mots. Et alors, depuis l'intérieur de l'étroit placard — complètement en surchauffe à cause de l'air étouffant et épuisée d'avoir tant attendu — sa femme ouvre brusquement la porte coulissante, sort son visage trempé de sueur et beugle : « Monsieur ! Ce Yoshitsune et ce Benkei ont abandonné à cause de la chaleur il y a bien longtemps et se sont déjà enfuis ! Alors arrête de tergiverser et fais-moi sortir d'ici ! » Et ainsi, inutile de dire qu'il ne restait plus la moindre once de raffinement dans toute cette affaire. Et voilà, mesdames et messieurs, la chute de l'histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Bueno, déjenme contarles una historia. En pleno verano hay toda clase de oficios, pero uno de los más duros es sin duda el del jardinero, trabajando bajo el sol abrasador, empapado en sudor. No es poca cosa deslomarse así bajo un cielo de fuego. Mientras tanto, el amo de una gran mansión bebe su sake bien frío en una habitación fresca, con expresión serena. Los mismos seres humanos, pero mundos distintos — hasta en el habla y los modales, son como el día y la noche. Hoy sigamos, pues, a un jardinero y a un refinado anciano señor.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER IS INVITED IN]</span>Un día de verano, un jardinero, empapado en sudor, trabaja en el jardín de una gran mansión. Desde la veranda, el viejo amo de la casa lo llama. «Vaya, le pones ganas. Hoy hace especialmente calor, ven a descansar un rato.» El jardinero, algo apenado, se sienta agradecido en el borde de la veranda. El amo sonríe con tranquila elegancia. «De verdad, hace demasiado calor para trabajar. Entra a refrescarte un poco.» Y así lo invita a pasar.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[COLD SAKE AND A REFINED WELCOME]</span>Una vez sentado en la sala, el jardinero encuentra sake bien frío, carpa en rodajas y toda clase de deliciosos platillos dispuestos ante él por orden del amo. Nunca en su vida ha recibido tal hospitalidad y apenas puede disimular su vergüenza. «Oh no, señor, esto es demasiado para alguien como yo.» «Vamos, no hace falta ser tímido. Tómate tu tiempo hoy.» Todo en el amo —la elección de las palabras, la manera de servir el sake— desprende tal refinamiento que el jardinero queda completamente impresionado.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[A REQUEST FOR THE GREENS]</span>Tras compartir copa tras copa de sake, el amo pareció recordar algo de pronto y llamó hacia el fondo de la casa, donde estaba su esposa. «Oye, trae aquello, ¿quieres? Ya sabes, las verduras que habíamos hervido.» Su esposa salió, se acercó a su marido y le susurró algo al oído. La verdad era que ya no quedaba ni una hoja de verdura en toda la casa. Pero decir simplemente «ya no queda» sería demasiado vulgar, sobre todo con el jardinero delante. Así que, ¿cómo se las arreglará esta esposa para salir del paso?</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE CODED RIDDLE OF YOSHITSUNE AND BENKEI]</span>Entonces la esposa, con expresión perfectamente serena, anuncia: «Querido, esas verduras se convirtieron en Yoshitsune anoche.» El jardinero queda desconcertado, pero el amo esboza una sonrisa encantada. «Ah, si es Yoshitsune, supongo que habrá vuelto a Kurama, ¿no?» «Sí, y Benkei lo acompañó, sin dejar rastro alguno.» Es decir: «las verduras han desaparecido sin dejar rastro, igual que Yoshitsune», una manera elegante de decir que ya no queda ninguna, tomando prestada la leyenda del general fugitivo Yoshitsune huyendo hacia el norte y desapareciendo por completo. El amo aplaude encantado ante el ingenioso juego de palabras, y el jardinero queda totalmente cautivado por él. «Ah, esto sí que es magnífico. Tendré que probarlo en mi propia casa alguna vez.»</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE GARDENER TRIES IT AT HOME]</span>Completamente impresionado, el jardinero corre a casa y agarra a su esposa. «Escucha, esta noche viene un amigo, y tú vas a hacer exactamente lo mismo que en la casa de aquel amo.» Y se pone a enseñarle, desde cero, ese ingenioso intercambio. «Escucha bien: cuando yo diga «Oye, trae eso, teníamos verduras, ¿no?», tú te esconderás en el cuarto del fondo y dirás «Querido, esas verduras se convirtieron en Yoshitsune.»» «¿Eh? No entiendo absolutamente nada de lo que dices», responde ella ladeando la cabeza — pero apurada por su marido, no tiene más remedio que meterse en el estrecho armario a esperar su turno. Para colmo de males, aquel día era aún más sofocante y húmedo que el anterior.</p>
+                <p id="line-es-6"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>El amigo no tarda en llegar, y el jardinero se lanza a su torpe imitación de un banquete. Pero cuando llega el momento crucial de sacar el tema de las «verduras», el alcohol ya se le ha subido a la cabeza y olvida por completo la frase clave. «Eh... ¿qué era... oye, esa cosa, tráeme esa cosa, ese... Yoshitsune-eh!» termina gritando a todo pulmón, trabándose con las palabras. Y entonces, desde el interior del estrecho armario —completamente sofocada por el aire agobiante y agotada de tanto esperar— su esposa abre de golpe la puerta corrediza, saca su rostro empapado en sudor y ruge: «¡Señor! ¡Ese Yoshitsune y ese Benkei se rindieron ante el calor hace rato y ya se escaparon! ¡Así que deja de perder el tiempo y sácame de aquí!» Y así, no hace falta decir que no quedó ni pizca de refinamiento en todo el asunto. Y ese, damas y caballeros, es el remate del cuento.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 7;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②庭師、招かれる","③酒肴のもてなし","④青菜を所望","⑤判じ物の趣向","⑥植木屋、我が家で真似する","⑦サゲ"];
+        const partNamesEn = ["① Prologue","② The gardener is invited in","③ Cold sake and a refined welcome","④ A request for the greens","⑤ The coded riddle of yoshitsune and benkei","⑥ The gardener tries it at home","⑦ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥","⑦"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p7.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

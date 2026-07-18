@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>転失気 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.7 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">転失気</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Tenshiki / The Broken Wind</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②和尚と珍念</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③医者への使い</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④医者のからかい</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤和尚、知ったかぶり</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜〜、<ruby class="v1">一<rt>いっ</rt></ruby><ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">世<rt>よ</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>には<ruby class="v2">知<rt>し</rt></ruby>ったかぶりというものがございましてね、<ruby class="v1">知<rt>し</rt></ruby>らないことを「<ruby class="v1">知<rt>し</rt></ruby>らない」と、ひとこと<ruby class="v1">言<rt>い</rt></ruby>えばいいものを、それが<ruby class="v1">言<rt>い</rt></ruby>えないばっかりに、<ruby class="v1">恥<rt>はじ</rt></ruby>の<ruby class="v2">上塗<rt>うわぬ</rt></ruby>りをしてしまう。これはお<ruby class="v1">医者<rt>いしゃ</rt></ruby>さまだろうが、お<ruby class="v2">坊<rt>ぼう</rt></ruby>さまだろうが、<ruby class="v1">身分<rt>みぶん</rt></ruby>に<ruby class="v1">関係<rt>かんけい</rt></ruby>なく、みな<ruby class="v1">同<rt>おな</rt></ruby>じでございます。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v2">知<rt>し</rt></ruby>ったかぶりが<ruby class="v1">重<rt>かさ</rt></ruby>なりに<ruby class="v1">重<rt>かさ</rt></ruby>なって、とんでもない<ruby class="v1">騒動<rt>そうどう</rt></ruby>になるというお<ruby class="v1">噺<rt>はなし</rt></ruby>でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【和尚と珍念】</span>
+                    <ruby class="v1">町<rt>まち</rt></ruby>の、とある<ruby class="v1">寺<rt>てら</rt></ruby>に、<ruby class="v1">少々<rt>しょうしょう</rt></ruby>もの<ruby class="v1">知<rt>し</rt></ruby>り<ruby class="v1">顔<rt>がお</rt></ruby>の<ruby class="v2">和尚<rt>おしょう</rt></ruby>さまがおりまして。ある<ruby class="v1">日<rt>ひ</rt></ruby>、<ruby class="v1">風邪<rt>かぜ</rt></ruby>をこじらせて<ruby class="v1">寝込<rt>ねこ</rt></ruby>んでしまい、かかりつけの<ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>というお<ruby class="v1">医者<rt>いしゃ</rt></ruby>さまを<ruby class="v1">呼<rt>よ</rt></ruby>びました。<ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、<ruby class="v1">和尚<rt>おしょう</rt></ruby>の<ruby class="v1">脈<rt>みゃく</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>りながら、こう<ruby class="v1">尋<rt>たず</rt></ruby>ねます。<br><strong>医者：</strong>「<ruby class="v1">和尚<rt>おしょう</rt></ruby>さま、<ruby class="v1">近頃<rt>ちかごろ</rt></ruby>、<ruby class="v2">転失気<rt>てんしき</rt></ruby>はございますかな？」<br><ruby class="v1">和尚<rt>おしょう</rt></ruby>は「てんしき」と<ruby class="v1">聞<rt>き</rt></ruby>いて、はてなんのことやら、さっぱり<ruby class="v1">分<rt>わ</rt></ruby>かりません。しかし、ここで「<ruby class="v1">存<rt>ぞん</rt></ruby>じません」と<ruby class="v1">言<rt>い</rt></ruby>っては、<ruby class="v2">一寺<rt>いちじ</rt></ruby>の<ruby class="v2">住職<rt>じゅうしょく</rt></ruby>の<ruby class="v2">沽券<rt>こけん</rt></ruby>に<ruby class="v1">関<rt>かか</rt></ruby>わる。そこで<ruby class="v2">澄<rt>す</rt></ruby>ました<ruby class="v1">顔<rt>かお</rt></ruby>でこう<ruby class="v1">答<rt>こた</rt></ruby>えました。<br><strong>和尚：</strong>「ああ、<ruby class="v2">転失気<rt>てんしき</rt></ruby>か。<ruby class="v1">実<rt>じつ</rt></ruby>はそれが、<ruby class="v1">二、三日前<rt>にさんにちまえ</rt></ruby>にひとつ、<ruby class="v1">割<rt>わ</rt></ruby>れましてな」<br><ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>をしながらも「さようでございますか」と、そのまま<ruby class="v1">帰<rt>かえ</rt></ruby>っていきました。<ruby class="v1">和尚<rt>おしょう</rt></ruby>、<ruby class="v1">医者<rt>いしゃ</rt></ruby>が<ruby class="v1">帰<rt>かえ</rt></ruby>ったとたん、<ruby class="v1">急<rt>きゅう</rt></ruby>に<ruby class="v1">不安<rt>ふあん</rt></ruby>になってまいります。「<ruby class="v1">割<rt>わ</rt></ruby>れた」などと、<ruby class="v2">知<rt>し</rt></ruby>ったかぶりで<ruby class="v1">答<rt>こた</rt></ruby>えてしまったが、いったい<ruby class="v2">転失気<rt>てんしき</rt></ruby>とは<ruby class="v1">何<rt>なに</rt></ruby>なのか。<ruby class="v1">捨<rt>す</rt></ruby>て<ruby class="v1">置<rt>お</rt></ruby>くわけにもまいりません。そこで、<ruby class="v1">傍<rt>そば</rt></ruby>にいた<ruby class="v1">小僧<rt>こぞう</rt></ruby>の<ruby class="v2">珍念<rt>ちんねん</rt></ruby>を<ruby class="v1">呼<rt>よ</rt></ruby>びつけました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【医者への使い】</span>
+                    <strong>和尚：</strong>「<ruby class="v2">珍念<rt>ちんねん</rt></ruby>、<ruby class="v2">珍念<rt>ちんねん</rt></ruby>や。ちょいとお<ruby class="v1">使<rt>つか</rt></ruby>いを<ruby class="v1">頼<rt>たの</rt></ruby>まれておくれ」<br><strong>珍念：</strong>「へえ、なんでございましょう」<br><strong>和尚：</strong>「<ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>のところへ<ruby class="v1">行<rt>い</rt></ruby>ってな「<ruby class="v2">転失気<rt>てんしき</rt></ruby>とはなんでございますか」と、<ruby class="v1">聞<rt>き</rt></ruby>いてまいれ。ああ、それから、これは<ruby class="v1">和尚<rt>おしょう</rt></ruby>が<ruby class="v1">知<rt>し</rt></ruby>りたがっていたとは<ruby class="v1">言<rt>い</rt></ruby>うでないぞ。お<ruby class="v1">前<rt>まえ</rt></ruby>が<ruby class="v1">知<rt>し</rt></ruby>りたくて<ruby class="v1">聞<rt>き</rt></ruby>きに<ruby class="v1">来<rt>き</rt></ruby>た、ということにしておくのだぞ」<br><strong>珍念：</strong>「はい、かしこまりました」<br><ruby class="v2">珍念<rt>ちんねん</rt></ruby>、<ruby class="v1">素直<rt>すなお</rt></ruby>な<ruby class="v1">子<rt>こ</rt></ruby>でございますから、<ruby class="v1">言<rt>い</rt></ruby>われた<ruby class="v1">通<rt>とお</rt></ruby>り、<ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>のお<ruby class="v1">宅<rt>たく</rt></ruby>まで、とことこと<ruby class="v1">出<rt>で</rt></ruby>かけてまいりました。<br><strong>珍念：</strong>「<ruby class="v1">先生<rt>せんせい</rt></ruby>、<ruby class="v1">先生<rt>せんせい</rt></ruby>。お<ruby class="v1">伺<rt>うかが</rt></ruby>いしたいことがございます。<ruby class="v2">転失気<rt>てんしき</rt></ruby>とは、いったいなんでございますか？」<br><ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、この<ruby class="v1">問<rt>と</rt></ruby>いを<ruby class="v1">聞<rt>き</rt></ruby>いて、ピンときました。（さては、さっきの<ruby class="v1">和尚<rt>おしょう</rt></ruby>、<ruby class="v2">知<rt>し</rt></ruby>ったかぶりをしおったな……）
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【医者のからかい】</span>
+                    <ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、<ruby class="v1">内心<rt>ないしん</rt></ruby>にやりとしながらも、<ruby class="v1">和尚<rt>おしょう</rt></ruby>の<ruby class="v1">恥<rt>はじ</rt></ruby>をあらわに<ruby class="v1">笑<rt>わら</rt></ruby>ってやるほど、<ruby class="v1">野暮<rt>やぼ</rt></ruby>な<ruby class="v1">男<rt>おとこ</rt></ruby>ではございません。かえって、この<ruby class="v1">機会<rt>きかい</rt></ruby>に<ruby class="v1">一<rt>ひと</rt></ruby>つ、からかってやろうと<ruby class="v1">思<rt>おも</rt></ruby>いつきました。<br><strong>玄庵：</strong>「<ruby class="v2">珍念<rt>ちんねん</rt></ruby>や、よく<ruby class="v1">聞<rt>き</rt></ruby>きに<ruby class="v1">来<rt>き</rt></ruby>た。<ruby class="v2">転失気<rt>てんしき</rt></ruby>というのはな、<ruby class="v1">目<rt>め</rt></ruby>には<ruby class="v1">見<rt>み</rt></ruby>えぬ<ruby class="v1">尊<rt>とうと</rt></ruby>いものでな……そうさな、<ruby class="v1">酒<rt>さけ</rt></ruby>の<ruby class="v1">席<rt>せき</rt></ruby>で<ruby class="v1">使<rt>つか</rt></ruby>う、あの<ruby class="v2">盃<rt>さかずき</rt></ruby>のことを<ruby class="v1">言<rt>い</rt></ruby>うのじゃ。それも、<ruby class="v1">大層<rt>たいそう</rt></ruby><ruby class="v1">珍<rt>めずら</rt></ruby>しい、<ruby class="v1">値打<rt>ねう</rt></ruby>ちのある<ruby class="v2">盃<rt>さかずき</rt></ruby>でな」<br><strong>珍念：</strong>「へえ〜、<ruby class="v2">盃<rt>さかずき</rt></ruby>でございますか。それは<ruby class="v1">知<rt>し</rt></ruby>りませんでした」<br><strong>玄庵：</strong>「よいか、<ruby class="v1">和尚<rt>おしょう</rt></ruby>さまにも、そうお<ruby class="v1">伝<rt>つた</rt></ruby>え<ruby class="v1">申<rt>もう</rt></ruby>せ。ついでに、「<ruby class="v1">先生<rt>せんせい</rt></ruby>も、<ruby class="v2">転失気<rt>てんしき</rt></ruby>を<ruby class="v1">三<rt>みっ</rt></ruby>つほどお<ruby class="v1">持<rt>も</rt></ruby>ちだそうです」とでも<ruby class="v1">言<rt>い</rt></ruby>うておくとよい」<br><strong>珍念：</strong>「はい、かしこまりました。ありがとう<ruby class="v1">存<rt>ぞん</rt></ruby>じます」<br><ruby class="v2">珍念<rt>ちんねん</rt></ruby>、すっかり<ruby class="v1">感心<rt>かんしん</rt></ruby>して、<ruby class="v1">寺<rt>てら</rt></ruby>への<ruby class="v1">帰<rt>かえ</rt></ruby>り<ruby class="v1">道<rt>みち</rt></ruby>を<ruby class="v1">急<rt>いそ</rt></ruby>ぎました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【和尚、知ったかぶり】</span>
+                    <ruby class="v1">寺<rt>てら</rt></ruby>に<ruby class="v1">戻<rt>もど</rt></ruby>った<ruby class="v2">珍念<rt>ちんねん</rt></ruby>、さっそく<ruby class="v1">和尚<rt>おしょう</rt></ruby>に<ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げます。<br><strong>珍念：</strong>「<ruby class="v1">和尚<rt>おしょう</rt></ruby>さま、ただいま<ruby class="v1">戻<rt>もど</rt></ruby>りました。<ruby class="v2">転失気<rt>てんしき</rt></ruby>とは、<ruby class="v1">酒<rt>さけ</rt></ruby>を<ruby class="v1">飲<rt>の</rt></ruby>む<ruby class="v2">盃<rt>さかずき</rt></ruby>のことだそうにございます。<ruby class="v1">大層<rt>たいそう</rt></ruby><ruby class="v1">珍<rt>めずら</rt></ruby>しい、<ruby class="v1">値打<rt>ねう</rt></ruby>ちのある<ruby class="v2">盃<rt>さかずき</rt></ruby>だとか」<br><ruby class="v1">和尚<rt>おしょう</rt></ruby>、これを<ruby class="v1">聞<rt>き</rt></ruby>いて、<ruby class="v1">内心<rt>ないしん</rt></ruby>ほっと<ruby class="v1">胸<rt>むね</rt></ruby>をなでおろします。（なるほど、<ruby class="v2">盃<rt>さかずき</rt></ruby>か。それなら「<ruby class="v1">割<rt>わ</rt></ruby>れた」と<ruby class="v1">言<rt>い</rt></ruby>うても、<ruby class="v1">辻褄<rt>つじつま</rt></ruby>が<ruby class="v1">合<rt>あ</rt></ruby>う）<br><strong>和尚：</strong>「うむ、うむ。さすがはわし、よう<ruby class="v1">知<rt>し</rt></ruby>っておったであろう」<br>すっかり<ruby class="v1">気<rt>き</rt></ruby>をよくした<ruby class="v1">和尚<rt>おしょう</rt></ruby>、その<ruby class="v1">日<rt>ひ</rt></ruby>の<ruby class="v1">午後<rt>ごご</rt></ruby>に<ruby class="v1">訪<rt>たず</rt></ruby>ねてきた<ruby class="v1">隣寺<rt>となりてら</rt></ruby>の<ruby class="v1">和尚<rt>おしょう</rt></ruby>にも、<ruby class="v1">得意<rt>とくい</rt></ruby>げにこの<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">披露<rt>ひろう</rt></ruby>いたします。<br><strong>和尚：</strong>「いやなに、<ruby class="v2">転失気<rt>てんしき</rt></ruby>と<ruby class="v1">申<rt>もう</rt></ruby>しましてな、あれはたいそう<ruby class="v1">値打<rt>ねう</rt></ruby>ちのある<ruby class="v2">盃<rt>さかずき</rt></ruby>でしてな。<ruby class="v1">手前<rt>てまえ</rt></ruby>も<ruby class="v1">三<rt>みっ</rt></ruby>つほど<ruby class="v1">持<rt>も</rt></ruby>っておりましたが、この<ruby class="v1">間<rt>あいだ</rt></ruby>、<ruby class="v1">一<rt>ひと</rt></ruby>つ<ruby class="v1">割<rt>わ</rt></ruby>ってしまいましてな」<br><ruby class="v1">隣<rt>となり</rt></ruby>の<ruby class="v1">和尚<rt>おしょう</rt></ruby>も「ほほう〜〜、それは<ruby class="v1">惜<rt>お</rt></ruby>しいことを」と、<ruby class="v1">感心<rt>かんしん</rt></ruby>して<ruby class="v1">聞<rt>き</rt></ruby>いておりました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    そこへちょうど、<ruby class="v1">様子見<rt>ようすみ</rt></ruby>にとやってきたのが、<ruby class="v1">当<rt>とう</rt></ruby>の<ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>でございます。<br><strong>和尚：</strong>「これはこれは<ruby class="v1">先生<rt>せんせい</rt></ruby>、<ruby class="v1">良<rt>よ</rt></ruby>いところへ。<ruby class="v1">先生<rt>せんせい</rt></ruby>も<ruby class="v2">転失気<rt>てんしき</rt></ruby>をお<ruby class="v1">持<rt>も</rt></ruby>ちだそうで。<ruby class="v1">手前<rt>てまえ</rt></ruby>も<ruby class="v1">三<rt>みっ</rt></ruby>つほどございましたが、<ruby class="v1">先日<rt>せんじつ</rt></ruby>、<ruby class="v1">一<rt>ひと</rt></ruby>つ、すかしてしまいましてな」<br><ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、これを<ruby class="v1">聞<rt>き</rt></ruby>いて、<ruby class="v1">噴<rt>ふ</rt></ruby>き<ruby class="v1">出<rt>だ</rt></ruby>しそうになるのをぐっとこらえます。<br><strong>玄庵：</strong>「<ruby class="v1">和尚<rt>おしょう</rt></ruby>さま……<ruby class="v2">盃<rt>さかずき</rt></ruby>を、すかす、とは、また<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">方<rt>かた</rt></ruby>でございますな」<br>そこへ、そばに<ruby class="v1">控<rt>ひか</rt></ruby>えていた<ruby class="v2">珍念<rt>ちんねん</rt></ruby>が、<ruby class="v1">無邪気<rt>むじゃき</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>でひとこと。<br><strong>珍念：</strong>「<ruby class="v1">先生<rt>せんせい</rt></ruby>、この<ruby class="v1">間<rt>あいだ</rt></ruby><ruby class="v1">教<rt>おそ</rt></ruby>わった<ruby class="v1">通<rt>とお</rt></ruby>りにお<ruby class="v1">伝<rt>つた</rt></ruby>えしましたよ。<ruby class="v2">転失気<rt>てんしき</rt></ruby>は<ruby class="v2">盃<rt>さかずき</rt></ruby>だって」<br><ruby class="v2">玄庵<rt>げんあん</rt></ruby><ruby class="v1">先生<rt>せんせい</rt></ruby>、とうとうこらえきれずに<ruby class="v1">大笑<rt>おおわら</rt></ruby>い。<br><strong>玄庵：</strong>「いやいや<ruby class="v1">和尚<rt>おしょう</rt></ruby>さま、<ruby class="v2">盃<rt>さかずき</rt></ruby>が、すかす、わけがございません。すかしてしまうのは、<ruby class="v2">盃<rt>さかずき</rt></ruby>ではのうて……<ruby class="v1">近頃<rt>ちかごろ</rt></ruby>、お<ruby class="v1">腹<rt>なか</rt></ruby>の<ruby class="v1">具合<rt>ぐあい</rt></ruby>はいかがで？」<br><ruby class="v1">和尚<rt>おしょう</rt></ruby>、<ruby class="v1">真<rt>ま</rt></ruby>っ<ruby class="v1">赤<rt>か</rt></ruby>になって、しどろもどろ。<br><strong>和尚：</strong>「い、いや、その……それを<ruby class="v1">申<rt>もう</rt></ruby>されると、<ruby class="v1">面目<rt>めんぼく</rt></ruby><ruby class="v1">次第<rt>しだい</rt></ruby>もございません」<br>というわけで、<ruby class="v2">知<rt>し</rt></ruby>ったかぶりが<ruby class="v2">知<rt>し</rt></ruby>ったかぶりを<ruby class="v1">呼<rt>よ</rt></ruby>び、とんだ<ruby class="v1">落<rt>お</rt></ruby>ちがついたところで、<ruby class="v1">一席<rt>いっせき</rt></ruby>、これにてお<ruby class="v1">開<rt>ひら</rt></ruby>きとさせていただきます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. In this world, there's a certain kind of person who just can't stand to admit they don't know something. If they'd only say 'I don't know,' that would be the end of it — but because they can't bring themselves to say those words, they end up piling embarrassment on top of embarrassment. Doctors, priests, it makes no difference — everyone's the same in this regard. Today's tale is about exactly that: a case of not-knowing piled on not-knowing, until it turns into an almighty mess.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST AND HIS YOUNG ACOLYTE]</span>In a certain town temple lived a priest who fancied himself quite knowledgeable. One day he caught a bad cold and took to his bed, so he called in his regular doctor, a man named Gen'an. While taking the priest's pulse, Doctor Gen'an asked:<br><strong>Doctor:</strong> "Reverend, have you had a tenshiki lately?"<br>The priest had never heard the word 'tenshiki' in his life and had no idea what it meant. But admitting 'I don't know' would damage the dignity of a temple's head priest. So, putting on a composed face, he answered:<br><strong>Priest:</strong> "Ah, tenshiki — well, as it happens, one of mine broke just two or three days ago."<br>Gen'an gave a puzzled look but simply said, "I see," and left. The moment the doctor was gone, the priest grew anxious — he'd bluffed his way through with that answer about something 'breaking,' but what on earth was a tenshiki, really? He couldn't just leave it be, so he called over the young acolyte at his side, a boy named Chinnen.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ERRAND TO THE DOCTOR'S HOUSE]</span><strong>Priest:</strong> "Chinnen, oh Chinnen. I need you to run a little errand for me."<br><strong>Chinnen:</strong> "Yes sir, what is it?"<br><strong>Priest:</strong> "Go to Doctor Gen'an's house and ask him, 'What is a tenshiki?' Oh, and one more thing — don't say it's me who wants to know. Let him think you're the one who's curious."<br><strong>Chinnen:</strong> "Yes sir, understood."<br>Chinnen was an obedient boy, so he did exactly as told and trotted off to Doctor Gen'an's house.<br><strong>Chinnen:</strong> "Doctor, Doctor! I have something I'd like to ask you. What in the world is a tenshiki?"<br>The moment Gen'an heard the question, it clicked for him at once. (Ha — so that priest was bluffing earlier after all...)</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DOCTOR'S TEASING JOKE]</span>Doctor Gen'an smirked to himself, but he wasn't crude enough to expose the priest's ignorance outright and laugh in his face. Instead, he thought he'd have a bit of fun with the situation.<br><strong>Gen'an:</strong> "Well now, Chinnen, good of you to come ask. A tenshiki, you see, is a precious thing invisible to the eye... yes, it's the little cup used for sake at a banquet. And a rather rare, valuable cup at that."<br><strong>Chinnen:</strong> "Ohh, a sake cup! I never knew that."<br><strong>Gen'an:</strong> "Now, be sure to tell the priest exactly that. And while you're at it, add that the doctor himself owns about three tenshiki as well."<br><strong>Chinnen:</strong> "Yes sir, understood. Thank you very much."<br>Thoroughly impressed, Chinnen hurried back along the road to the temple.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST SAVES FACE]</span>Back at the temple, Chinnen wasted no time reporting to the priest.<br><strong>Chinnen:</strong> "Reverend, I'm back. A tenshiki is apparently a cup for drinking sake — a rather rare and valuable one at that."<br>Hearing this, the priest secretly breathed a sigh of relief. (Ah, a cup, is it. Then my line about it 'breaking' actually holds together after all.)<br><strong>Priest:</strong> "Mm, yes, indeed. Just as I thought — I knew it all along, didn't I."<br>Thoroughly pleased with himself, the priest, when a neighboring temple's priest came to visit that afternoon, proudly showed off this bit of knowledge.<br><strong>Priest:</strong> "Oh, it's nothing much, but there's this thing called a tenshiki — a most valuable sort of sake cup. I myself owned about three, but I'm afraid I broke one of them the other day."<br>The visiting priest listened, impressed. "My, my, what a shame that is."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Just then, who should arrive to check on the priest's condition but Doctor Gen'an himself.<br><strong>Priest:</strong> "Well, well, Doctor, perfect timing. I hear you own a tenshiki yourself. I had about three of my own, but I'm afraid I let one slip out just the other day."<br>Hearing this, Gen'an had to fight down the urge to burst out laughing.<br><strong>Gen'an:</strong> "Reverend... 'let one slip out' is a rather odd way to describe a cup, isn't it?"<br>At that moment, Chinnen, sitting quietly nearby, piped up with innocent honesty.<br><strong>Chinnen:</strong> "Doctor, I told him exactly what you taught me the other day — that a tenshiki is a cup!"<br>At last, Gen'an couldn't hold it in any longer and burst out laughing.<br><strong>Gen'an:</strong> "Now, now, Reverend, a cup can't very well 'slip out.' What slips out isn't a cup at all... tell me, how has your stomach been feeling lately?"<br>The priest turned bright red and stammered helplessly.<br><strong>Priest:</strong> "W-well, ah, that is... if you put it that way, I have no face left to show."<br>And so, with one bluff calling forth another bluff, the whole thing came tumbling down to its punchline — and on that note, I'll bring this story to a close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Dans ce monde, il existe une certaine sorte de personne qui ne supporte tout simplement pas d'admettre son ignorance. S'ils disaient simplement « je ne sais pas », tout s'arrêterait là — mais comme ils n'arrivent pas à prononcer ces mots, ils s'enfoncent dans un embarras toujours plus grand. Médecins, moines, peu importe leur rang, tous pareils. L'histoire d'aujourd'hui parle justement de cela : une ignorance qui s'empile sur une autre, jusqu'à devenir un joyeux désastre.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST AND HIS YOUNG ACOLYTE]</span>Dans le temple d'une certaine ville vivait un moine qui se croyait très savant. Un jour, un mauvais rhume le cloua au lit, et il fit venir son médecin habituel, un certain docteur Gen'an. Tout en prenant son pouls, le docteur Gen'an lui demanda :<br><strong>Médecin :</strong> « Révérend, avez-vous eu un tenshiki récemment ? »<br>Le moine n'avait jamais entendu ce mot de sa vie et n'en avait pas la moindre idée. Mais avouer « je ne sais pas » aurait entaché la dignité d'un père supérieur. Alors, prenant un air posé, il répondit :<br><strong>Moine :</strong> « Ah, un tenshiki — eh bien, justement, l'un des miens s'est brisé il y a deux ou trois jours. »<br>Gen'an eut un air perplexe mais se contenta de dire « Je vois » avant de partir. À peine le médecin parti, le moine se mit à paniquer : il avait bluffé avec cette histoire de chose « brisée », mais qu'était donc, au juste, un tenshiki ? Impossible de laisser cela ainsi. Il appela donc le jeune novice à ses côtés, un garçon nommé Chinnen.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ERRAND TO THE DOCTOR'S HOUSE]</span><strong>Moine :</strong> « Chinnen, oh Chinnen. J'ai une petite course à te confier. »<br><strong>Chinnen :</strong> « Oui, maître, de quoi s'agit-il ? »<br><strong>Moine :</strong> « Va chez le docteur Gen'an et demande-lui : "Qu'est-ce qu'un tenshiki ?" Ah, et surtout, ne dis pas que c'est moi qui veux savoir. Laisse-le croire que c'est toi qui es curieux. »<br><strong>Chinnen :</strong> « Oui, maître, entendu. »<br>Chinnen était un garçon obéissant, il fit donc exactement comme on le lui avait dit et trottina jusque chez le docteur Gen'an.<br><strong>Chinnen :</strong> « Docteur, Docteur ! J'ai une question à vous poser. Qu'est-ce donc qu'un tenshiki ? »<br>Dès qu'il entendit la question, tout devint clair pour Gen'an. (Ha, ainsi ce moine bluffait tout à l'heure...)</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DOCTOR'S TEASING JOKE]</span>Le docteur Gen'an eut un sourire intérieur, mais il n'était pas homme à humilier grossièrement le moine en révélant son ignorance au grand jour. Il préféra plutôt s'amuser un peu de la situation.<br><strong>Gen'an :</strong> « Eh bien, Chinnen, tu as bien fait de venir demander. Un tenshiki, vois-tu, est une chose précieuse, invisible à l'œil... oui, c'est cette petite coupe qu'on utilise pour le saké lors des banquets. Et une coupe plutôt rare et précieuse, en plus. »<br><strong>Chinnen :</strong> « Oh, une coupe à saké ! Je ne le savais pas. »<br><strong>Gen'an :</strong> « Bien, veille à bien rapporter cela au moine. Et pendant que tu y es, ajoute que le docteur lui-même en possède environ trois. »<br><strong>Chinnen :</strong> « Oui, entendu. Merci beaucoup. »<br>Tout impressionné, Chinnen se hâta de reprendre le chemin du temple.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST SAVES FACE]</span>De retour au temple, Chinnen se hâta de faire son rapport au moine.<br><strong>Chinnen :</strong> « Révérend, je suis de retour. Un tenshiki serait une coupe pour boire le saké — une coupe plutôt rare et précieuse, à ce qu'on dit. »<br>En entendant cela, le moine poussa un soupir de soulagement intérieur. (Ah, une coupe, donc. Alors ma remarque sur la chose "brisée" tient debout, après tout.)<br><strong>Moine :</strong> « Hmm, oui, en effet. Comme je le pensais — je le savais depuis le début, n'est-ce pas. »<br>Tout content de lui, le moine, lorsque le supérieur du temple voisin vint lui rendre visite cet après-midi-là, se vanta fièrement de ce savoir.<br><strong>Moine :</strong> « Oh, ce n'est rien, mais il existe une chose appelée tenshiki — une coupe à saké des plus précieuses. J'en possédais moi-même environ trois, mais j'en ai malheureusement brisé une l'autre jour. »<br>Le moine visiteur écouta, impressionné. « Ma foi, quel dommage. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Juste à ce moment, qui vint prendre des nouvelles du moine, sinon le docteur Gen'an lui-même.<br><strong>Moine :</strong> « Tiens, tiens, Docteur, quelle bonne visite. Il paraît que vous possédez aussi un tenshiki. J'en avais moi-même trois, mais j'en ai bien peur, l'autre jour, j'en ai laissé échapper un discrètement. »<br>En entendant cela, Gen'an dut lutter pour ne pas éclater de rire.<br><strong>Gen'an :</strong> « Révérend... "laisser échapper discrètement" est une bien étrange façon de parler d'une coupe, n'est-ce pas ? »<br>C'est alors que Chinnen, assis tranquillement à côté, lança innocemment une remarque.<br><strong>Chinnen :</strong> « Docteur, je lui ai dit exactement ce que vous m'avez appris l'autre jour — qu'un tenshiki est une coupe ! »<br>Cette fois, Gen'an ne put plus se retenir et éclata de rire.<br><strong>Gen'an :</strong> « Allons, allons, Révérend, une coupe ne peut pas "s'échapper discrètement". Ce qui s'échappe ainsi, ce n'est certainement pas une coupe... dites-moi, comment se porte votre ventre, ces derniers temps ? »<br>Le moine devint écarlate et bafouilla, désemparé.<br><strong>Moine :</strong> « E-eh bien, euh, c'est-à-dire... en le formulant ainsi, je n'ai plus aucune dignité à sauver. »<br>Et voilà comment un bluff en entraînant un autre finit par déboucher sur cette chute — et sur ce, je vais clore cette histoire.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. En este mundo existe cierto tipo de persona que no soporta admitir que no sabe algo. Si tan solo dijeran «no lo sé», ahí terminaría todo — pero como no logran pronunciar esas palabras, van acumulando vergüenza sobre vergüenza. Médicos, monjes, no importa el rango, todos igual. La historia de hoy trata justamente de eso: una ignorancia apilada sobre otra, hasta convertirse en un alegre disparate.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST AND HIS YOUNG ACOLYTE]</span>En el templo de cierto pueblo vivía un monje que se creía muy sabio. Un día, un fuerte resfriado lo obligó a guardar cama, así que llamó a su médico de confianza, el doctor Gen'an. Mientras le tomaba el pulso, el doctor Gen'an le preguntó:<br><strong>Médico:</strong> «Reverendo, ¿ha tenido usted un tenshiki últimamente?»<br>El monje jamás había oído esa palabra y no tenía idea de qué significaba. Pero admitir «no lo sé» dañaría la dignidad de un abad. Así que, con rostro sereno, respondió:<br><strong>Monje:</strong> «Ah, un tenshiki... pues resulta que se me rompió uno hace dos o tres días.»<br>Gen'an puso cara de extrañeza, pero solo dijo «Ya veo» y se marchó. En cuanto el médico se fue, el monje empezó a inquietarse: había fanfarroneado con eso de que «se rompió», pero ¿qué diablos era un tenshiki? No podía dejarlo así. Llamó entonces al joven aprendiz que tenía cerca, un muchacho llamado Chinnen.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ERRAND TO THE DOCTOR'S HOUSE]</span><strong>Monje:</strong> «Chinnen, oh Chinnen. Necesito que hagas un pequeño mandado.»<br><strong>Chinnen:</strong> «Sí, maestro, ¿de qué se trata?»<br><strong>Monje:</strong> «Ve a casa del doctor Gen'an y pregúntale: "¿Qué es un tenshiki?" Ah, y una cosa más: no digas que soy yo quien quiere saberlo. Deja que crea que eres tú el curioso.»<br><strong>Chinnen:</strong> «Sí, maestro, entendido.»<br>Chinnen era un muchacho obediente, así que hizo exactamente lo que le dijeron y trotó hasta la casa del doctor Gen'an.<br><strong>Chinnen:</strong> «¡Doctor, Doctor! Tengo algo que preguntarle. ¿Qué diablos es un tenshiki?»<br>En cuanto Gen'an oyó la pregunta, todo encajó de inmediato. (Vaya... así que aquel monje estaba fanfarroneando hace un rato...)</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE DOCTOR'S TEASING JOKE]</span>El doctor Gen'an sonrió para sus adentros, pero no era hombre tan grosero como para exponer la ignorancia del monje riéndose en su cara. En cambio, decidió divertirse un poco con la situación.<br><strong>Gen'an:</strong> «Vaya, Chinnen, hiciste bien en venir a preguntar. Un tenshiki, verás, es algo precioso e invisible a los ojos... sí, es esa copita que se usa para el sake en los banquetes. Y una copa bastante rara y valiosa, además.»<br><strong>Chinnen:</strong> «¡Oh, una copa de sake! No lo sabía.»<br><strong>Gen'an:</strong> «Bien, asegúrate de decírselo así al monje. Y ya que estás, añade que el propio doctor posee unas tres.»<br><strong>Chinnen:</strong> «Sí, entendido. Muchas gracias.»<br>Chinnen, muy impresionado, apuró el paso de regreso al templo.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PRIEST SAVES FACE]</span>De vuelta en el templo, Chinnen no perdió tiempo en informar al monje.<br><strong>Chinnen:</strong> «Reverendo, ya volví. Al parecer, un tenshiki es una copa para beber sake, y bastante rara y valiosa.»<br>Al oír esto, el monje suspiró de alivio para sus adentros. (Ah, una copa, vaya. Entonces lo de que "se rompió" sí tiene sentido, después de todo.)<br><strong>Monje:</strong> «Mmm, sí, claro. Tal como pensaba... yo lo sabía desde el principio, ¿no es cierto?»<br>Muy satisfecho consigo mismo, el monje, cuando el abad del templo vecino lo visitó esa tarde, presumió con orgullo de este conocimiento.<br><strong>Monje:</strong> «Ah, no es nada, pero existe algo llamado tenshiki, una copa de sake de lo más valiosa. Yo mismo tenía unas tres, pero lamentablemente rompí una el otro día.»<br>El monje visitante escuchó, impresionado. «Vaya, vaya, qué lástima.»</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Justo entonces, quien vino a ver cómo seguía el monje fue nada menos que el propio doctor Gen'an.<br><strong>Monje:</strong> «Vaya, vaya, Doctor, qué buena visita. Tengo entendido que usted también posee un tenshiki. Yo mismo tenía unos tres, pero me temo que el otro día se me escapó uno sin querer.»<br>Al oír esto, Gen'an tuvo que contenerse para no soltar la carcajada.<br><strong>Gen'an:</strong> «Reverendo... "escapársele" es una forma bastante rara de describir una copa, ¿no le parece?»<br>En ese momento, Chinnen, sentado tranquilamente cerca, soltó con inocente sinceridad:<br><strong>Chinnen:</strong> «¡Doctor, le dije exactamente lo que usted me enseñó el otro día, que un tenshiki es una copa!»<br>Por fin, Gen'an no pudo contenerse más y estalló en carcajadas.<br><strong>Gen'an:</strong> «Vamos, vamos, Reverendo, una copa no puede "escapársele" a nadie. Lo que se escapa así no es ninguna copa... dígame, ¿cómo ha estado su estómago últimamente?»<br>El monje se puso como un tomate y balbuceó sin saber qué decir.<br><strong>Monje:</strong> «B-bueno, esto... dicho así, no me queda ninguna dignidad que salvar.»<br>Y así, con una fanfarronada llamando a otra fanfarronada, todo terminó por venirse abajo en este desenlace... y con esto, doy por concluida la historia de hoy.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②和尚と珍念","③医者への使い","④医者のからかい","⑤和尚、知ったかぶり","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② The priest and his young acolyte","③ The errand to the doctor's house","④ The doctor's teasing joke","⑤ The priest saves face","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

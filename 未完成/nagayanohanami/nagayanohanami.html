@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>長屋の花見 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.6 ⚖️中堅</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">長屋の花見</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Nagaya no Hanami / Cherry Blossom Party</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②大家の誘い</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③お茶がお酒に</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④たくあんが卵に</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤形だけの花見酒</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。<ruby class="v1">貧乏<rt>びんぼう</rt></ruby>というのは<ruby class="v1">辛<rt>つら</rt></ruby>いようで、<ruby class="v1">存外<rt>ぞんがい</rt></ruby><ruby class="v1">陽気<rt>ようき</rt></ruby>なものでございましてね。<ruby class="v1">無<rt>な</rt></ruby>いなら<ruby class="v1">無<rt>な</rt></ruby>いなりに、<ruby class="v1">知恵<rt>ちえ</rt></ruby>と<ruby class="v1">洒落<rt>しゃれ</rt></ruby>で<ruby class="v1">乗<rt>の</rt></ruby>り<ruby class="v1">切<rt>き</rt></ruby>ってしまうのが、<ruby class="v1">江戸<rt>えど</rt></ruby>の<ruby class="v2">長屋<rt>ながや</rt></ruby>の<ruby class="v1">住人<rt>じゅうにん</rt></ruby>たち。<ruby class="v1">今日<rt>きょう</rt></ruby>は、そんな<ruby class="v1">貧乏<rt>びんぼう</rt></ruby><ruby class="v1">長屋<rt>ながや</rt></ruby>の<ruby class="v1">連中<rt>れんちゅう</rt></ruby>が、お<ruby class="v1">花見<rt>はなみ</rt></ruby>に<ruby class="v1">繰<rt>く</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>すという、<ruby class="v1">馬鹿馬鹿<rt>ばかばか</rt></ruby>しくも<ruby class="v1">温<rt>あたた</rt></ruby>かいお<ruby class="v1">噺<rt>はなし</rt></ruby>を一つ、お<ruby class="v1">付<rt>つ</rt></ruby>き<ruby class="v1">合<rt>あ</rt></ruby>いくださいまし。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【大家の誘い】</span>
+                    さる<ruby class="v2">長屋<rt>ながや</rt></ruby>に、<ruby class="v1">大家<rt>おおや</rt></ruby>さんがみんなを<ruby class="v1">呼<rt>よ</rt></ruby>び<ruby class="v1">集<rt>あつ</rt></ruby>めました。<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「おい、<ruby class="v1">店子<rt>たなこ</rt></ruby>の<ruby class="v1">諸君<rt>しょくん</rt></ruby>、いいことを<ruby class="v1">思<rt>おも</rt></ruby>いついたぞ。<ruby class="v1">明日<rt>あした</rt></ruby>はみんなで<ruby class="v1">上野<rt>うえの</rt></ruby>まで<ruby class="v1">花見<rt>はなみ</rt></ruby>に<ruby class="v1">繰<rt>く</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>そうじゃないか」<br>
+<ruby class="v1">店子<rt>たなこ</rt></ruby><ruby class="v1">一同<rt>いちどう</rt></ruby>：「花見？そりゃあ<ruby class="v1">結構<rt>けっこう</rt></ruby>ですが、うちらにゃそんな<ruby class="v1">余裕<rt>よゆう</rt></ruby>なんざありませんぜ」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「なぁに、<ruby class="v1">心配<rt>しんぱい</rt></ruby>いらんよ。<ruby class="v1">酒<rt>さけ</rt></ruby>やら<ruby class="v1">肴<rt>さかな</rt></ruby>やら、こっちで<ruby class="v1">全部<rt>ぜんぶ</rt></ruby><ruby class="v1">用意<rt>ようい</rt></ruby>してやる。おめぇたちはただ、<ruby class="v1">体<rt>からだ</rt></ruby>一つで<ruby class="v1">来<rt>く</rt></ruby>りゃいい」<br>
+そう<ruby class="v1">聞<rt>き</rt></ruby>いて<ruby class="v1">店子<rt>たなこ</rt></ruby>たちは<ruby class="v1">大喜<rt>おおよろこ</rt></ruby>び。ところが<ruby class="v1">翌日<rt>よくじつ</rt></ruby>、いざ<ruby class="v1">集<rt>あつ</rt></ruby>まってみると、<ruby class="v1">用意<rt>ようい</rt></ruby>されていたのは、なんとも<ruby class="v1">怪<rt>あや</rt></ruby>しげな<ruby class="v1">代物<rt>しろもの</rt></ruby>ばかりでございました。
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【お茶がお酒に】</span>
+                    <ruby class="v1">大家<rt>おおや</rt></ruby>さんが<ruby class="v1">得意気<rt>とくいげ</rt></ruby>に<ruby class="v1">差<rt>さ</rt></ruby>し<ruby class="v1">出<rt>だ</rt></ruby>した<ruby class="v1">徳利<rt>とっくり</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>て、<ruby class="v1">店子<rt>たなこ</rt></ruby>の一<ruby class="v1">人<rt>にん</rt></ruby>が<ruby class="v1">首<rt>くび</rt></ruby>をかしげます。<br>
+<strong>店子：</strong>「<ruby class="v1">大家<rt>おおや</rt></ruby>さん、これ……<ruby class="v1">色<rt>いろ</rt></ruby>は<ruby class="v1">酒<rt>さけ</rt></ruby>らしいですけど、<ruby class="v1">匂<rt>にお</rt></ruby>いがどうも<ruby class="v1">番茶<rt>ばんちゃ</rt></ruby>じゃありませんか？」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「これ、<ruby class="v1">大声<rt>おおごえ</rt></ruby>で<ruby class="v1">言<rt>い</rt></ruby>うでない。番茶を<ruby class="v1">薄<rt>うす</rt></ruby>い<ruby class="v1">色<rt>いろ</rt></ruby>に<ruby class="v1">染<rt>そ</rt></ruby>めて、酒だと<ruby class="v1">思<rt>おも</rt></ruby>って<ruby class="v1">飲<rt>の</rt></ruby>めば、それでいいんだ。<ruby class="v1">気持<rt>きも</rt></ruby>ちの<ruby class="v1">問題<rt>もんだい</rt></ruby>だよ、<ruby class="v1">気持<rt>きも</rt></ruby>ちの」<br>
+<strong>店子：</strong>「へえ、なるほど。じゃあこれは<ruby class="v1">正真正銘<rt>しょうしんしょうめい</rt></ruby>、<ruby class="v2">灘<rt>なだ</rt></ruby>の<ruby class="v1">酒<rt>さけ</rt></ruby>ってことで」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「そうだそうだ、<ruby class="v2">灘<rt>なだ</rt></ruby>の<ruby class="v1">生一本<rt>きいっぽん</rt></ruby>だ。さあ、<ruby class="v1">遠慮<rt>えんりょ</rt></ruby>なく<ruby class="v1">注<rt>つ</rt></ruby>ぎ<ruby class="v1">合<rt>あ</rt></ruby>おうじゃないか」<br>
+<ruby class="v1">一同<rt>いちどう</rt></ruby>は<ruby class="v1">杯<rt>さかずき</rt></ruby>を<ruby class="v1">取<rt>と</rt></ruby>り<ruby class="v1">出<rt>だ</rt></ruby>すと、まるで<ruby class="v1">本当<rt>ほんとう</rt></ruby>の<ruby class="v1">名酒<rt>めいしゅ</rt></ruby>でも<ruby class="v1">頂<rt>いただ</rt></ruby>くように、<ruby class="v1">大袈裟<rt>おおげさ</rt></ruby>な<ruby class="v1">手<rt>て</rt></ruby>つきで<ruby class="v1">注<rt>つ</rt></ruby>ぎ<ruby class="v1">合<rt>あ</rt></ruby>い、<ruby class="v1">大真面目<rt>おおまじめ</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>でぐいっとやりました。
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【たくあんが卵に】</span>
+                    <ruby class="v1">次<rt>つぎ</rt></ruby>に<ruby class="v1">大家<rt>おおや</rt></ruby>さんが<ruby class="v1">重箱<rt>じゅうばこ</rt></ruby>の<ruby class="v1">蓋<rt>ふた</rt></ruby>を<ruby class="v1">開<rt>あ</rt></ruby>けると、<ruby class="v1">中<rt>なか</rt></ruby>には<ruby class="v1">黄色<rt>きいろ</rt></ruby>いものが<ruby class="v1">並<rt>なら</rt></ruby>んでおりました。<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「さあさあ、こちらは<ruby class="v1">卵<rt>たまご</rt></ruby>の<ruby class="v1">黄身<rt>きみ</rt></ruby>だけを<ruby class="v1">使<rt>つか</rt></ruby>った<ruby class="v1">贅沢<rt>ぜいたく</rt></ruby>な<ruby class="v1">卵焼<rt>たまごや</rt></ruby>き<ruby class="v1">風<rt>ふう</rt></ruby>のものだ、<ruby class="v1">遠慮<rt>えんりょ</rt></ruby>なく<ruby class="v1">食<rt>た</rt></ruby>べてくれ」<br>
+<strong>店子：</strong>「へえ、いただきます……あれ？これ、なんだかポリポリして<ruby class="v1">歯応<rt>はごた</rt></ruby>えが<ruby class="v1">妙<rt>みょう</rt></ruby>ですね。それに、この<ruby class="v1">香<rt>かお</rt></ruby>り、<ruby class="v2">沢庵<rt>たくあん</rt></ruby>そのものじゃありませんか」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「これ、それを<ruby class="v1">言<rt>い</rt></ruby>っちゃあおしまいだ。<ruby class="v1">黄色<rt>きいろ</rt></ruby>くて、<ruby class="v1">四角<rt>しかく</rt></ruby>く<ruby class="v1">切<rt>き</rt></ruby>ってあれば、もう<ruby class="v1">立派<rt>りっぱ</rt></ruby>な<ruby class="v1">卵焼<rt>たまごや</rt></ruby>きだ」<br>
+<strong>店子：</strong>「なるほど、こっちの<ruby class="v1">薄<rt>うす</rt></ruby>い<ruby class="v1">桜色<rt>さくらいろ</rt></ruby>のは、さしずめ<ruby class="v2">蒲鉾<rt>かまぼこ</rt></ruby>ってわけですかい？」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「その<ruby class="v1">通<rt>とお</rt></ruby>りだ、<ruby class="v1">大根<rt>だいこん</rt></ruby>の<ruby class="v1">皮<rt>かわ</rt></ruby>だなんて<ruby class="v1">野暮<rt>やぼ</rt></ruby>なことは<ruby class="v1">言<rt>い</rt></ruby>いっこなしだよ」<br>
+<ruby class="v1">一同<rt>いちどう</rt></ruby>は<ruby class="v1">顔<rt>かお</rt></ruby>を<ruby class="v1">見合<rt>みあ</rt></ruby>わせながらも、<ruby class="v1">大真面目<rt>おおまじめ</rt></ruby>な<ruby class="v1">顔<rt>かお</rt></ruby>で「これはこれは<ruby class="v1">結構<rt>けっこう</rt></ruby>なお<ruby class="v1">味<rt>あじ</rt></ruby>で」なんて<ruby class="v1">言<rt>い</rt></ruby>いながら、パリポリと<ruby class="v2">沢庵<rt>たくあん</rt></ruby>を<ruby class="v1">頬張<rt>ほおば</rt></ruby>るのでございました。
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【形だけの花見酒】</span>
+                    そうこうしているうちに、<ruby class="v1">一人<rt>ひとり</rt></ruby>がすっかり<ruby class="v1">酔<rt>よ</rt></ruby>ったふりをして<ruby class="v1">千鳥足<rt>ちどりあし</rt></ruby>を<ruby class="v1">始<rt>はじ</rt></ruby>めます。<br>
+<strong>店子A：</strong>「いやぁ、<ruby class="v1">今日<rt>きょう</rt></ruby>は<ruby class="v1">飲<rt>の</rt></ruby>み<ruby class="v1">過<rt>す</rt></ruby>ぎたわい。おい、そこの<ruby class="v1">若<rt>わか</rt></ruby>い<ruby class="v1">衆<rt>しゅ</rt></ruby>、<ruby class="v1">肩<rt>かた</rt></ruby>を<ruby class="v1">貸<rt>か</rt></ruby>してくれ」<br>
+<strong>店子B：</strong>「よしなよ、そんなの、たかが<ruby class="v1">番茶<rt>ばんちゃ</rt></ruby>一<ruby class="v1">杯<rt>ぱい</rt></ruby>で<ruby class="v1">酔<rt>よ</rt></ruby>っ<ruby class="v1">払<rt>ぱら</rt></ruby>う<ruby class="v1">奴<rt>やつ</rt></ruby>があるか」<br>
+<strong>店子A：</strong>「なぁに、<ruby class="v1">気<rt>き</rt></ruby>は<ruby class="v1">心<rt>こころ</rt></ruby>ってやつだ。せめて<ruby class="v1">酔<rt>よ</rt></ruby>ったふりぐらいはさせてくれ、そのほうが<ruby class="v1">花見<rt>はなみ</rt></ruby>らしいだろう」<br>
+<ruby class="v1">別<rt>べつ</rt></ruby>の<ruby class="v1">店子<rt>たなこ</rt></ruby>は<ruby class="v1">扇子<rt>せんす</rt></ruby>を<ruby class="v1">広<rt>ひろ</rt></ruby>げて、こう<ruby class="v1">謡<rt>うた</rt></ruby>い<ruby class="v1">始<rt>はじ</rt></ruby>めました。<br>
+<strong>店子C：</strong>「え〜、<ruby class="v1">春<rt>はる</rt></ruby>のうららの……なんて、そういうことにしておこうじゃないか」<br>
+<ruby class="v1">頭上<rt>ずじょう</rt></ruby>の<ruby class="v1">桜<rt>さくら</rt></ruby>だけは<ruby class="v1">本物<rt>ほんもの</rt></ruby>で、<ruby class="v1">満開<rt>まんかい</rt></ruby>の<ruby class="v1">花<rt>はな</rt></ruby>びらがはらはらと<ruby class="v1">舞<rt>ま</rt></ruby>い<ruby class="v1">落<rt>お</rt></ruby>ちてくる<ruby class="v1">中<rt>なか</rt></ruby>、<ruby class="v1">長屋<rt>ながや</rt></ruby>の<ruby class="v1">連中<rt>れんちゅう</rt></ruby>はすっかり<ruby class="v1">形<rt>かたち</rt></ruby>だけの<ruby class="v1">花見酒<rt>はなみざけ</rt></ruby>を<ruby class="v1">楽<rt>たの</rt></ruby>しんでおりました。
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    しばらくすると、<ruby class="v1">一人<rt>ひとり</rt></ruby>の<ruby class="v1">店子<rt>たなこ</rt></ruby>が<ruby class="v1">徳利<rt>とっくり</rt></ruby>を<ruby class="v1">傾<rt>かたむ</rt></ruby>けて、しみじみと<ruby class="v1">呟<rt>つぶや</rt></ruby>きました。<br>
+<strong>店子：</strong>「いやぁしかし、<ruby class="v1">大家<rt>おおや</rt></ruby>さん、<ruby class="v1">正直<rt>しょうじき</rt></ruby>な<ruby class="v1">話<rt>はなし</rt></ruby>、これが<ruby class="v1">本物<rt>ほんもの</rt></ruby>の<ruby class="v1">酒<rt>さけ</rt></ruby>だったらもっとよかったですがねぇ」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「これ、<ruby class="v1">贅沢<rt>ぜいたく</rt></ruby>を<ruby class="v1">言<rt>い</rt></ruby>うでない。<ruby class="v1">花<rt>はな</rt></ruby>を<ruby class="v1">見<rt>み</rt></ruby>ながら<ruby class="v1">飲<rt>の</rt></ruby>めりゃ、それで<ruby class="v1">十分<rt>じゅうぶん</rt></ruby>じゃないか」<br>
+<strong>店子：</strong>「そりゃそうですが……あ、でも<ruby class="v1">大家<rt>おおや</rt></ruby>さん、一つだけ、この<ruby class="v1">番茶<rt>ばんちゃ</rt></ruby>の<ruby class="v1">方<rt>ほう</rt></ruby>が<ruby class="v1">本物<rt>ほんもの</rt></ruby>の<ruby class="v1">酒<rt>さけ</rt></ruby>よりいいところがありますよ」<br>
+<ruby class="v1">大家<rt>おおや</rt></ruby>：「ほう、<ruby class="v1">何<rt>なん</rt></ruby>だいそりゃ」<br>
+<strong>店子：</strong>「へえ、こいつぁ<ruby class="v1">いくら<rt>いくら</rt></ruby><ruby class="v1">飲<rt>の</rt></ruby>んでも<ruby class="v1">酔<rt>よ</rt></ruby>っ<ruby class="v1">払<rt>ぱら</rt></ruby>わない<ruby class="v1">上<rt>うえ</rt></ruby>に、なんと<ruby class="v1">言<rt>い</rt></ruby>ったって<ruby class="v1">御代<rt>おかわ</rt></ruby>りがきくときてる」<br>
+<ruby class="v1">一同<rt>いちどう</rt></ruby>：「<ruby class="v1">違<rt>ちが</rt></ruby>いない！」<br>
+どっと<ruby class="v1">笑<rt>わら</rt></ruby>い<ruby class="v1">声<rt>ごえ</rt></ruby>が<ruby class="v1">起<rt>お</rt></ruby>こり、<ruby class="v1">満開<rt>まんかい</rt></ruby>の<ruby class="v1">桜<rt>さくら</rt></ruby>の<ruby class="v1">下<rt>した</rt></ruby>、<ruby class="v1">貧乏<rt>びんぼう</rt></ruby>長屋の<ruby class="v1">花見<rt>はなみ</rt></ruby>は、なんとも<ruby class="v1">賑<rt>にぎ</rt></ruby>やかに<ruby class="v1">暮<rt>く</rt></ruby>れていったのでございます。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Poverty may sound miserable, but it's surprisingly cheerful once you're in it. Making do with wit and playful jokes when you have nothing — that was the way of the tenement dwellers of old Edo. Today's tale is a delightfully silly and warm-hearted one about a group of poor tenement neighbors who head out for a cherry blossom picnic.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LANDLORD'S INVITATION]</span>In a certain tenement, the landlord called everyone together. "Listen up, tenants, I've had a splendid idea. Tomorrow, let's all head out to Ueno for a cherry blossom picnic." The tenants replied, "A picnic? That sounds nice, but we can't afford anything like that." "Don't you worry about a thing. I'll provide all the sake and snacks myself — all you need to bring is your own two hands." Hearing this, the tenants were overjoyed. But the next day, once everyone had gathered, what had actually been prepared turned out to be a collection of highly suspicious substitutes.</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[TEA POSING AS SAKE]</span>Looking at the sake flask the landlord proudly held out, one of the tenants tilted his head. "Landlord, this... it looks like sake in color, but doesn't it smell an awful lot like cheap roasted tea?" "Shh, don't say that so loudly. As long as you dye the tea a pale color and drink it believing it's sake, that's all that matters. It's a matter of the heart, the heart." "Ah, I see. Then this is, without a doubt, the genuine article — fine sake from Nada." "That's right, that's right, pure unblended Nada sake. Come now, let's pour for each other without holding back." And so everyone took out their cups and, as if truly receiving a fine vintage, poured for one another with exaggerated ceremony, and downed it with the most solemn of faces.</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[PICKLES POSING AS FOOD]</span>Next, when the landlord lifted the lid of the tiered lacquer box, yellow things were lined up inside. "Now then, this is a luxurious egg-roll-style dish made using only egg yolks, please don't be shy about eating it." "Ah, thank you... wait a moment? This has such a strange crunchy texture. And this smell — isn't this just pickled radish?" "Now, now, saying that out loud ruins everything. If it's yellow and cut into squares, that makes it a perfectly respectable egg roll." "I see, so this pale pink piece here must be, say, fish cake?" "Exactly right — let's not be crude and mention anything about radish skin." Exchanging glances with one another, they nevertheless kept the most solemn faces, remarking "my, my, what a fine flavor this is" while crunching away happily on the pickled radish.</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[MAKE-BELIEVE MANNERS]</span>Before long, one of them began to stagger about, pretending to be thoroughly drunk. "Ah, I've had far too much to drink today. Hey, you there, young fellow, lend me your shoulder." "Oh, come off it, who gets drunk off a single cup of cheap tea?" "Now, now, it's the thought that counts. At least let me pretend to be drunk, it makes for a proper cherry blossom party, doesn't it?" Another tenant spread open a folding fan and began to sing. "Ahh, the balmy haze of spring... well, let's just say that's how it goes." Only the cherry blossoms overhead were real, and as the full-bloom petals came fluttering gently down, the tenement folk thoroughly enjoyed their make-believe blossom-viewing sake party.</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>After a while, one of the tenants tilted his sake flask and murmured wistfully. "Well, landlord, honestly speaking, this would've been even better if it were real sake." "Now, now, don't be so greedy. As long as you can drink while looking at the blossoms, isn't that enough?" "That's true enough, but... oh, landlord, there's one thing where this tea actually beats real sake." "Oh? And what would that be?" "Well, no matter how much you drink, you never get drunk — and on top of that, you can always get a refill!" "Can't argue with that!" A burst of laughter rose up, and beneath the cherry blossoms in full bloom, the poor tenement's cherry blossom party drew to a wonderfully lively close.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. La pauvreté peut sembler misérable, mais elle est étonnamment joyeuse une fois qu'on y est. Se débrouiller avec de l'esprit et des plaisanteries quand on n'a rien — c'était bien la manière des habitants des tenements du vieil Edo. L'histoire d'aujourd'hui est un récit délicieusement cocasse et chaleureux à propos d'un groupe de voisins pauvres partant pour un pique-nique sous les cerisiers en fleurs.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LANDLORD'S INVITATION]</span>Dans un certain quartier, le propriétaire réunit tout le monde. « Écoutez, chers locataires, j'ai eu une idée formidable. Demain, allons tous à Ueno pour un pique-nique sous les cerisiers en fleurs. » Les locataires répondirent : « Un pique-nique ? Ça a l'air sympa, mais on n'a pas les moyens pour un truc pareil. » « Ne vous inquiétez de rien. Je fournirai moi-même tout le saké et les mets — il vous suffit d'amener vos deux mains. » En entendant cela, les locataires furent ravis. Mais le lendemain, une fois tout le monde rassemblé, ce qui avait été préparé s'avéra n'être qu'une collection de substituts des plus suspects.</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[TEA POSING AS SAKE]</span>En regardant la fiole de saké que le propriétaire tendait fièrement, un des locataires pencha la tête. « Propriétaire, ceci... ça a la couleur du saké, mais ça ne sent pas un peu trop le thé grillé bon marché ? » « Chut, ne dis pas ça si fort. Tant que tu teins le thé d'une couleur pâle et que tu le bois en croyant que c'est du saké, c'est tout ce qui compte. C'est une question de cœur, de cœur. » « Ah, je vois. Alors ceci est, sans aucun doute, l'article authentique, du fin saké de Nada. » « C'est ça, c'est ça, du saké pur de Nada non coupé. Allons, servons-nous les uns les autres sans retenue. » Et tous sortirent leurs coupes et, comme s'ils recevaient vraiment un grand cru, se versèrent mutuellement avec une cérémonie exagérée, et l'avalèrent d'un air des plus solennels.</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[PICKLES POSING AS FOOD]</span>Ensuite, quand le propriétaire souleva le couvercle de la boîte laquée à étages, des choses jaunes étaient alignées à l'intérieur. « Alors, voici un plat luxueux façon omelette roulée fait uniquement de jaunes d'œufs, ne vous gênez pas pour en manger. » « Ah, merci... attendez un instant ? Ça a une texture croquante bien étrange. Et cette odeur, n'est-ce pas tout simplement du radis mariné ? » « Allons, allons, dire ça à voix haute gâche tout. Si c'est jaune et coupé en carrés, ça fait une omelette roulée tout à fait respectable. » « Je vois, alors ce morceau rose pâle ici doit être, disons, du gâteau de poisson ? » « Exactement — ne soyons pas grossiers en mentionnant la peau de radis. » Échangeant des regards entre eux, ils gardèrent néanmoins les visages les plus solennels, remarquant « ma foi, quelle belle saveur » tout en croquant joyeusement le radis mariné.</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[MAKE-BELIEVE MANNERS]</span>Peu après, l'un d'eux se mit à tituber, feignant d'être complètement ivre. « Ah, j'ai vraiment trop bu aujourd'hui. Hé, toi là-bas, jeune homme, prête-moi ton épaule. » « Oh, arrête un peu, qui se saoule avec une seule tasse de thé bon marché ? » « Allons, allons, c'est l'intention qui compte. Laisse-moi au moins faire semblant d'être ivre, ça rend le pique-nique plus authentique, non ? » Un autre locataire déploya un éventail et commença à chanter. « Ahh, la brume tiède du printemps... bon, disons que c'est ainsi que ça se passe. » Seuls les cerisiers au-dessus d'eux étaient réels, et tandis que les pétales en pleine floraison voltigeaient doucement, les habitants du quartier profitaient pleinement de leur fête du saké de façade sous les cerisiers.</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Après un moment, un des locataires pencha sa fiole de saké et murmura avec nostalgie. « Eh bien, propriétaire, honnêtement, ç'aurait été encore mieux si c'était du vrai saké. » « Allons, allons, ne sois pas si gourmand. Tant qu'on peut boire en regardant les fleurs, n'est-ce pas suffisant ? » « C'est bien vrai, mais... oh, propriétaire, il y a une chose où ce thé bat vraiment le vrai saké. » « Oh ? Et qu'est-ce donc ? » « Eh bien, peu importe la quantité qu'on en boit, on ne se saoule jamais, et en plus, on peut toujours se resservir ! » « On ne peut pas dire le contraire ! » Un éclat de rire général s'éleva, et sous les cerisiers en pleine floraison, la fête sous les cerisiers du pauvre quartier se termina de la manière la plus animée qui soit.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. La pobreza puede sonar miserable, pero es sorprendentemente alegre una vez que uno está dentro de ella. Arreglárselas con ingenio y bromas cuando no se tiene nada, esa era la manera de los habitantes de las viviendas populares del viejo Edo. La historia de hoy es un relato deliciosamente disparatado y entrañable sobre un grupo de vecinos pobres que salen de picnic a ver los cerezos en flor.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LANDLORD'S INVITATION]</span>En cierta vivienda popular, el casero reunió a todos. «Escuchen, inquilinos, se me ha ocurrido una idea espléndida. Mañana vayamos todos a Ueno a un picnic para ver los cerezos en flor.» Los inquilinos respondieron: «¿Un picnic? Suena bien, pero no podemos permitirnos algo así.» «No se preocupen por nada. Yo mismo proveeré todo el sake y los aperitivos, solo necesitan traer sus propias manos.» Al oír esto, los inquilinos se alegraron muchísimo. Pero al día siguiente, una vez que todos se reunieron, lo que en realidad habían preparado resultó ser una colección de sustitutos de lo más sospechosos.</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[TEA POSING AS SAKE]</span>Mirando la botella de sake que el casero sostenía orgullosamente, uno de los inquilinos ladeó la cabeza. «Casero, esto... tiene color de sake, pero ¿no huele demasiado a té tostado barato?» «Shh, no lo digas tan alto. Mientras tiñas el té de un color pálido y lo bebas creyendo que es sake, eso es lo único que importa. Es cuestión de actitud, de actitud.» «Ah, ya veo. Entonces esto es, sin duda alguna, el artículo genuino, sake fino de Nada.» «Así es, así es, sake puro de Nada sin mezclar. Vamos, sirvámonos unos a otros sin reparos.» Y todos sacaron sus copas y, como si de verdad estuvieran recibiendo un vino exquisito, se sirvieron mutuamente con ceremonia exagerada, y lo bebieron de un trago con las caras más solemnes.</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[PICKLES POSING AS FOOD]</span>Después, cuando el casero levantó la tapa de la caja lacada de niveles, había cosas amarillas alineadas dentro. «Bien, esto es un lujoso plato estilo tortilla enrollada hecho solo con yemas de huevo, no se contengan al comerlo.» «Ah, gracias... ¿un momento? Esto tiene una textura crujiente bien extraña. Y este olor, ¿no es simplemente rábano encurtido?» «Vamos, vamos, decir eso en voz alta lo arruina todo. Si es amarillo y está cortado en cuadrados, eso lo convierte en una tortilla enrollada de lo más respetable.» «Ya veo, entonces este trozo rosa pálido de aquí debe ser, digamos, pastel de pescado?» «Exactamente, no seamos groseros mencionando la piel del rábano.» Intercambiando miradas entre ellos, mantuvieron de todos modos las caras más solemnes, comentando «vaya, vaya, qué sabor tan fino» mientras masticaban alegremente el rábano encurtido.</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[MAKE-BELIEVE MANNERS]</span>Poco después, uno de ellos empezó a tambalearse, fingiendo estar completamente borracho. «Ah, hoy he bebido demasiado. Oye, tú, joven, préstame tu hombro.» «Ay, vamos, ¿quién se emborracha con una sola taza de té barato?» «Vamos, vamos, es la intención lo que cuenta. Al menos déjame fingir que estoy borracho, así el picnic parece más auténtico, ¿no?» Otro inquilino desplegó un abanico y empezó a cantar. «Ahh, la bruma tibia de la primavera... bueno, digamos que así son las cosas.» Solo los cerezos sobre sus cabezas eran reales, y mientras los pétalos en plena floración caían suavemente revoloteando, la gente de la vivienda popular disfrutaba plenamente de su fiesta de sake de mentira bajo los cerezos.</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span>Al cabo de un rato, uno de los inquilinos inclinó su botella de sake y murmuró con nostalgia. «Bueno, casero, honestamente, esto habría sido aún mejor si fuera sake de verdad.» «Vamos, vamos, no seas tan ambicioso. Mientras se pueda beber mirando las flores, ¿no es suficiente?» «Eso es bien cierto, pero... ah, casero, hay una cosa en la que este té realmente le gana al sake de verdad.» «¿Ah, sí? ¿Y cuál sería?» «Pues bien, no importa cuánto se beba, uno nunca se emborracha, y además, siempre se puede pedir más!» «¡No se puede negar eso!» Se alzó una carcajada general, y bajo los cerezos en plena floración, la fiesta de los cerezos de la pobre vivienda popular llegó a un final de lo más animado y alegre.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②大家の誘い","③お茶がお酒に","④たくあんが卵に","⑤形だけの花見酒","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② The landlord's invitation","③ Tea posing as sake","④ Pickles posing as food","⑤ Make-believe manners","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>

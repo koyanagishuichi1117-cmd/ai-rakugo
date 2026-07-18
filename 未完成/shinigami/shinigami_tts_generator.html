@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>死神 TTS ジェネレーター</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+    .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+    input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
+    .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
+    .part-badge.done { background: #d1fae5; color: #065f46; }
+    .part-badge.active { background: #fef3c7; color: #92400e; }
+    .part-badge.error { background: #fee2e2; color: #991b1b; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🎙️ 死神 TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
+
+<div class="api-row">
+  <label style="font-size:13px;white-space:nowrap">APIキー：</label>
+  <input type="text" id="apiKey" placeholder="AIza..." />
+</div>
+
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
+</div>
+
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
+
+<script>
+const langConfig = {
+  'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
+  'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
+  'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
+  'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
+};
+
+const jaScripts = [
+  { id:'p1', title:"①まくら", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>え〜、一席申し上げますが。<break time='500ms'/>世の中には、金があっても幸せになれない人もあれば、貧乏のどん底にいても、ふとしたきっかけで運が開けるという人もございます。<break time='600ms'/>今日はそんな、運のいいんだか悪いんだか、よくわからない男の噺を一つ、申し上げます。<break time='500ms'/>人は誰しも、いつかはお迎えが来る。<break time='400ms'/>そのお迎えを寄こすのが、他でもない死神様というわけでございますが、<break time='300ms'/>この死神、噺の中ではなかなか人間くさい、面白いお方でしてね。<break time='700ms'/></prosody></speak>" },
+  { id:'p2', title:"②死神現る", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>昔、ある町に、腕はいいが運に見放された男がおりました。<break time='400ms'/>仕事もうまくいかず、借金ばかりが増えて、とうとう今夜首をくくろうかというところまで追い詰められておりました。<break time='500ms'/>とぼとぼと河原まで歩いてまいりますと、暗闇の中に、痩せた老人がぬぼーっと立っております。<break time='500ms'/></prosody><prosody rate='115%' pitch='+1st'>お前さんは、一体何者だい<break time='400ms'/></prosody><prosody rate='90%' pitch='-3st'>わしは死神だ。お前の命を狙いに来たわけではない。お前の顔を見ていたら、なんだか面白くなってな<break time='500ms'/></prosody><prosody rate='118%' pitch='+1st'>面白いはないでしょう。こっちは首をくくろうって時に<break time='400ms'/></prosody><prosody rate='92%' pitch='-3st'>まあ待て。お前、金がほしいだろう<break time='400ms'/></prosody><prosody rate='120%' pitch='+1st'>そりゃあ、喉から手が出るほど欲しいですよ<break time='400ms'/></prosody><prosody rate='90%' pitch='-3st'>ならば、いいことを教えてやろう<break time='600ms'/></prosody></speak>" },
+  { id:'p3', title:"③呪文伝授", ssml:true, text:"<speak><prosody rate='90%' pitch='-3st'>人が病に倒れた時、死神ってのはな、必ずその枕元にいるもんだ。<break time='400ms'/>頭の方に座っていれば、そいつはもう助からない。だが、足元に座っていれば、まだ助けられる<break time='500ms'/></prosody><prosody rate='115%' pitch='+1st'>へえ、足元に座ってたら、助かるんですかい<break time='400ms'/></prosody><prosody rate='90%' pitch='-3st'>その時は、こう呪文を唱えて、こうやって手を叩くのよ。あじゃらもくれん、てけれっつのぱあ、とな。<break time='400ms'/>そうすりゃ死神は消えて、病人はたちどころに治る<break time='500ms'/></prosody><prosody rate='105%' pitch='0st'>男が半信半疑で唱えてみせると、死神はにやりと笑って姿を消してしまいました。<break time='400ms'/>次の日から、男はこの呪文を使って、あちこちの病人を診て回ることにしたのでございます。<break time='600ms'/></prosody></speak>" },
+  { id:'p4', title:"④名医誕生", ssml:true, text:"<speak><prosody rate='110%' pitch='0st'>それからというもの、男は、あの医者にかかれば必ず治る、と評判になり、たちまち江戸中に名前が知れ渡りました。<break time='500ms'/>大名や大商人の屋敷から次々と迎えが来て、男は瞬く間に大金持ちになりました。<break time='500ms'/>立派な屋敷を構え、綺麗な着物を着て、贅沢な暮らしを送るようになったのでございます。<break time='600ms'/></prosody><prosody rate='102%' pitch='-1st'>ところが、贅沢に慣れるとは恐ろしいもので、男はだんだんと欲深く、そして横着になってまいりました。<break time='600ms'/></prosody></speak>" },
+  { id:'p5', title:"⑤大金の誘惑", ssml:true, text:"<speak><prosody rate='105%' pitch='0st'>ある日のこと、名の知れた大商人の使いが訪れ、<break time='300ms'/></prosody><prosody rate='112%' pitch='+1st'>うちの旦那様が重い病でございます。もし治していただけたら、三千両差し上げましょう<break time='400ms'/></prosody><prosody rate='105%' pitch='0st'>と申します。三千両といえば、一生遊んで暮らせるほどの大金。<break time='400ms'/>男は勇んで屋敷に駆けつけましたが、寝床をのぞくと、案の定、死神が病人の枕元にちょこんと座っております。<break time='500ms'/>これはもう助からない、という証。<break time='500ms'/></prosody><prosody rate='115%' pitch='+2st'>しかし三千両を目の前にして、男の頭からは色気が離れません。<break time='600ms'/></prosody></speak>" },
+  { id:'p6', title:"⑥寝床を回す", ssml:true, text:"<speak><prosody rate='108%' pitch='0st'>男は一計を案じました。<break time='300ms'/>死神がふっと居眠りをして目を離した隙に、屋敷の若い衆にそっと命じて、病人の寝ている布団ごと、そろりそろりと百八十度回させたのでございます。<break time='500ms'/>死神が目を覚ました時には、あべこべに、自分が病人の足元に座っていることになっている。<break time='500ms'/>男はここぞとばかりに呪文を唱え、パンと手を打ちました。<break time='300ms'/></prosody><prosody rate='125%' pitch='+2st'>あじゃらもくれん、てけれっつのぱあ！<break time='500ms'/></prosody><prosody rate='108%' pitch='0st'>たちまち死神の姿はかき消え、病人はむっくりと起き上がって、すっかり元気になったのでございます。<break time='400ms'/>男はまんまと三千両を懐にいたしました。<break time='600ms'/></prosody></speak>" },
+  { id:'p7', title:"⑦蝋燭の洞窟", ssml:true, text:"<speak><prosody rate='95%' pitch='-1st'>その夜のこと、男の元へ死神がすうっと現れました。その顔は、これまでとは違って、なんとも底冷えのするような静けさでございます。<break time='600ms'/></prosody><prosody rate='85%' pitch='-4st'>よくも謀ったな。ついてこい<break time='700ms'/></prosody><prosody rate='100%' pitch='-1st'>気がつくと男は、見渡す限り蝋燭の灯る、広大な洞窟の中に立っておりました。<break time='600ms'/></prosody><prosody rate='83%' pitch='-4st'>これはな、この世に生きる者すべての、命の灯火よ。長いのもあれば、短いのもある。お前の分は、これだ<break time='700ms'/></prosody><prosody rate='95%' pitch='-1st'>死神が指し示した先には、今にも消え入りそうな、燃え尽き寸前の短い蝋燭が一本。<break time='600ms'/></prosody><prosody rate='118%' pitch='+2st'>そんな、待ってくれ、まだ死にたくない<break time='500ms'/></prosody><prosody rate='83%' pitch='-4st'>ふん、まあいい。お前のその震える手で、あの新しい蝋燭に、この火を移せたなら、命を長らえさせてやろう<break time='700ms'/></prosody><prosody rate='97%' pitch='-1st'>男は震える手で、消えかけた蝋燭を持ち上げ、新しい蝋燭にそっと近づけます。<break time='600ms'/></prosody><prosody rate='90%' pitch='+1st'>ちょっと待ってくれ、もう少し、もう少しで<break time='300ms'/></prosody><prosody rate='80%' pitch='-2st'>その声は、暗い洞窟の中に、ふっと吸い込まれるように消えていったのでございます。<break time='800ms'/></prosody></speak>" }
+];
+
+const otherScripts = {
+  'en': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Well now, let me tell you a story. In this world, some people have plenty of money and still aren’t happy, while others are dirt poor yet somehow have their luck turn around out of nowhere. Today I’ll tell you about one such man — whether he was lucky or unlucky, it’s hard to say. Sooner or later, everyone gets a visit from the other side, and the one who comes to fetch you is none other than the Grim Reaper himself, Shinigami. But in this tale, our Shinigami turns out to be a surprisingly human, even amusing fellow." },
+    { id:'p2', title:"②死神現る", ssml:false, text:"Long ago, in a certain town, there lived a man skilled at his trade but utterly abandoned by luck. His work fell apart, his debts piled higher and higher, until one night he found himself walking to the riverbank, ready to end it all by hanging himself. As he trudged along in the darkness, a gaunt old man appeared, looming out of nowhere. Man: “Just who in blazes are you?” Old man: “I am Shinigami, the god of death. I haven’t come for your life. Watching your face, I simply found you… amusing.” Man: “Amusing? I’m about to hang myself here!” Shinigami: “Now, now. You want money, don’t you?” Man: “Of course I do — I want it so badly it hurts.” Shinigami: “Then let me teach you something useful.”" },
+    { id:'p3', title:"③呪文伝授", ssml:false, text:"Shinigami: “Whenever a person falls gravely ill, a death-god like me is always sitting somewhere near their pillow. If I’m sitting at the head, that person cannot be saved. But if I’m sitting at the feet, they can still be cured.” Man: “Really? If you’re sitting at the feet, they can be saved?” Shinigami: “In that case, you chant these words and clap your hands just so: ‘Ajara-mokuren, tekeretsu-no-pa.’ Do that, and the death-god vanishes, and the patient recovers instantly.” Half-doubting, the man tried the chant aloud, and Shinigami gave a sly grin before vanishing into thin air. From the very next day, the man began going from house to house, using this chant to examine the sick." },
+    { id:'p4', title:"④名医誕生", ssml:false, text:"From that day on, word spread that ‘anyone this doctor treats always recovers,’ and before long his name was known throughout all of Edo. Summons came pouring in from the mansions of great lords and wealthy merchants, and in no time the man became fabulously rich. He built himself a grand house, dressed in fine silk robes, and lived a life of pure luxury. But getting used to luxury is a frightening thing — little by little, the man grew greedy, and careless with it." },
+    { id:'p5', title:"⑤大金の誘惑", ssml:false, text:"One day, a messenger from a famous, wealthy merchant came calling: ‘My master is gravely ill. If you can cure him, we will pay you three thousand ryo.’ Three thousand ryo was a fortune large enough to live in idle luxury for the rest of one’s life. Eager, the man rushed to the mansion — but the moment he peeked at the sickbed, sure enough, there sat Shinigami, perched right at the patient’s pillow. That was the sign: this man could not be saved. And yet, with three thousand ryo dangling before his eyes, greed refused to let go of the man’s mind." },
+    { id:'p6', title:"⑥寝床を回す", ssml:false, text:"So the man hatched a scheme. The instant Shinigami dozed off for a moment, distracted, he quietly signaled the young servants of the house, who ever so slowly turned the patient’s whole futon around a full hundred and eighty degrees. When Shinigami woke, the positions were reversed — now he found himself sitting, unknowingly, at the patient’s feet. Seizing the moment, the man chanted the spell and clapped his hands: ‘Ajara-mokuren, tekeretsu-no-pa!’ In an instant Shinigami’s form vanished, the patient sat bolt upright, fully recovered, and the man walked off with three thousand ryo tucked snugly in his robes." },
+    { id:'p7', title:"⑦蝋燭の洞窟", ssml:false, text:"That very night, Shinigami appeared before the man, silent as a draft of cold air. His face was unlike anything the man had seen before — chillingly, bottomlessly calm. Shinigami: “So you tricked me. Come with me.” Before he knew it, the man found himself standing inside a vast cavern, candles burning as far as the eye could see. Shinigami: “These are the flames of life of every soul living in this world. Some burn long, some burn short. Yours… is this one.” Where Shinigami pointed stood a single short candle, guttering, on the very verge of going out. Man: “Wait — please, I’m not ready to die yet!” Shinigami: “Heh. Very well. If those trembling hands of yours can transfer this flame to that fresh new candle over there, I’ll let your life continue.” With shaking hands, the man lifted the dying stub and brought it slowly toward the new candle. Man: “Just… wait, just a little more, just a little…” And with that, his voice trailed off, swallowed into the darkness of the cavern, never to be heard again." }
+  ],
+  'fr': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Eh bien, laissez-moi vous raconter une histoire. En ce bas monde, certains ont de l’argent mais ne trouvent pas le bonheur, tandis que d’autres, tout au fond de la pauvreté, voient soudain leur chance tourner. Aujourd’hui, je vais vous parler d’un homme dont on ne sait trop s’il fut chanceux ou malchanceux. Tout le monde, un jour ou l’autre, reçoit la visite de l’au-delà, et celui qui vient nous chercher n’est autre que le dieu de la mort, Shinigami. Mais dans cette histoire, notre Shinigami se révèle être un personnage étonnamment humain, et même assez amusant." },
+    { id:'p2', title:"②死神現る", ssml:false, text:"Il y a bien longtemps, dans une certaine ville, vivait un homme habile dans son métier mais totalement abandonné par la chance. Son travail périclitait, ses dettes ne cessaient de grossir, si bien qu’un soir il se retrouva à marcher vers la berge, décidé à se pendre. Tandis qu’il avançait péniblement dans l’obscurité, un vieillard décharné apparut, surgissant de nulle part. L’homme : « Mais qui diable es-tu ? » Le vieillard : « Je suis Shinigami, le dieu de la mort. Je ne suis pas venu pour ta vie. En regardant ton visage, je t’ai trouvé… amusant. » L’homme : « Amusant ? Je suis sur le point de me pendre ! » Shinigami : « Allons, allons. Tu veux de l’argent, n’est-ce pas ? » L’homme : « Bien sûr que oui — j’en veux à en créver. » Shinigami : « Alors laisse-moi t’apprendre quelque chose d’utile. »" },
+    { id:'p3', title:"③呪文伝授", ssml:false, text:"Shinigami : « Quand une personne tombe gravement malade, un dieu de la mort comme moi se trouve toujours quelque part près de son chevet. Si je suis assis à sa tête, cette personne ne peut être sauvée. Mais si je suis assis à ses pieds, elle peut encore guérir. » L’homme : « Vraiment ? Si tu es assis aux pieds, on peut la sauver ? » Shinigami : « Dans ce cas, tu récites ces mots et tu frappes des mains ainsi : “Ajara-mokuren, tekeretsu-no-pa.” Fais cela, et le dieu de la mort disparaît, et le malade guérit sur-le-champ. » À moitié incrédule, l’homme essaya la formule à voix haute, et Shinigami eut un sourire narquois avant de s’évanouir dans les airs. Dès le lendemain, l’homme se mit à parcourir les maisons, utilisant ce sortilège pour examiner les malades." },
+    { id:'p4', title:"④名医誕生", ssml:false, text:"Dès lors, la rumeur se répandit que « quiconque ce médecin soigne guérit toujours », et bientôt son nom fut connu dans tout Edo. Les convocations affluèrent des demeures des grands seigneurs et des riches marchands, et l’homme devint en un rien de temps fabuleusement riche. Il se fit construire une grande maison, s’habilla de soieries fines, et mena une vie de pur luxe. Mais s’habituer au luxe est chose redoutable — peu à peu, l’homme devint cupide, et négligent avec cela." },
+    { id:'p5', title:"⑤大金の誘惑", ssml:false, text:"Un jour, un messager d’un célèbre et riche marchand vint le trouver : « Mon maître est gravement malade. Si vous pouvez le guérir, nous vous verserons trois mille ryôs. » Trois mille ryôs, c’était une fortune suffisante pour vivre dans l’oisiveté et le luxe le reste de sa vie. Impatient, l’homme se précipita vers la demeure — mais dès qu’il jeta un œil au lit du malade, effectivement, Shinigami était assis, bien installé, à son chevet. C’était le signe : cet homme ne pouvait être sauvé. Et pourtant, avec trois mille ryôs suspendus devant ses yeux, la cupidité refusait de lâcher l’esprit de l’homme." },
+    { id:'p6', title:"⑥寝床を回す", ssml:false, text:"L’homme échafauda alors un stratagème. Dès que Shinigami somnola un instant, distrait, il fit signe discrètement aux jeunes serviteurs de la maison, qui firent tourner tout doucement le futon du malade d’un demi-tour complet. Quand Shinigami se réveilla, les positions étaient inversées — le voilà assis, sans le savoir, aux pieds du malade. Saisissant l’instant, l’homme récita la formule et frappa des mains : « Ajara-mokuren, tekeretsu-no-pa ! » En un instant, la silhouette de Shinigami s’évanouit, le malade se redressa d’un bond, complètement rétabli, et l’homme repartit avec trois mille ryôs bien calés dans ses habits." },
+    { id:'p7', title:"⑦蝋燭の洞窟", ssml:false, text:"Cette nuit-là, Shinigami apparut devant l’homme, silencieux comme un courant d’air froid. Son visage n’avait rien de commun avec ce que l’homme avait vu jusqu’alors — d’un calme glacial et insondable. Shinigami : « Ainsi, tu m’as trompé. Suis-moi. » Avant qu’il ne s’en rende compte, l’homme se retrouva debout dans une vaste caverne, des bougies brûlant à perte de vue. Shinigami : « Voici les flammes de vie de chaque âme vivant en ce monde. Certaines brûlent longtemps, d’autres brièvement. La tienne… c’est celle-ci. » Là où Shinigami pointait se dressait une courte bougie, vacillante, sur le point de s’éteindre. L’homme : « Attends — je t’en prie, je ne suis pas prêt à mourir ! » Shinigami : « Hmph. Soit. Si tes mains tremblantes parviennent à transférer cette flamme sur cette bougie neuve là-bas, je laisserai ta vie continuer. » Les mains tremblantes, l’homme souleva le mégot mourant et l’approcha lentement de la bougie neuve. L’homme : « Attends… encore un peu, juste encore un peu… » Et sur ces mots, sa voix s’éteignit, englouti par l’obscurité de la caverne, pour ne plus jamais se faire entendre." }
+  ],
+  'es': [
+    { id:'p1', title:"①まくら", ssml:false, text:"Bueno, permítanme contarles una historia. En este mundo, hay quienes tienen dinero pero no encuentran la felicidad, y hay quienes, en lo más hondo de la pobreza, ven de pronto cambiar su suerte por puro azar. Hoy les hablaré de un hombre así, del que no se sabe bien si tuvo buena o mala suerte. Tarde o temprano, a todos nos llega la visita del más allá, y quien viene a buscarnos no es otro que el dios de la muerte, Shinigami. Pero en esta historia, nuestro Shinigami resulta ser un personaje sorprendentemente humano, y hasta gracioso." },
+    { id:'p2', title:"②死神現る", ssml:false, text:"Hace mucho tiempo, en cierto pueblo, vivía un hombre hábil en su oficio pero completamente abandonado por la suerte. Su trabajo se desmoronaba, sus deudas no dejaban de crecer, hasta que una noche se encontró caminando hacia la orilla del río, decidido a ahorcarse. Mientras avanzaba penosamente en la oscuridad, apareció un anciano demacrado, surgido de la nada. Hombre: «Quién demonios eres tú?» Anciano: «Soy Shinigami, el dios de la muerte. No vengo por tu vida. Al mirar tu rostro, simplemente me pareciste… gracioso.» Hombre: «¿Gracioso? ¡Estoy a punto de ahorcarme!» Shinigami: «Vamos, vamos. Quieres dinero, ¿verdad?» Hombre: «Por supuesto que sí, lo deseo con toda mi alma.» Shinigami: «Entonces déjame enseñarte algo útil.»" },
+    { id:'p3', title:"③呪文伝授", ssml:false, text:"Shinigami: «Cuando una persona cae gravemente enferma, un dios de la muerte como yo siempre está sentado cerca de su almohada. Si estoy sentado a la cabecera, esa persona no puede salvarse. Pero si estoy sentado a los pies, todavía puede curarse.» Hombre: «¿De veras? ¿Si estás sentado a los pies, se puede salvar?» Shinigami: «En ese caso, recitas estas palabras y aplaudes así: “Ajara-mokuren, tekeretsu-no-pa.” Haz eso, y el dios de la muerte desaparece, y el enfermo se recupera al instante.» Medio incrédulo, el hombre probó el conjuro en voz alta, y Shinigami sonrió con malicia antes de desvanecerse en el aire. Desde el día siguiente, el hombre empezó a recorrer casas, usando este conjuro para examinar a los enfermos." },
+    { id:'p4', title:"④名医誕生", ssml:false, text:"A partir de entonces, corrió el rumor de que «quien sea que este médico trate, siempre se cura», y pronto su nombre fue conocido en todo Edo. Llegaron llamados sin parar desde las mansiones de grandes señores y ricos mercaderes, y en poco tiempo el hombre se volvió fabulosamente rico. Se construyó una gran casa, vistió sedas finas y llevó una vida de puro lujo. Pero acostumbrarse al lujo es algo terrible: poco a poco, el hombre se volvió codicioso, y descuidado con ello." },
+    { id:'p5', title:"⑤大金の誘惑", ssml:false, text:"Un día, llegó un mensajero de un famoso y rico mercader: «Mi amo está gravemente enfermo. Si puede curarlo, le pagaremos tres mil ryo.» Tres mil ryo era una fortuna suficiente para vivir con lujo y ociosidad el resto de su vida. Ansioso, el hombre corrió hacia la mansión, pero en cuanto echó un vistazo al lecho del enfermo, en efecto, ahí estaba Shinigami, sentado justo en la cabecera. Esa era la señal: este hombre no podía salvarse. Y sin embargo, con tres mil ryo colgando ante sus ojos, la codicia no soltaba la mente del hombre." },
+    { id:'p6', title:"⑥寝床を回す", ssml:false, text:"Entonces el hombre urdió un plan. En cuanto Shinigami se distrajo y dio una cabezada, hizo una seña discreta a los jóvenes sirvientes de la casa, quienes giraron muy despacio el futón entero del enfermo ciento ochenta grados. Cuando Shinigami despertó, las posiciones se habían invertido: ahora estaba sentado, sin saberlo, a los pies del enfermo. Aprovechando el momento, el hombre recitó el conjuro y aplaudió: «¡Ajara-mokuren, tekeretsu-no-pa!» Al instante la figura de Shinigami se desvaneció, el enfermo se incorporó de un salto, completamente recuperado, y el hombre se marchó con tres mil ryo bien guardados entre sus ropas." },
+    { id:'p7', title:"⑦蝋燭の洞窟", ssml:false, text:"Esa misma noche, Shinigami se apareció ante el hombre, silencioso como una corriente de aire frío. Su rostro no se parecía a nada que el hombre hubiera visto antes: de una calma gélida e insondable. Shinigami: «Así que me engañaste. Sígueme.» Antes de darse cuenta, el hombre se encontró de pie dentro de una vasta caverna, con velas ardiendo hasta donde alcanzaba la vista. Shinigami: «Estas son las llamas de vida de cada alma que vive en este mundo. Algunas arden mucho tiempo, otras poco. La tuya… es esta.» Donde Shinigami señalaba se ergía una vela corta, parpadeante, a punto de apagarse. Hombre: «Espera… ¡por favor, no estoy listo para morir!» Shinigami: «Ja. Está bien. Si esas manos temblorosas tuyas logran transferir esta llama a esa vela nueva de allá, dejaré que tu vida continúe.» Con las manos temblando, el hombre levantó el cabo moribundo y lo acercó lentamente a la vela nueva. Hombre: «Espera… un poco más, solo un poco más…» Y con eso, su voz se apagó, engullida por la oscuridad de la caverna, para no volver a oírse jamás." }
+  ]
+};
+
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
+
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
+  const container = document.getElementById('lang-blocks');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
+    container.innerHTML += `
+      <div class="lang-block">
+        <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
+        <div class="lang-progress">${badges}</div>
+        <div class="lang-status" id="lang-status-${lang}">待機中</div>
+      </div>`;
+  });
+}
+
+async function callTTS(langCode, voiceName, text, isSSML) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { throw new Error('APIキーが未入力です'); }
+  const body = {
+    input: isSSML ? { ssml: text } : { text },
+    voice: { languageCode: langCode, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3' }
+  };
+  const res = await fetch(
+    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
+  return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
+}
+
+async function startAll() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
+    document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      const badge = document.getElementById(`badge-${lang}-${p.id}`);
+      badge.className = 'part-badge active';
+      try {
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+        allAudio[`${lang}-${p.id}`] = b64;
+        badge.className = 'part-badge done';
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
+      } catch(e) {
+        badge.className = 'part-badge error';
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
+  }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
+
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
+}
+
+async function downloadAll() {
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
+    for (let i = 0; i < parts.length; i++) {
+      const key = `${lang}-${parts[i].id}`;
+      if (!allAudio[key]) continue;
+      const a = document.createElement('a');
+      a.href = 'data:audio/mp3;base64,' + allAudio[key];
+      a.download = `${lang}_p${i+1}.mp3`;
+      a.click();
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+}
+
+initJaUI();
+initOtherUI();
+</script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二十四孝 - AI落語</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        ruby { ruby-position: over; }
+        rt { font-size: 0.65em; color: #ef4444; font-weight: normal; }
+        .hide-ruby rt { display: none !important; }
+        .playing-line { background: #fef3c7; border-radius: 6px; padding: 2px 6px; transition: background 0.3s; }
+        .audio-bar { height: 4px; background: #e7e5e4; border-radius: 2px; overflow: hidden; }
+        .audio-progress { height: 100%; background: #991b1b; border-radius: 2px; width: 0%; transition: width 0.3s; }
+        .part-dot { width: 8px; height: 8px; border-radius: 50%; background: #e7e5e4; transition: background 0.3s; flex-shrink:0; }
+        .part-dot.active { background: #991b1b; }
+        .part-dot.done { background: #fca5a5; }
+        .lang-btn { padding: 6px 4px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+        .lang-btn.active { background: #7f1d1d; color: white; }
+        .lang-btn.inactive { background: #f5f5f4; color: #57534e; }
+        .lang-btn.inactive:hover { background: #e7e5e4; }
+        .script-scroll::-webkit-scrollbar { width: 8px; }
+        .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
+        .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
+        .speed-slider { width: 100%; accent-color: #991b1b; }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <a href="../../index.html" class="text-red-300 hover:text-white text-sm">← 演目一覧</a>
+            <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
+        </div>
+        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+    </header>
+
+    <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
+
+        <!-- 左カラム -->
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+            <div>
+                <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.20 🍃新鋭</span>
+                <h2 class="font-bold text-xl mt-2 text-stone-900">二十四孝</h2>
+                <p class="text-xs text-stone-400 mt-0.5">Nijuushikou / Twenty-Four Filial Sons</p>
+            </div>
+
+            <div class="flex flex-col gap-3 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ai-player-label">🎙️ AI音声プレイヤー</label>
+                <div class="bg-stone-50 rounded-xl p-3 border border-stone-200">
+                    <p class="text-xs text-stone-500" id="load-hint">📁 同フォルダの <strong>ja_p1〜p6.mp3</strong> を自動読み込み</p>
+                    <p class="text-xs text-green-600 mt-1" id="load-status">読み込み中...</p>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-stone-500" id="part-label">待機中</span>
+                    <div class="flex gap-1">
+                        <div class="part-dot" id="dot-0"></div>
+                        <div class="part-dot" id="dot-1"></div>
+                        <div class="part-dot" id="dot-2"></div>
+                        <div class="part-dot" id="dot-3"></div>
+                        <div class="part-dot" id="dot-4"></div>
+                        <div class="part-dot" id="dot-5"></div>
+                    </div>
+                </div>
+
+                <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②女房の小言</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③孝行譚</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④氷への挑戦</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤蚊の身代わり</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-1">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-stone-500" id="speed-hdr-label">🎚️ 再生速度</label>
+                        <span class="text-xs font-bold text-red-800" id="speed-label">1.0x</span>
+                    </div>
+                    <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSpeed(this.value)">
+                    <div class="flex justify-between text-xs text-stone-400"><span id="speed-slow">0.5x（ゆっくり）</span><span id="speed-fast">2.0x（速い）</span></div>
+                </div>
+                <audio id="audio-player" ontimeupdate="updateProgress()"></audio>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="subtitle-lang-label">① 字幕言語</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="switchLang('ja')" id="btn-ja" class="lang-btn active">日本語</button>
+                    <button onclick="switchLang('en')" id="btn-en" class="lang-btn inactive">English</button>
+                    <button onclick="switchLang('fr')" id="btn-fr" class="lang-btn inactive">Français</button>
+                    <button onclick="switchLang('es')" id="btn-es" class="lang-btn inactive">Español</button>
+                </div>
+            </div>
+
+            <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
+                <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：字幕 -->
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
+                <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
+            </div>
+
+            <!-- 日本語 -->
+            <div id="script-ja" class="script-scroll space-y-5 text-lg leading-loose tracking-wide overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-0" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【まくら】</span>
+                    え〜、一<ruby class="v1">席<rt>せき</rt></ruby><ruby class="v1">申<rt>もう</rt></ruby>し<ruby class="v1">上<rt>あ</rt></ruby>げますが。むかし<ruby class="v1">中国<rt>ちゅうごく</rt></ruby>に「<ruby class="v2">二十四孝<rt>にじゅうしこう</rt></ruby>」と<ruby class="v1">申<rt>もう</rt></ruby>しまして、<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>な<ruby class="v1">子供<rt>こども</rt></ruby>たちの<ruby class="v2">逸話<rt>いつわ</rt></ruby>を<ruby class="v1">二十四人分<rt>にじゅうよにんぶん</rt></ruby><ruby class="v1">集<rt>あつ</rt></ruby>めた<ruby class="v2">書物<rt>しょもつ</rt></ruby>がございました。<ruby class="v1">氷<rt>こおり</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>に<ruby class="v1">寝<rt>ね</rt></ruby>そべって<ruby class="v1">魚<rt>さかな</rt></ruby>を<ruby class="v1">得<rt>え</rt></ruby>た<ruby class="v1">者<rt>もの</rt></ruby>やら、<ruby class="v1">蚊<rt>か</rt></ruby>に<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">血<rt>ち</rt></ruby>を<ruby class="v1">吸<rt>す</rt></ruby>わせて<ruby class="v1">親<rt>おや</rt></ruby>を<ruby class="v1">守<rt>まも</rt></ruby>った<ruby class="v1">者<rt>もの</rt></ruby>やら、どれもこれも<ruby class="v1">大層<rt>たいそう</rt></ruby>な<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>の<ruby class="v1">話<rt>はなし</rt></ruby>ばかりでございます。ところがこの<ruby class="v1">立派<rt>りっぱ</rt></ruby>なお<ruby class="v1">手本<rt>てほん</rt></ruby>も、<ruby class="v1">受<rt>う</rt></ruby>け<ruby class="v1">取<rt>と</rt></ruby>る<ruby class="v1">人間<rt>にんげん</rt></ruby>によっては、とんでもない<ruby class="v1">使<rt>つか</rt></ruby>い<ruby class="v1">方<rt>かた</rt></ruby>をされることがあるようでして。<ruby class="v1">今日<rt>きょう</rt></ruby>はそんな、<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>のはき<ruby class="v1">違<rt>ちが</rt></ruby>いのお<ruby class="v1">話<rt>はなし</rt></ruby>でございます。
+                </p>
+                <p id="line-1" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【女房の小言】</span>
+                    ある<ruby class="v1">長屋<rt>ながや</rt></ruby>に、あまり<ruby class="v1">働<rt>はたら</rt></ruby>き<ruby class="v1">者<rt>もの</rt></ruby>とは<ruby class="v1">言<rt>い</rt></ruby>えない<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>がおりましてね。<ruby class="v1">年老<rt>としお</rt></ruby>いた<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">母親<rt>ははおや</rt></ruby>を、<ruby class="v1">日<rt>ひ</rt></ruby>ごろから<ruby class="v2">邪険<rt>じゃけん</rt></ruby>に<ruby class="v1">扱<rt>あつか</rt></ruby>ってばかりいる。これを<ruby class="v1">見<rt>み</rt></ruby>かねた<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が、ある<ruby class="v1">日<rt>ひ</rt></ruby>とうとう<ruby class="v1">小言<rt>こごと</rt></ruby>を<ruby class="v1">並<rt>なら</rt></ruby>べ<ruby class="v1">立<rt>た</rt></ruby>てます。<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「お<ruby class="v1">前<rt>まえ</rt></ruby>さん、<ruby class="v1">少<rt>すこ</rt></ruby>しはおっかさんを<ruby class="v1">大事<rt>だいじ</rt></ruby>にしたらどうだい。<ruby class="v1">同<rt>おな</rt></ruby>じ<ruby class="v1">子供<rt>こども</rt></ruby>でも、<ruby class="v1">大違<rt>おおちが</rt></ruby>いだよ」<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「なんだよ、<ruby class="v2">藪<rt>やぶ</rt></ruby>から<ruby class="v1">棒<rt>ぼう</rt></ruby>に」<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「<ruby class="v1">昔<rt>むかし</rt></ruby>の<ruby class="v1">中国<rt>ちゅうごく</rt></ruby>にゃ<ruby class="v2">二十四孝<rt>にじゅうしこう</rt></ruby>ってものがあってね、<ruby class="v1">親<rt>おや</rt></ruby>のためなら<ruby class="v1">我<rt>わ</rt></ruby>が<ruby class="v1">身<rt>み</rt></ruby>を<ruby class="v1">投<rt>な</rt></ruby>げ<ruby class="v1">出<rt>だ</rt></ruby>す<ruby class="v1">子供<rt>こども</rt></ruby>が、<ruby class="v1">二十四人<rt>にじゅうよにん</rt></ruby>もいたっていうんだよ。お<ruby class="v1">前<rt>まえ</rt></ruby>さんもちったぁ<ruby class="v1">見習<rt>みなら</rt></ruby>ったらどうだい」
+                </p>
+                <p id="line-2" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【孝行譚】</span>
+                    <ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「<ruby class="v1">例<rt>たと</rt></ruby>えば<ruby class="v2">王祥<rt>おうしょう</rt></ruby>さんてお<ruby class="v1">人<rt>ひと</rt></ruby>は、<ruby class="v2">継母<rt>ままはは</rt></ruby>が<ruby class="v1">真冬<rt>まふゆ</rt></ruby>に<ruby class="v1">魚<rt>さかな</rt></ruby>を<ruby class="v1">食<rt>た</rt></ruby>べたいって<ruby class="v1">言<rt>い</rt></ruby>ったら、<ruby class="v1">氷<rt>こおり</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>に<ruby class="v1">裸<rt>はだか</rt></ruby>で<ruby class="v1">寝転<rt>ねころ</rt></ruby>がって、<ruby class="v1">自分<rt>じぶん</rt></ruby>の<ruby class="v1">体<rt>からだ</rt></ruby>の<ruby class="v1">温<rt>ぬく</rt></ruby>もりで<ruby class="v1">氷<rt>こおり</rt></ruby>を<ruby class="v1">溶<rt>と</rt></ruby>かして、<ruby class="v1">鯉<rt>こい</rt></ruby>を<ruby class="v1">捕<rt>つか</rt></ruby>まえてご<ruby class="v1">馳走<rt>ちそう</rt></ruby>したって<ruby class="v1">言<rt>い</rt></ruby>うじゃないか」<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「へえ、そいつは<ruby class="v1">大<rt>たい</rt></ruby>した<ruby class="v1">根性<rt>こんじょう</rt></ruby>だな」<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「<ruby class="v2">呉猛<rt>ごもう</rt></ruby>さんてお<ruby class="v1">人<rt>ひと</rt></ruby>もそうだよ。<ruby class="v1">家<rt>いえ</rt></ruby>じゅう<ruby class="v1">蚊<rt>か</rt></ruby>が<ruby class="v1">多<rt>おお</rt></ruby>くて<ruby class="v1">親<rt>おや</rt></ruby>がゆっくり<ruby class="v1">眠<rt>ねむ</rt></ruby>れないもんだから、<ruby class="v1">自分<rt>じぶん</rt></ruby>が<ruby class="v1">裸<rt>はだか</rt></ruby>になって<ruby class="v1">蚊<rt>か</rt></ruby>に<ruby class="v1">刺<rt>さ</rt></ruby>されて、<ruby class="v1">親<rt>おや</rt></ruby>のそばで<ruby class="v1">蚊除<rt>かよ</rt></ruby>けの<ruby class="v1">身代<rt>みが</rt></ruby>わりになったってさ。それに<ruby class="v1">比<rt>くら</rt></ruby>べてお<ruby class="v1">前<rt>まえ</rt></ruby>さんときたら、<ruby class="v1">口<rt>くち</rt></ruby>ばっかりで」<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はすっかり<ruby class="v1">言<rt>い</rt></ruby>い<ruby class="v1">負<rt>ま</rt></ruby>かされて、ぐうの<ruby class="v1">音<rt>ね</rt></ruby>も<ruby class="v1">出<rt>で</rt></ruby>ません。<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「よし、わかった。それほどまでに<ruby class="v1">言<rt>い</rt></ruby>うなら、あたしもひとつ、その<ruby class="v2">二十四孝<rt>にじゅうしこう</rt></ruby>とやらをやってみせようじゃないか」
+                </p>
+                <p id="line-3" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【氷への挑戦】</span>
+                    <ruby class="v1">亭主<rt>ていしゅ</rt></ruby>、これは<ruby class="v1">一<rt>ひと</rt></ruby>つ<ruby class="v1">自分<rt>じぶん</rt></ruby>もやってみようと、<ruby class="v1">妙<rt>みょう</rt></ruby>な<ruby class="v1">気<rt>き</rt></ruby>を<ruby class="v1">起<rt>お</rt></ruby>こしましてね。<ruby class="v1">折<rt>お</rt></ruby>りしも<ruby class="v1">真冬<rt>まふゆ</rt></ruby>のこと、<ruby class="v1">裏<rt>うら</rt></ruby>の<ruby class="v2">溝<rt>みぞ</rt></ruby>に<ruby class="v1">薄<rt>うす</rt></ruby>く<ruby class="v1">氷<rt>こおり</rt></ruby>が<ruby class="v1">張<rt>は</rt></ruby>っておりますのを<ruby class="v1">見<rt>み</rt></ruby>つけて、<ruby class="v1">着物<rt>きもの</rt></ruby>を<ruby class="v1">脱<rt>ぬ</rt></ruby>いで<ruby class="v1">素<rt>す</rt></ruby>っ<ruby class="v1">裸<rt>はだか</rt></ruby>になり、その<ruby class="v1">上<rt>うえ</rt></ruby>にごろりと<ruby class="v1">寝<rt>ね</rt></ruby>そべりました。<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「えい、こうしていりゃ、そのうち<ruby class="v1">氷<rt>こおり</rt></ruby>が<ruby class="v1">溶<rt>と</rt></ruby>けて、<ruby class="v1">鯉<rt>こい</rt></ruby>の<ruby class="v1">一<rt>いっ</rt></ruby><ruby class="v1">匹<rt>ぴき</rt></ruby>も<ruby class="v1">飛<rt>と</rt></ruby>び<ruby class="v1">出<rt>だ</rt></ruby>してくるに<ruby class="v1">違<rt>ちが</rt></ruby>いねえ」<br>ところが、いくら<ruby class="v1">待<rt>ま</rt></ruby>っても<ruby class="v1">氷<rt>こおり</rt></ruby>は<ruby class="v1">溶<rt>と</rt></ruby>けず、<ruby class="v1">体<rt>からだ</rt></ruby>だけがどんどん<ruby class="v1">冷<rt>ひ</rt></ruby>えてまいります。がたがた<ruby class="v1">震<rt>ふる</rt></ruby>えながら、それでも<ruby class="v1">意地<rt>いじ</rt></ruby>になって<ruby class="v1">動<rt>うご</rt></ruby>きません。<ruby class="v1">通<rt>とお</rt></ruby>りかかった<ruby class="v1">隣<rt>となり</rt></ruby>の<ruby class="v1">男<rt>おとこ</rt></ruby>が<ruby class="v1">呆<rt>あき</rt></ruby>れて<ruby class="v1">声<rt>こえ</rt></ruby>をかけます。<br><ruby class="v1">隣人<rt>りんじん</rt></ruby>：「おい、お<ruby class="v1">前<rt>まえ</rt></ruby>さん、そんなところで<ruby class="v1">何<rt>なに</rt></ruby>をしてるんだ。<ruby class="v1">風邪<rt>かぜ</rt></ruby>ひくよ」<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「うるせえ、これは<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>の<ruby class="v1">修行<rt>しゅぎょう</rt></ruby>だ、<ruby class="v1">邪魔<rt>じゃま</rt></ruby>すんな」
+                </p>
+                <p id="line-4" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【蚊の身代わり】</span>
+                    <ruby class="v1">氷<rt>こおり</rt></ruby>の<ruby class="v1">一<rt>いっ</rt></ruby><ruby class="v1">件<rt>けん</rt></ruby>で<ruby class="v1">懲<rt>こ</rt></ruby>りるかと<ruby class="v1">思<rt>おも</rt></ruby>いきや、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>、<ruby class="v1">今度<rt>こんど</rt></ruby>は<ruby class="v1">蚊<rt>か</rt></ruby>の<ruby class="v1">話<rt>はなし</rt></ruby>を<ruby class="v1">真似<rt>まね</rt></ruby>ようと<ruby class="v1">考<rt>かんが</rt></ruby>えました。<ruby class="v1">母親<rt>ははおや</rt></ruby>はもうとっくに<ruby class="v1">奥<rt>おく</rt></ruby>の<ruby class="v1">部屋<rt>へや</rt></ruby>でぐっすり<ruby class="v1">眠<rt>ねむ</rt></ruby>っておりますのに、<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>はわざわざ<ruby class="v2">縁側<rt>えんがわ</rt></ruby>に<ruby class="v1">裸<rt>はだか</rt></ruby>で<ruby class="v1">座<rt>すわ</rt></ruby>り<ruby class="v1">込<rt>こ</rt></ruby>みましてね。<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「よし、<ruby class="v1">蚊<rt>か</rt></ruby>にたっぷり<ruby class="v1">血<rt>ち</rt></ruby>を<ruby class="v1">吸<rt>す</rt></ruby>わせて、<ruby class="v1">俺<rt>おれ</rt></ruby>が<ruby class="v1">身代<rt>みが</rt></ruby>わりになってやるぞ」<br>ところが<ruby class="v1">蚊<rt>か</rt></ruby>にとっては<ruby class="v1">誰<rt>だれ</rt></ruby>の<ruby class="v1">血<rt>ち</rt></ruby>でも<ruby class="v1">同<rt>おな</rt></ruby>じこと、<ruby class="v1">母親<rt>ははおや</rt></ruby>のところへなど<ruby class="v1">行<rt>い</rt></ruby>きはしません。ただ<ruby class="v1">亭主<rt>ていしゅ</rt></ruby>の<ruby class="v1">体<rt>からだ</rt></ruby>ばかりがぷっくりと<ruby class="v1">腫<rt>は</rt></ruby>れ<ruby class="v1">上<rt>あ</rt></ruby>がるだけでございます。そこへ<ruby class="v1">女房<rt>にょうぼう</rt></ruby>が<ruby class="v1">通<rt>とお</rt></ruby>りかかりましてね。<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「お<ruby class="v1">前<rt>まえ</rt></ruby>さん、いったい<ruby class="v1">何<rt>なに</rt></ruby>やってるんだい。おっかさんはちゃんと<ruby class="v2">蚊帳<rt>かや</rt></ruby>の<ruby class="v1">中<rt>なか</rt></ruby>で<ruby class="v1">寝<rt>ね</rt></ruby>てるんだよ。お<ruby class="v1">前<rt>まえ</rt></ruby>が<ruby class="v1">身代<rt>みが</rt></ruby>わりになる<ruby class="v1">意味<rt>いみ</rt></ruby>なんかないじゃないか」
+                </p>
+                <p id="line-5" class="script-line">
+                    <span class="text-xs font-bold text-stone-400 block mb-1">【サゲ】</span>
+                    <ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「なんだ、そうなのか。だったら、あたしゃ<ruby class="v1">一<rt>いっ</rt></ruby><ruby class="v1">体<rt>たい</rt></ruby>、<ruby class="v1">誰<rt>だれ</rt></ruby>のために<ruby class="v1">刺<rt>さ</rt></ruby>されてたんだろうね」<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「まったく、お<ruby class="v1">前<rt>まえ</rt></ruby>さんは<ruby class="v1">肝心<rt>かんじん</rt></ruby>の<ruby class="v1">孝行<rt>こうこう</rt></ruby>の<ruby class="v1">心<rt>こころ</rt></ruby>が<ruby class="v1">抜<rt>ぬ</rt></ruby>けてて、<ruby class="v1">形<rt>かたち</rt></ruby>だけ<ruby class="v1">真似<rt>まね</rt></ruby>するんだから。<ruby class="v2">二十四孝<rt>にじゅうしこう</rt></ruby>が<ruby class="v1">聞<rt>き</rt></ruby>いて<ruby class="v1">呆<rt>あき</rt></ruby>れるよ」<br><ruby class="v1">亭主<rt>ていしゅ</rt></ruby>：「なあに、<ruby class="v1">心配<rt>しんぱい</rt></ruby>すんな。<ruby class="v1">氷<rt>こおり</rt></ruby>の<ruby class="v1">上<rt>うえ</rt></ruby>も<ruby class="v1">蚊<rt>か</rt></ruby>に<ruby class="v1">刺<rt>さ</rt></ruby>されるのも、もうこりごりだ。<ruby class="v1">今度<rt>こんど</rt></ruby>はせめて、おっかさんの<ruby class="v1">肩<rt>かた</rt></ruby>の<ruby class="v1">一<rt>ひと</rt></ruby>つも<ruby class="v1">揉<rt>も</rt></ruby>んでやるとするか」<br><ruby class="v1">女房<rt>にょうぼう</rt></ruby>：「それを<ruby class="v1">早<rt>はや</rt></ruby>く<ruby class="v1">言<rt>い</rt></ruby>いなよ」<br><ruby class="v1">形<rt>かたち</rt></ruby>ばかりの<ruby class="v1">親孝行<rt>おやこうこう</rt></ruby>が、とんだ<ruby class="v1">蚊<rt>か</rt></ruby>にまつわる、いえ、<ruby class="v1">間違<rt>まちが</rt></ruby>いの<ruby class="v1">元<rt>もと</rt></ruby>、というお<ruby class="v1">話<rt>はなし</rt></ruby>でございました。
+                </p>
+            </div>
+
+            <!-- English -->
+            <div id="script-en" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-en-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Let me tell you a story. Long ago in China, there was a book called 'The Twenty-Four Paragons of Filial Piety,' a collection of tales about twenty-four devoted children. One lay down on the ice to catch fish for an ailing parent; another let mosquitoes feast on his own blood to protect his sleeping mother and father. Every single story was an extraordinary example of devotion. But even the finest role models can be put to the most ridiculous use, depending on who's doing the imitating. Today's story is about a man who completely missed the point of filial piety.</p>
+                <p id="line-en-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE NAGGING WIFE]</span>In a certain tenement lived a husband who could hardly be called hard-working, and who treated his own elderly mother with nothing but neglect. His wife, unable to bear it any longer, finally let him have it one day.<br><strong>Wife:</strong> "Husband, don't you think you could treat your mother a little better? Some sons and their mothers are worlds apart from you and yours."<br><strong>Husband:</strong> "What's brought this on all of a sudden?"<br><strong>Wife:</strong> "Back in old China there was something called the Twenty-Four Paragons of filial piety — twenty-four children who threw themselves body and soul into caring for their parents. You could stand to learn a thing or two from them."</p>
+                <p id="line-en-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LEGENDS RECOUNTED]</span><strong>Wife:</strong> "Take Wang Xiang, for instance — when his stepmother said she craved fish in the dead of winter, he stripped naked and lay down on the ice, melting it with the warmth of his own body until a carp leapt out for him to cook for her."<br><strong>Husband:</strong> "Well, that takes some nerve."<br><strong>Wife:</strong> "And there was Wu Meng, too. His house was so full of mosquitoes his parents couldn't sleep, so he stripped bare and let the mosquitoes bite him instead, standing guard beside them all night. And compare that to you — all talk and no action."<br>Thoroughly beaten in the argument, the husband couldn't say a word back.<br><strong>Husband:</strong> "Fine, I get it. If you're going to go on about it that much, I'll show you — I'll do this Twenty-Four Paragons business myself."</p>
+                <p id="line-en-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ICE TRICK]</span>The husband, determined to try it himself, hatched a strange scheme. It happened to be the dead of winter, and he found a thin layer of ice over the ditch behind the house. He stripped off his clothes, went completely bare, and flopped down on top of it.<br><strong>Husband:</strong> "There. If I just stay like this, sooner or later the ice will melt and a carp is bound to pop out."<br>But no matter how long he waited, the ice refused to melt — only his body kept getting colder and colder. Shivering and shaking, he stubbornly refused to move. A neighbor passing by stopped, astonished.<br><strong>Neighbor:</strong> "Hey, what on earth are you doing lying there? You'll catch your death of cold."<br><strong>Husband:</strong> "Quiet, this is training in filial devotion. Don't interrupt."</p>
+                <p id="line-en-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOSQUITO TRICK]</span>You'd think the ice incident would have taught him a lesson, but instead the husband decided to imitate the mosquito story next. His mother was already sound asleep in the back room, yet he went and sat himself down, stark naked, on the veranda.<br><strong>Husband:</strong> "Right then, let the mosquitoes drink their fill of me — I'll take her place."<br>But to a mosquito, blood is blood — they had no reason to go anywhere near his mother. All that happened was that the husband's body swelled up with bites. Just then his wife happened to pass by.<br><strong>Wife:</strong> "Husband, what on earth are you doing? Your mother is sleeping perfectly safe under the mosquito netting. There's no point at all in you taking her place."</p>
+                <p id="line-en-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span><strong>Husband:</strong> "Wait, is that so? Then who exactly have I been getting bitten for all this time?"<br><strong>Wife:</strong> "Honestly, you're missing the whole point — the heart of filial devotion — and just copying the outward form. The Twenty-Four Paragons would be appalled."<br><strong>Husband:</strong> "Well, don't worry. I've had quite enough of ice and mosquito bites. This time, how about I just go rub my mother's shoulders instead?"<br><strong>Wife:</strong> "Now you tell me — say that sooner next time!"<br>And so it was that hollow, form-only filial piety led to nothing but mosquito bites — or rather, a whole lot of missing the point. And that, ladies and gentlemen, is our story for today.</p>
+            </div>
+
+            <!-- Français -->
+            <div id="script-fr" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-fr-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Laissez-moi vous raconter une histoire. Il y a bien longtemps en Chine existait un livre intitulé « Les Vingt-Quatre Paragons de la Piété Filiale », un recueil d'histoires sur vingt-quatre enfants dévoués. L'un s'allongea sur la glace pour attraper du poisson pour un parent malade ; un autre laissa les moustiques se gorger de son propre sang pour protéger le sommeil de ses parents. Chaque histoire était un exemple extraordinaire de dévotion. Mais même les meilleurs modèles peuvent être utilisés de la façon la plus absurde, selon qui les imite. L'histoire d'aujourd'hui parle d'un homme qui passa complètement à côté du sens profond de la piété filiale.</p>
+                <p id="line-fr-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE NAGGING WIFE]</span>Dans un certain immeuble vivait un mari qu'on ne pouvait guère qualifier de travailleur, et qui ne traitait sa mère âgée qu'avec négligence. Sa femme, n'en pouvant plus, finit par le sermonner un jour.<br><strong>La femme :</strong> « Mon mari, tu ne pourrais pas traiter ta mère un peu mieux ? Certains fils et leurs mères sont aux antipodes de toi et de la tienne. »<br><strong>Le mari :</strong> « Qu'est-ce qui te prend, tout à coup ? »<br><strong>La femme :</strong> « Dans la Chine ancienne, il existait ce qu'on appelait les Vingt-Quatre Paragons de la piété filiale — vingt-quatre enfants qui se sont dévoués corps et âme pour leurs parents. Tu ferais bien de t'en inspirer un peu. »</p>
+                <p id="line-fr-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LEGENDS RECOUNTED]</span><strong>La femme :</strong> « Prends Wang Xiang, par exemple — quand sa belle-mère lui dit qu'elle avait envie de poisson en plein hiver, il se déshabilla et s'allongea nu sur la glace, la faisant fondre avec la chaleur de son propre corps jusqu'à ce qu'une carpe surgisse, qu'il lui cuisina. »<br><strong>Le mari :</strong> « Eh bien, ça en dit long sur son cran. »<br><strong>La femme :</strong> « Et il y avait aussi Wu Meng. Sa maison était tellement infestée de moustiques que ses parents ne pouvaient pas dormir, alors il se mit nu et se laissa piquer à leur place, montant la garde à leurs côtés toute la nuit. Et toi, en comparaison — que des paroles, aucune action. »<br>Complètement à court d'arguments, le mari ne trouva rien à répondre.<br><strong>Le mari :</strong> « Bon, j'ai compris. Si tu insistes autant, je vais te montrer — je vais faire moi-même ces histoires de Vingt-Quatre Paragons. »</p>
+                <p id="line-fr-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ICE TRICK]</span>Le mari, bien décidé à essayer par lui-même, échafauda un plan bizarre. C'était justement en plein hiver, et il trouva une fine couche de glace sur le fossé derrière la maison. Il ôta ses vêtements, se retrouva complètement nu, et s'affala dessus.<br><strong>Le mari :</strong> « Voilà. Si je reste comme ça, tôt ou tard la glace va fondre et une carpe finira bien par sortir. »<br>Mais la glace refusa obstinément de fondre, aussi longtemps qu'il attendît — seul son corps devenait de plus en plus froid. Grelottant et tremblant, il refusait obstinément de bouger. Un voisin qui passait par là s'arrêta, stupéfait.<br><strong>Le voisin :</strong> « Dis donc, qu'est-ce que tu fabriques allongé là ? Tu vas attraper la mort. »<br><strong>Le mari :</strong> « Silence, c'est un entraînement à la piété filiale. Ne m'interromps pas. »</p>
+                <p id="line-fr-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOSQUITO TRICK]</span>On aurait pu croire que l'épisode de la glace lui aurait servi de leçon, mais le mari décida ensuite d'imiter l'histoire des moustiques. Sa mère dormait déjà profondément dans la chambre du fond, pourtant il alla s'asseoir, complètement nu, sur la véranda.<br><strong>Le mari :</strong> « Bon, que les moustiques se rassasient de moi — je prends sa place. »<br>Mais pour un moustique, le sang est le sang — ils n'avaient aucune raison d'aller près de sa mère. Tout ce qui arriva, c'est que le corps du mari se couvrit de piqûres et gonfla. C'est alors que sa femme passa par là.<br><strong>La femme :</strong> « Mon mari, qu'est-ce que tu fabriques encore ? Ta mère dort parfaitement en sécurité sous la moustiquaire. Ça ne sert absolument à rien que tu prennes sa place. »</p>
+                <p id="line-fr-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span><strong>Le mari :</strong> « Attends, c'est vrai ? Alors pour qui est-ce que je me suis fait piquer tout ce temps ? »<br><strong>La femme :</strong> « Franchement, tu passes complètement à côté de l'essentiel — le cœur de la piété filiale — et tu te contentes d'en copier la forme extérieure. Les Vingt-Quatre Paragons en seraient consternés. »<br><strong>Le mari :</strong> « Bon, ne t'en fais pas. J'en ai eu assez de la glace et des piqûres de moustiques. Cette fois, que dirais-tu si j'allais plutôt lui masser les épaules ? »<br><strong>La femme :</strong> « Voilà, il fallait le dire plus tôt ! »<br>Et voilà comment une piété filiale creuse, réduite à sa seule forme, n'a mené qu'à des piqûres de moustiques — ou plutôt, à passer complètement à côté du sujet. Et voilà, mesdames et messieurs, notre histoire du jour.</p>
+            </div>
+
+            <!-- Español -->
+            <div id="script-es" class="script-scroll space-y-5 text-lg leading-relaxed hidden text-stone-700 overflow-y-auto flex-1" style="padding-right:10px;">
+                <p id="line-es-0"><span class="text-xs font-bold text-stone-400 block mb-1">[PROLOGUE]</span>Déjenme contarles una historia. Hace mucho tiempo en China existía un libro llamado «Los Veinticuatro Paragones de la Piedad Filial», una colección de relatos sobre veinticuatro hijos devotos. Uno se tendió sobre el hielo para pescar para un padre enfermo; otro dejó que los mosquitos se dieran un festín con su propia sangre para proteger el sueño de sus padres. Cada historia era un ejemplo extraordinario de devoción. Pero hasta los mejores modelos a seguir pueden usarse de la manera más absurda, según quién los imite. La historia de hoy trata de un hombre que no entendió en absoluto el verdadero sentido de la piedad filial.</p>
+                <p id="line-es-1"><span class="text-xs font-bold text-stone-400 block mb-1">[THE NAGGING WIFE]</span>En cierto vecindario vivía un marido que difícilmente podía llamarse trabajador, y que trataba a su anciana madre con puro descuido. Su esposa, ya sin poder soportarlo más, terminó por reprenderlo un día.<br><strong>Esposa:</strong> «Marido, ¿no podrías tratar un poco mejor a tu madre? Algunos hijos y sus madres son un mundo aparte de ti y la tuya.»<br><strong>Marido:</strong> «¿Y ahora a qué viene esto?»<br><strong>Esposa:</strong> «En la antigua China existía algo llamado los Veinticuatro Paragones de la piedad filial: veinticuatro hijos que se entregaron en cuerpo y alma al cuidado de sus padres. No te vendría mal aprender algo de ellos.»</p>
+                <p id="line-es-2"><span class="text-xs font-bold text-stone-400 block mb-1">[THE LEGENDS RECOUNTED]</span><strong>Esposa:</strong> «Mira a Wang Xiang, por ejemplo: cuando su madrastra dijo que en pleno invierno se le antojaba pescado, él se desnudó y se tendió sobre el hielo, derritiéndolo con el calor de su propio cuerpo hasta que salió una carpa que le cocinó.»<br><strong>Marido:</strong> «Vaya, eso sí que tiene agallas.»<br><strong>Esposa:</strong> «Y también estaba Wu Meng. Su casa estaba tan llena de mosquitos que sus padres no podían dormir, así que se desnudó y dejó que los mosquitos lo picaran a él, haciendo guardia junto a ellos toda la noche. Y comparado con eso, tú... puras palabras y nada de acción.»<br>Completamente derrotado en la discusión, el marido no pudo decir nada.<br><strong>Marido:</strong> «Está bien, ya entendí. Si tanto insistes, te lo voy a demostrar: haré yo mismo eso de los Veinticuatro Paragones.»</p>
+                <p id="line-es-3"><span class="text-xs font-bold text-stone-400 block mb-1">[THE ICE TRICK]</span>El marido, decidido a probarlo él mismo, urdió un plan extraño. Resultó que era pleno invierno, y encontró una fina capa de hielo sobre la zanja detrás de la casa. Se quitó la ropa, se quedó completamente desnudo, y se dejó caer encima.<br><strong>Marido:</strong> «Ya está. Si me quedo así, tarde o temprano el hielo se derretirá y saldrá una carpa.»<br>Pero por mucho que esperó, el hielo se negó a derretirse; solo su cuerpo se iba enfriando cada vez más. Temblando y tiritando, se negaba tercamente a moverse. Un vecino que pasaba por ahí se detuvo, atónito.<br><strong>Vecino:</strong> «Oye, ¿qué demonios haces ahí tirado? Vas a agarrar un resfriado de muerte.»<br><strong>Marido:</strong> «Silencio, esto es entrenamiento de piedad filial. No interrumpas.»</p>
+                <p id="line-es-4"><span class="text-xs font-bold text-stone-400 block mb-1">[THE MOSQUITO TRICK]</span>Uno pensaría que el episodio del hielo le habría servido de lección, pero el marido decidió a continuación imitar la historia de los mosquitos. Su madre ya dormía profundamente en el cuarto del fondo, pero aun así él fue y se sentó, completamente desnudo, en el porche.<br><strong>Marido:</strong> «Bien, que los mosquitos se den un festín conmigo, yo ocuparé su lugar.»<br>Pero para un mosquito, la sangre es sangre; no tenían ningún motivo para acercarse a su madre. Lo único que pasó fue que el cuerpo del marido se hinchó de picaduras. Justo entonces pasó por ahí su esposa.<br><strong>Esposa:</strong> «Marido, ¿qué demonios haces ahora? Tu madre duerme perfectamente segura bajo el mosquitero. No tiene ningún sentido que tú ocupes su lugar.»</p>
+                <p id="line-es-5"><span class="text-xs font-bold text-stone-400 block mb-1">[THE PUNCHLINE]</span><strong>Marido:</strong> «Espera, ¿es cierto eso? Entonces, ¿para quién me he estado dejando picar todo este tiempo?»<br><strong>Esposa:</strong> «Francamente, se te escapa por completo lo esencial —el corazón de la piedad filial— y solo copias la forma exterior. Los Veinticuatro Paragones estarían consternados.»<br><strong>Marido:</strong> «Bueno, no te preocupes. Ya tuve suficiente hielo y picaduras de mosquito. Esta vez, ¿qué tal si mejor le froto los hombros?»<br><strong>Esposa:</strong> «¡Eso, eso, haberlo dicho antes!»<br>Y así fue como una piedad filial vacía, reducida a la mera forma, no llevó a nada más que picaduras de mosquito, o mejor dicho, a perderse por completo el sentido. Y esa, señoras y señores, es la historia de hoy.</p>
+            </div>
+
+            <div class="text-right text-xs text-stone-400 border-t border-stone-50 pt-3 mt-4 flex-shrink-0" id="footer-note">
+                ※音声の「間」に合わせて字幕がハイライトされます。
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let lang = 'ja', ruby = '初';
+        let currentPart = -1;
+        let isPlaying = false;
+        const N_PARTS = 6;
+        const langs = ['ja','en','fr','es'];
+        const partNames = ["①まくら","②女房の小言","③孝行譚","④氷への挑戦","⑤蚊の身代わり","⑥サゲ"];
+        const partNamesEn = ["① Prologue","② The nagging wife","③ The legends recounted","④ The ice trick","⑤ The mosquito trick","⑥ The punchline"];
+        const partNums = ["①","②","③","④","⑤","⑥"];
+
+        const UI = {
+            ja: { player:'🎙️ AI音声プレイヤー', loadHint:(h)=>`📁 同フォルダの <strong>${h}</strong> を自動読み込み`, loading:'読み込み中...', loaded:(l,n)=>`✅ ${l}_p1〜p${n}.mp3 読み込み完了`,
+                  waiting:'待機中', playing:(p)=>`${p} 再生中`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 が見つかりません`, done:'再生完了',
+                  playAll:'▶ 全編', pause:'⏸ 停止', resume:'▶ 再開', reset:'■ リセット', speed:'🎚️ 再生速度', slow:'0.5x（ゆっくり）', fast:'2.0x（速い）',
+                  subLang:'① 字幕言語', rubyHdr:'② ルビ設定', scriptHdr:'字幕スクリプト', footer:'※音声の「間」に合わせて字幕がハイライトされます。',
+                  tagJa:(r)=>'日本語 / ルビ：' + (r==='初'?'初級':r==='中'?'中級':'なし'), tagOther:(name)=>name },
+            en: { player:'🎙️ AI Voice Player', loadHint:(h)=>`📁 Auto-loads <strong>${h}</strong> from this folder`, loading:'Loading...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 loaded`,
+                  waiting:'Ready', playing:(p)=>`Playing ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 not found`, done:'Playback complete',
+                  playAll:'▶ Play All', pause:'⏸ Pause', resume:'▶ Resume', reset:'■ Reset', speed:'🎚️ Playback Speed', slow:'0.5x (slow)', fast:'2.0x (fast)',
+                  subLang:'① Subtitle Language', rubyHdr:'② Furigana Level', scriptHdr:'Subtitles', footer:'※ Subtitles highlight in sync with the audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Easy':r==='中'?'Medium':'Off'), tagOther:(name)=>name + ' (translated)' },
+            fr: { player:'🎙️ Lecteur vocal IA', loadHint:(h)=>`📁 Chargement auto de <strong>${h}</strong> depuis ce dossier`, loading:'Chargement...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 chargé`,
+                  waiting:'Prêt', playing:(p)=>`Lecture ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 introuvable`, done:'Lecture terminée',
+                  playAll:'▶ Tout écouter', pause:'⏸ Pause', resume:'▶ Reprendre', reset:'■ Réinitialiser', speed:'🎚️ Vitesse de lecture', slow:'0.5x (lent)', fast:'2.0x (rapide)',
+                  subLang:'① Langue des sous-titres', rubyHdr:'② Niveau de furigana', scriptHdr:'Sous-titres', footer:'※ Les sous-titres se surlignent au rythme de l\'audio.',
+                  tagJa:(r)=>'日本語 / Furigana : ' + (r==='初'?'Facile':r==='中'?'Moyen':'Off'), tagOther:(name)=>name + ' (traduit)' },
+            es: { player:'🎙️ Reproductor de voz IA', loadHint:(h)=>`📁 Carga automática de <strong>${h}</strong> desde esta carpeta`, loading:'Cargando...', loaded:(l,n)=>`✅ ${l}_p1–p${n}.mp3 cargado`,
+                  waiting:'Listo', playing:(p)=>`Reproduciendo ${p}`, notFound:(l,i)=>`⚠️ ${l}_p${i}.mp3 no encontrado`, done:'Reproducción completa',
+                  playAll:'▶ Reproducir todo', pause:'⏸ Pausar', resume:'▶ Reanudar', reset:'■ Reiniciar', speed:'🎚️ Velocidad de reproducción', slow:'0.5x (lento)', fast:'2.0x (rápido)',
+                  subLang:'① Idioma de subtítulos', rubyHdr:'② Nivel de furigana', scriptHdr:'Subtítulos', footer:'※ Los subtítulos se resaltan al ritmo del audio.',
+                  tagJa:(r)=>'日本語 / Furigana: ' + (r==='初'?'Fácil':r==='中'?'Medio':'Off'), tagOther:(name)=>name + ' (traducido)' },
+        };
+        const LANG_NAME = { ja:'日本語', en:'English', fr:'Français', es:'Español' };
+
+        function currentPartLabel(idx) {
+            if (lang === 'ja') return partNames[idx];
+            if (lang === 'en') return partNamesEn[idx];
+            return partNums[idx];
+        }
+
+        function applyUIStrings() {
+            const t = UI[lang];
+            document.getElementById('ai-player-label').textContent = t.player;
+            document.getElementById('load-hint').innerHTML = t.loadHint('ja_p1〜p6.mp3');
+            document.getElementById('speed-hdr-label').textContent = t.speed;
+            document.getElementById('speed-slow').textContent = t.slow;
+            document.getElementById('speed-fast').textContent = t.fast;
+            document.getElementById('subtitle-lang-label').textContent = t.subLang;
+            document.getElementById('ruby-hdr-label').textContent = t.rubyHdr;
+            document.getElementById('script-hdr-label').textContent = t.scriptHdr;
+            document.getElementById('footer-note').textContent = t.footer;
+            document.getElementById('btn-playall').textContent = t.playAll;
+            document.getElementById('btn-reset').textContent = t.reset;
+            for (let i = 0; i < N_PARTS; i++) {
+                document.getElementById('part-btn-' + i).textContent = currentPartLabel(i);
+            }
+            const pauseBtn = document.getElementById('btn-pause');
+            const player = document.getElementById('audio-player');
+            pauseBtn.textContent = (player && !player.paused) ? t.pause : (isPlaying ? t.pause : t.pause);
+        }
+
+        window.addEventListener('load', () => {
+            document.getElementById('load-status').textContent = UI[lang].loaded(lang, N_PARTS);
+            applyUIStrings();
+        });
+
+        function changeSpeed(val) {
+            document.getElementById('audio-player').playbackRate = parseFloat(val);
+            document.getElementById('speed-label').textContent = parseFloat(val).toFixed(1) + 'x';
+        }
+
+        async function playAll() {
+            stopAll();
+            isPlaying = true;
+            for (let i = 0; i < N_PARTS; i++) {
+                if (!isPlaying) break;
+                await playPart(i);
+            }
+            if (isPlaying) { document.getElementById('part-label').textContent = UI[lang].done; isPlaying = false; }
+        }
+
+        function playPart(idx) {
+            return new Promise((resolve) => {
+                currentPart = idx;
+                updateDots();
+                highlightLine(idx);
+                document.getElementById('part-label').textContent = UI[lang].playing(currentPartLabel(idx));
+                const player = document.getElementById('audio-player');
+                player.src = `${lang}_p${idx+1}.mp3`;
+                player.playbackRate = parseFloat(document.getElementById('speed-slider').value);
+                player.play().catch(() => {
+                    document.getElementById('part-label').textContent = UI[lang].notFound(lang, idx+1);
+                    resolve();
+                });
+                player.onended = () => { resolve(); };
+            });
+        }
+
+        function togglePause() {
+            const player = document.getElementById('audio-player');
+            const btn = document.getElementById('btn-pause');
+            if (player.paused) {
+                player.play();
+                btn.textContent = UI[lang].pause;
+                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            } else {
+                player.pause();
+                btn.textContent = UI[lang].resume;
+                btn.className = 'py-2 bg-green-600 text-white rounded-lg text-xs font-bold';
+            }
+        }
+
+        function stopAll() {
+            isPlaying = false;
+            const player = document.getElementById('audio-player');
+            player.pause(); player.currentTime = 0;
+            currentPart = -1;
+            updateDots(); clearHighlight();
+            document.getElementById('part-label').textContent = UI[lang].waiting;
+            document.getElementById('progress-bar').style.width = '0%';
+            const btn = document.getElementById('btn-pause');
+            btn.textContent = UI[lang].pause;
+            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+        }
+
+        function updateProgress() {
+            const player = document.getElementById('audio-player');
+            if (player.duration) document.getElementById('progress-bar').style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        function updateDots() {
+            for (let i = 0; i < N_PARTS; i++) {
+                const dot = document.getElementById('dot-' + i);
+                dot.className = 'part-dot';
+                if (i === currentPart) dot.classList.add('active');
+                else if (i < currentPart) dot.classList.add('done');
+            }
+        }
+
+        function highlightLine(idx) {
+            clearHighlight();
+            const line = document.getElementById('line-' + idx);
+            if (line) { line.classList.add('playing-line'); line.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.script-line').forEach(el => el.classList.remove('playing-line'));
+        }
+
+        function switchLang(l) {
+            lang = l;
+            langs.forEach(x => {
+                document.getElementById('script-' + x).classList.add('hidden');
+                document.getElementById('btn-' + x).className = 'lang-btn inactive';
+            });
+            document.getElementById('script-' + l).classList.remove('hidden');
+            document.getElementById('btn-' + l).className = 'lang-btn active';
+            document.getElementById('ruby-box').style.opacity = l === 'ja' ? '1' : '0.3';
+            document.getElementById('ruby-box').style.pointerEvents = l === 'ja' ? 'auto' : 'none';
+            applyUIStrings();
+            stopAll();
+            updateTag();
+        }
+
+        function setRuby(r) {
+            ruby = r;
+            const s = document.getElementById('script-ja');
+            s.classList.remove('hide-ruby');
+            document.querySelectorAll('.v1 rt, .v2 rt').forEach(e => e.style.display = '');
+            if (r === '中') document.querySelectorAll('.v1 rt').forEach(e => e.style.display = 'none');
+            else if (r === '無') s.classList.add('hide-ruby');
+            ['easy','med','hard'].forEach((x, i) => {
+                const levels = ['初','中','無'];
+                document.getElementById('r-' + x).className = r === levels[i]
+                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+            });
+            updateTag();
+        }
+
+        function updateTag() {
+            document.getElementById('status-tag').innerText = lang === 'ja'
+                ? UI[lang].tagJa(ruby)
+                : UI[lang].tagOther(LANG_NAME[lang]);
+        }
+    </script>
+</body>
+</html>
