@@ -477,6 +477,58 @@
       margin-top: 12px;
     }
 
+    /* ===== NEWS ===== */
+    .news-section {
+      padding: 80px 48px;
+      background: var(--paper);
+    }
+
+    .news-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .news-list {
+      max-width: 720px;
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .news-item {
+      display: flex;
+      gap: 24px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .news-date {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      padding-top: 2px;
+      min-width: 90px;
+    }
+
+    .news-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .news-tag.new { background: #fef3c7; color: #92400e; }
+    .news-tag.fix { background: #dbeafe; color: #1e40af; }
+    .news-tag.update { background: #ede9fe; color: #5b21b6; }
+
+    .news-text {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
     /* ===== NEXT UPDATE ===== */
     .next-section {
       padding: 80px 48px;
@@ -779,6 +831,7 @@
   <ul class="nav-links">
     <li><a href="#rakugo">About</a></li>
     <li><a href="#repertoire">Repertoire</a></li>
+    <li><a href="#news">News</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#request">Request</a></li>
     <li><a href="index.html">🇯🇵 日本語</a></li>
@@ -1143,6 +1196,29 @@
   }
 </script>
 
+<!-- NEWS -->
+<section class="news-section" id="news">
+  <div class="news-inner">
+    <div class="section-eyebrow">News</div>
+    <h2 style="font-family:'Noto Serif JP',serif;font-weight:300;font-size:clamp(26px,3vw,36px);">Updates</h2>
+    <!-- Add new updates below as a <div class="news-item">...</div> (newest first) -->
+    <div class="news-list">
+      <div class="news-item">
+        <div class="news-date">2026.07.18</div>
+        <div class="news-text"><span class="news-tag new">NEW</span>The site is now live.</div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2026.07.17</div>
+        <div class="news-text"><span class="news-tag update">UPDATE</span>Added audio for "The Broken Wind," "Praising the Cow," and "The Stubborn Moxa" — the full 6-story lineup is now complete.</div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2026.07.02</div>
+        <div class="news-text"><span class="news-tag new">NEW</span>Launched "Time Noodles," "Scared of Manju," and "The Cat's Plate."</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- NEXT UPDATE -->
 <section class="next-section" id="next-update">
   <div class="next-inner">
@@ -1234,6 +1310,7 @@
   <ul class="footer-links">
     <li><a href="#rakugo">About</a></li>
     <li><a href="#repertoire">Repertoire</a></li>
+    <li><a href="#news">News</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#request">Request</a></li>
     <li><a href="#">Contact</a></li>

@@ -477,6 +477,58 @@
       margin-top: 12px;
     }
 
+    /* ===== NEWS ===== */
+    .news-section {
+      padding: 80px 48px;
+      background: var(--paper);
+    }
+
+    .news-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .news-list {
+      max-width: 720px;
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .news-item {
+      display: flex;
+      gap: 24px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .news-date {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      padding-top: 2px;
+      min-width: 90px;
+    }
+
+    .news-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .news-tag.new { background: #fef3c7; color: #92400e; }
+    .news-tag.fix { background: #dbeafe; color: #1e40af; }
+    .news-tag.update { background: #ede9fe; color: #5b21b6; }
+
+    .news-text {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
     /* ===== PRICING ===== */
     /* ===== NEXT UPDATE ===== */
     .next-section {
@@ -780,6 +832,7 @@
   <ul class="nav-links">
     <li><a href="#rakugo">落語とは</a></li>
     <li><a href="#repertoire">演目</a></li>
+    <li><a href="#news">お知らせ</a></li>
     <li><a href="#pricing">料金</a></li>
     <li><a href="#request">リクエスト</a></li>
     <li><a href="index-en.html">🇬🇧 English</a></li>
@@ -1144,6 +1197,29 @@
   }
 </script>
 
+<!-- NEWS -->
+<section class="news-section" id="news">
+  <div class="news-inner">
+    <div class="section-eyebrow">News</div>
+    <h2 style="font-family:'Noto Serif JP',serif;font-weight:300;font-size:clamp(26px,3vw,36px);">お知らせ</h2>
+    <!-- 新しいお知らせは、この下に <div class="news-item">...</div> を1つ追加するだけでOK（新しいものを上に） -->
+    <div class="news-list">
+      <div class="news-item">
+        <div class="news-date">2026.07.18</div>
+        <div class="news-text"><span class="news-tag new">NEW</span>サイトを公開しました。</div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2026.07.17</div>
+        <div class="news-text"><span class="news-tag update">UPDATE</span>「転失気」「牛ほめ」「強情灸」の音声を追加し、常時6本のラインナップが揃いました。</div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2026.07.02</div>
+        <div class="news-text"><span class="news-tag new">NEW</span>「時そば」「まんじゅうこわい」「猫の皿」を公開しました。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- NEXT UPDATE -->
 <section class="next-section" id="next-update">
   <div class="next-inner">
@@ -1235,6 +1311,7 @@
   <ul class="footer-links">
     <li><a href="#rakugo">落語とは</a></li>
     <li><a href="#repertoire">演目</a></li>
+    <li><a href="#news">お知らせ</a></li>
     <li><a href="#pricing">料金</a></li>
     <li><a href="#request">リクエスト</a></li>
     <li><a href="#">お問い合わせ</a></li>
