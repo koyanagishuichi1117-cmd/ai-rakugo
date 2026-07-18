@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // subscribers/{email} — one doc per user, keyed by lowercased email.
+    // Only the signed-in user matching that email can read their own record.
+    // Writes only happen from the Cloud Function (Admin SDK bypasses these rules).
+    match /subscribers/{email} {
+      allow read: if request.auth != null
+                  && request.auth.token.email != null
+                  && request.auth.token.email.lower() == email;
+      allow write: if false;
+    }
+  }
+}

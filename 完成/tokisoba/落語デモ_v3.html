@@ -30,7 +30,10 @@
 
     <header class="bg-red-900 text-white p-4 shadow-md flex justify-between items-center">
         <h1 class="text-xl font-bold tracking-wider">🏮 AI落語 <span class="text-xs font-normal text-red-200 align-middle">(AI Rakugo)</span></h1>
-        <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+        <div class="flex items-center gap-3">
+            <span class="text-xs bg-red-800 px-3 py-1 rounded-full border border-red-700">常時6本自動ローテーション</span>
+            <ul id="ra-widget-mount" class="flex items-center gap-2" style="list-style:none;margin:0;padding:0;"></ul>
+        </div>
     </header>
 
     <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
@@ -422,6 +425,13 @@
                 ? UI[lang].tagJa(ruby)
                 : UI[lang].tagOther(LANG_NAME[lang]);
         }
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="../../assets/js/rakugo-auth.js"></script>
+    <script>
+      RakugoAuth.mountWidget(document.getElementById('ra-widget-mount'));
     </script>
 </body>
 </html>
