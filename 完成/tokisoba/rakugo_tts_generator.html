@@ -2,75 +2,99 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>落語 多言語TTS ジェネレーター</title>
+  <title>時そば TTS ジェネレーター</title>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
     h1 { font-size: 20px; margin-bottom: 4px; }
     .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
     .api-row { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
     input[type=text] { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-    .start-btn { padding: 12px 32px; background: #7f1d1d; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 20px; }
-    .start-btn:hover { background: #991b1b; }
-    .start-btn:disabled { background: #aaa; cursor: not-allowed; }
-    .dl-btn { padding: 12px 32px; background: #34a853; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 20px; }
-    .dl-btn:disabled { background: #aaa; cursor: not-allowed; }
-    .overall-status { background: white; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    .overall-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
-    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 8px; margin-bottom: 8px; overflow: hidden; }
-    .progress-bar { height: 100%; background: #7f1d1d; border-radius: 4px; width: 0%; transition: width 0.3s; }
-    .overall-label { font-size: 13px; color: #666; }
+    .section-box { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .section-title { font-size: 14px; font-weight: bold; margin-bottom: 12px; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-blue:hover { background: #1558b0; }
+    .btn-red { background: #ea4335; color: white; }
+    .btn-red:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-green { background: #34a853; color: white; }
+    .btn-green:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-dark { background: #7f1d1d; color: white; }
+    .btn-dark:disabled { background: #aaa; cursor: not-allowed; }
+    .progress-bar-wrap { background: #e7e5e4; border-radius: 4px; height: 6px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: #1a73e8; border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .part-row { display: grid; grid-template-columns: 130px 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .part-row:last-child { border-bottom: none; }
+    .part-title { font-size: 13px; font-weight: bold; }
+    .part-status { font-size: 12px; color: #666; }
+    .part-status.done { color: #34a853; }
+    .part-status.active { color: #e67e22; }
+    .part-status.error { color: #c0392b; }
+    audio { display: none; }
     .lang-block { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    .lang-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
-    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; }
+    .lang-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .lang-progress { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .part-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #e7e5e4; color: #666; cursor: pointer; }
     .part-badge.done { background: #d1fae5; color: #065f46; }
     .part-badge.active { background: #fef3c7; color: #92400e; }
     .part-badge.error { background: #fee2e2; color: #991b1b; }
-    .lang-status { font-size: 12px; color: #666; margin-top: 6px; }
+    .lang-status { font-size: 12px; color: #666; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   </style>
 </head>
 <body>
 
-<h1>🎙️ 落語 多言語TTS ジェネレーター</h1>
-<p class="subtitle">APIキーを貼り付けて生成ボタンを押すだけ！全言語×全パートを自動生成します</p>
+<h1>🎙️ 時そば TTS ジェネレーター</h1>
+<p class="subtitle">全7パート × 4言語（日本語は個別生成・DL / 他言語は一括）</p>
 
 <div class="api-row">
   <label style="font-size:13px;white-space:nowrap">APIキー：</label>
   <input type="text" id="apiKey" placeholder="AIza..." />
 </div>
 
-<button class="start-btn" id="start-btn" onclick="startAll()">🚀 全言語・全パート一括生成（5言語×7パート = 35ファイル）</button>
-<button class="dl-btn" id="dl-btn" onclick="downloadAll()" disabled>⬇ 全ファイル一括ダウンロード</button>
-
-<!-- 全体進捗 -->
-<div class="overall-status">
-  <div class="overall-title">📊 全体進捗</div>
-  <div class="progress-bar-wrap"><div class="progress-bar" id="overall-bar"></div></div>
-  <div class="overall-label" id="overall-label">待機中（0 / 35）</div>
+<!-- 日本語セクション -->
+<div class="section-box">
+  <div class="section-title">🇯🇵 日本語（個別生成・個別DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-blue" onclick="generateAllJa()">▶ 日本語 全7パート一括生成</button>
+    <button class="btn btn-green" id="dl-all-ja" onclick="downloadAllJa()" disabled>⬇ 日本語 全7パートDL</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="ja-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="ja-label">待機中</div>
+  <div id="ja-parts"></div>
 </div>
 
-<!-- 言語別ブロック -->
-<div id="lang-blocks"></div>
+<!-- 他言語セクション -->
+<div class="section-box">
+  <div class="section-title">🌍 他言語（一括生成・一括DL）</div>
+  <div class="btn-row" style="margin-bottom:12px;">
+    <button class="btn btn-dark" id="start-all" onclick="startAll()">🚀 英・仏・西 一括生成（21ファイル）</button>
+    <button class="btn btn-green" id="dl-all" onclick="downloadAll()" disabled>⬇ 全言語一括DL（28ファイル）</button>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="all-bar"></div></div>
+  <div style="font-size:12px;color:#666;margin-bottom:12px;" id="all-label">待機中</div>
+  <p style="font-size:11px;color:#999;margin:-4px 0 10px;">※ 失敗した項目は赤いバッジになります。バッジをクリックするとその1件だけ再試行し、成功すればすぐダウンロードされます（マウスを乗せるとエラー内容が見られます）。</p>
+  <div id="lang-blocks"></div>
+</div>
 
 <script>
 const langConfig = {
   'ja': { name: '🇯🇵 日本語', voice: 'ja-JP-Chirp3-HD-Charon', langCode: 'ja-JP' },
   'en': { name: '🇺🇸 English', voice: 'en-US-Chirp3-HD-Charon', langCode: 'en-US' },
   'fr': { name: '🇫🇷 Français', voice: 'fr-FR-Chirp3-HD-Charon', langCode: 'fr-FR' },
-  'zh-cn': { name: '🇨🇳 中文（簡）', voice: 'cmn-CN-Chirp3-HD-Charon', langCode: 'zh-CN' },
   'es': { name: '🇪🇸 Español', voice: 'es-ES-Chirp3-HD-Charon', langCode: 'es-ES' }
 };
 
-const scripts = {
-  'ja': [
-    { id:'p1', title:'①まくら', ssml:true, text:'<speak><prosody rate="100%" pitch="-2st">え〜、<break time="300ms"/>一席申し上げますが。<break time="700ms"/></prosody><prosody rate="100%" pitch="-1st">よく昔は、冬場はおそばなんてえのをね、<break time="400ms"/></prosody><prosody rate="100%" pitch="0st">エドッコは<break time="100ms"/></prosody><prosody rate="100%" pitch="-1st">食べたんだそうですよ。<break time="600ms"/></prosody><prosody rate="95%" pitch="-2st">二八そばなんてことをいいまして、<break time="300ms"/>そのお代が二八の<break time="200ms"/>十六文。<break time="900ms"/></prosody></speak>' },
-    { id:'p2', title:'②男登場', ssml:true, text:'<speak><prosody rate="125%" pitch="+2st">おう、そば屋さん！<break time="150ms"/>いやぁ寒いねえ今日は。<break time="200ms"/></prosody><prosody rate="110%" pitch="-3st">へえ、今晩は随分冷えますなあ。<break time="200ms"/></prosody><prosody rate="128%" pitch="+2st">なにできんの？花巻に、しっぽく？<break time="100ms"/>じゃあな、しっぽく一つ、熱くこさえてもらおうかな。<break time="300ms"/>おめえんとこのこのね、行灯、変わってんね、看板。<break time="150ms"/>丸に矢が当たって……<break time="200ms"/></prosody><prosody rate="130%" pitch="+2st">あたり屋！<break time="200ms"/></prosody><prosody rate="125%" pitch="+2st">いいね、あたり屋か。<break time="200ms"/>この界隈ずいぶん蕎麦屋も出るけどねえ、おめえんとこだけだよ、この割り箸使ってんのは！<break time="200ms"/>いいつゆ加減だ、</prosody><prosody rate="135%" pitch="+1st">まったくなあ！</prosody></speak>' },
-    { id:'p3', title:'③山場★', ssml:true, text:'<speak><prosody rate="120%" pitch="+1st">あー、うまかった。<break time="500ms"/>そうかい、勘定いくらだい？<break time="200ms"/></prosody><prosody rate="108%" pitch="-3st">へぇ、じゅうろくもんになりますが。<break time="200ms"/></prosody><prosody rate="122%" pitch="+2st">そうかい！銭ぁこまけぇんだ。<break time="200ms"/>手ぇ出してくんねぇか？<break time="300ms"/>いくよ！<break time="200ms"/>ひい、<break time="250ms"/>ふう、<break time="250ms"/>みい、<break time="250ms"/>よう、<break time="250ms"/>いつ、<break time="250ms"/>むう、<break time="250ms"/>なな、<break time="250ms"/>やあ……<break time="800ms"/></prosody><prosody rate="128%" pitch="+1st">蕎麦屋さん、いまなんどきでぇ？<break time="350ms"/></prosody><prosody rate="105%" pitch="-3st">へぇ、ここのつでぇ。<break time="100ms"/></prosody><prosody rate="145%" pitch="+1st">とぉ、十一、十二、十三、十四、十五、じゅうろく！<break time="100ms"/></prosody><prosody rate="135%" pitch="+2st">あばよ！</prosody></speak>' },
-    { id:'p4', title:'④気づき', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">なんだよ、あの野郎は……<break time="300ms"/>散々、蕎麦屋のこと褒めちぎってよぉ。<break time="250ms"/>あんなこと言ってたら……まちげぇちまうよなぁ？<break time="600ms"/>ひい、ふう、みい、よう、いつ、むう、なな、やあ……<break time="400ms"/>蕎麦屋さん、いまなんどきでぇ？<break time="250ms"/>へぇ、ここのつでぇ……<break time="300ms"/>とぉ……<break time="700ms"/></prosody><prosody rate="138%" pitch="+2st">やりやがったなあのやろう！<break time="200ms"/>とちゅうでときぃきいて、いちもんかすめやがったんだ！<break time="300ms"/></prosody><prosody rate="125%" pitch="+2st">面白ぇこと思いつくもんだねぇ。<break time="300ms"/></prosody><prosody rate="110%" pitch="0st">俺も……やってみようかな。</prosody></speak>' },
-    { id:'p5', title:'⑤失敗', ssml:true, text:'<speak><prosody rate="115%" pitch="-1st">よせばいいのに翌日、細かい銭をこしらえて。<break time="400ms"/></prosody><prosody rate="120%" pitch="+1st">お、この店の看板は……矢が的に……<break time="300ms"/>当たって……<break time="500ms"/></prosody><prosody rate="105%" pitch="-2st">ない……。<break time="400ms"/></prosody><prosody rate="118%" pitch="0st">このしる……は……だしがきいてなくて……<break time="200ms"/>塩っからい。<break time="200ms"/>麺は太くて……柔けぇ。<break time="200ms"/>まあいい、太いほうが食いでがあらあ。<break time="200ms"/>ちくわも厚くて……<break time="350ms"/></prosody><prosody rate="128%" pitch="+1st">これはちくわぶだ！<break time="600ms"/></prosody><prosody rate="112%" pitch="-1st">まあ……いい。<break time="300ms"/>勘定しながら渡すぜ。手ぇ出してくんねえ。</prosody></speak>' },
-    { id:'p6', title:'⑥オチ', ssml:true, text:'<speak><prosody rate="125%" pitch="+2st">ほらいくよ！<break time="150ms"/>ひい、<break time="250ms"/>ふう、<break time="250ms"/>みい、<break time="250ms"/>よう、<break time="250ms"/>いつ、<break time="250ms"/>むう、<break time="250ms"/>なな、<break time="250ms"/>やあ……<break time="800ms"/></prosody><prosody rate="130%" pitch="+1st">蕎麦屋さん、いまなんどきでぇ？<break time="350ms"/></prosody><prosody rate="100%" pitch="-4st">へぇ……<break time="300ms"/>よっつでございます。<break time="200ms"/></prosody></speak>' },
-    { id:'p7', title:'⑦サゲ', ssml:true, text:'<speak><break time="1200ms"/><prosody rate="115%" pitch="0st">よっつ……かよぉぉぉ……<break time="500ms"/>いつ……むう……なな……やあ……<break time="400ms"/></prosody><break time="500ms"/><prosody rate="115%" pitch="-2st">ときそばでございます。<break time="300ms"/>どうもありがとうございました。</prosody></speak>' }
-  ],
+const jaScripts = [
+  { id:'p1', title:'①まくら', ssml:true, text:'<speak><prosody rate="100%" pitch="-2st">え〜、<break time="300ms"/>一席申し上げますが。<break time="700ms"/></prosody><prosody rate="100%" pitch="-1st">よく昔は、冬場はおそばなんてえのをね、<break time="400ms"/></prosody><prosody rate="100%" pitch="0st">エドッコは<break time="100ms"/></prosody><prosody rate="100%" pitch="-1st">食べたんだそうですよ。<break time="600ms"/></prosody><prosody rate="95%" pitch="-2st">二八そばなんてことをいいまして、<break time="300ms"/>そのお代が二八の<break time="200ms"/>十六文。<break time="900ms"/></prosody></speak>' },
+  { id:'p2', title:'②男登場', ssml:true, text:'<speak><prosody rate="125%" pitch="+2st">おう、そば屋さん！<break time="150ms"/>いやぁ寒いねえ今日は。<break time="200ms"/></prosody><prosody rate="110%" pitch="-3st">へえ、今晩は随分冷えますなあ。<break time="200ms"/></prosody><prosody rate="128%" pitch="+2st">なにできんの？花巻に、しっぽく？<break time="100ms"/>じゃあな、しっぽく一つ、熱くこさえてもらおうかな。<break time="300ms"/>おめえんとこのこのね、行灯、変わってんね、看板。<break time="150ms"/>丸に矢が当たって……<break time="200ms"/></prosody><prosody rate="130%" pitch="+2st">あたり屋！<break time="200ms"/></prosody><prosody rate="125%" pitch="+2st">いいね、あたり屋か。<break time="200ms"/>この界隈ずいぶん蕎麦屋も出るけどねえ、おめえんとこだけだよ、この割り箸使ってんのは！<break time="200ms"/>いいつゆ加減だ、</prosody><prosody rate="135%" pitch="+1st">まったくなあ！</prosody></speak>' },
+  { id:'p3', title:'③山場★', ssml:true, text:'<speak><prosody rate="120%" pitch="+1st">あー、うまかった。<break time="500ms"/>そうかい、勘定いくらだい？<break time="200ms"/></prosody><prosody rate="108%" pitch="-3st">へぇ、じゅうろくもんになりますが。<break time="200ms"/></prosody><prosody rate="122%" pitch="+2st">そうかい！銭ぁこまけぇんだ。<break time="200ms"/>手ぇ出してくんねぇか？<break time="300ms"/>いくよ！<break time="200ms"/>ひい、<break time="250ms"/>ふう、<break time="250ms"/>みい、<break time="250ms"/>よう、<break time="250ms"/>いつ、<break time="250ms"/>むう、<break time="250ms"/>なな、<break time="250ms"/>やあ……<break time="800ms"/></prosody><prosody rate="128%" pitch="+1st">蕎麦屋さん、いまなんどきでぇ？<break time="350ms"/></prosody><prosody rate="105%" pitch="-3st">へぇ、ここのつでぇ。<break time="100ms"/></prosody><prosody rate="145%" pitch="+1st">とぉ、十一、十二、十三、十四、十五、じゅうろく！<break time="100ms"/></prosody><prosody rate="135%" pitch="+2st">あばよ！</prosody></speak>' },
+  { id:'p4', title:'④気づき', ssml:true, text:'<speak><prosody rate="118%" pitch="0st">なんだよ、あの野郎は……<break time="300ms"/>散々、蕎麦屋のこと褒めちぎってよぉ。<break time="250ms"/>あんなこと言ってたら……まちげぇちまうよなぁ？<break time="600ms"/>ひい、ふう、みい、よう、いつ、むう、なな、やあ……<break time="400ms"/>蕎麦屋さん、いまなんどきでぇ？<break time="250ms"/>へぇ、ここのつでぇ……<break time="300ms"/>とぉ……<break time="700ms"/></prosody><prosody rate="138%" pitch="+2st">やりやがったなあのやろう！<break time="200ms"/>とちゅうでときぃきいて、いちもんかすめやがったんだ！<break time="300ms"/></prosody><prosody rate="125%" pitch="+2st">面白ぇこと思いつくもんだねぇ。<break time="300ms"/></prosody><prosody rate="110%" pitch="0st">俺も……やってみようかな。</prosody></speak>' },
+  { id:'p5', title:'⑤失敗', ssml:true, text:'<speak><prosody rate="115%" pitch="-1st">よせばいいのに翌日、細かい銭をこしらえて。<break time="400ms"/></prosody><prosody rate="120%" pitch="+1st">お、この店の看板は……矢が的に……<break time="300ms"/>当たって……<break time="500ms"/></prosody><prosody rate="105%" pitch="-2st">ない……。<break time="400ms"/></prosody><prosody rate="118%" pitch="0st">このしる……は……だしがきいてなくて……<break time="200ms"/>塩っからい。<break time="200ms"/>麺は太くて……柔けぇ。<break time="200ms"/>まあいい、太いほうが食いでがあらあ。<break time="200ms"/>ちくわも厚くて……<break time="350ms"/></prosody><prosody rate="128%" pitch="+1st">これはちくわぶだ！<break time="600ms"/></prosody><prosody rate="112%" pitch="-1st">まあ……いい。<break time="300ms"/>勘定しながら渡すぜ。手ぇ出してくんねえ。</prosody></speak>' },
+  { id:'p6', title:'⑥オチ', ssml:true, text:'<speak><prosody rate="125%" pitch="+2st">ほらいくよ！<break time="150ms"/>ひい、<break time="250ms"/>ふう、<break time="250ms"/>みい、<break time="250ms"/>よう、<break time="250ms"/>いつ、<break time="250ms"/>むう、<break time="250ms"/>なな、<break time="250ms"/>やあ……<break time="800ms"/></prosody><prosody rate="130%" pitch="+1st">蕎麦屋さん、いまなんどきでぇ？<break time="350ms"/></prosody><prosody rate="100%" pitch="-4st">へぇ……<break time="300ms"/>よっつでございます。<break time="200ms"/></prosody></speak>' },
+  { id:'p7', title:'⑦サゲ', ssml:true, text:'<speak><break time="1200ms"/><prosody rate="115%" pitch="0st">よっつ……かよぉぉぉ……<break time="500ms"/>いつ……むう……なな……やあ……<break time="400ms"/></prosody><break time="500ms"/><prosody rate="115%" pitch="-2st">ときそばでございます。<break time="300ms"/>どうもありがとうございました。</prosody></speak>' }
+];
+
+const otherScripts = {
   'en': [
     { id:'p1', title:'①Prologue', ssml:false, text:'Let me spin you a tale. Back in old Edo, a bowl of soba noodles went for exactly sixteen mon — small change, sure, but just enough room for a sharp tongue and a sharper mind to pull a fast one.' },
     { id:'p2', title:'②Smooth Talker', ssml:false, text:'Hey, noodle man! Cold night, huh? Sure is, sir. Bitter cold tonight. Whatcha got? Shippoku? Perfect — gimme one, piping hot! Love that lantern — an arrow nailing a bullseye — The Sure Shot! Ha! And real wooden chopsticks! Nobody else does that. Best broth I have had all week — absolutely top-notch!' },
@@ -89,24 +113,6 @@ const scripts = {
     { id:'p6', title:'⑥La chute', ssml:false, text:'Allez — un, deux, trois, quatre, cinq, six, sept, huit... Quelle heure est-il ?! Il est... quatre heures du matin.' },
     { id:'p7', title:'⑦Rideau', ssml:false, text:'Q-QUATRE HEURES du matin ?! Cinq, six, sept, huit... Voila, mesdames et messieurs — Les Nouilles du Temps. Merci infiniment !' }
   ],
-  'zh-cn': [
-    { id:'p1', title:'①序幕', ssml:false, text:'让我来讲一个故事。在古老的江户，一碗荞麦面只需十六文钱——看似微不足道，却足够让一个伶牙俐齿的人打点小算盘。' },
-    { id:'p2', title:'②机智男子', ssml:false, text:'嘿，卖面的！今晚真冷啊！是啊，今晚格外冷。有什么？什锦荞麦面？那来一碗，要热的！喜欢你们家的灯笼——箭射中靶心——必中屋！哈！还有这竹筷子，方圆内就你们家用真木筷！汤底一流，实在太棒了！' },
-    { id:'p3', title:'③骗局★', ssml:false, text:'啊，真好吃。多少钱？十六文。来，伸出手……一、二、三、四、五、六、七、八……对了，现在几更天？九更。十、十一、十二、十三、十四、十五、十六！再见！' },
-    { id:'p4', title:'④恍然大悟', ssml:false, text:'那家伙在搞什么……一、二、三、四、五、六、七、八——几更？——九！十……这个狡猾的家伙！他数到八，问时间，得到九，再从十开始——少付了一文！哈！我也试试吧。' },
-    { id:'p5', title:'⑤与太郎失败', ssml:false, text:'尽管如此，第二天晚上他还是带着零钱出门了。这家的招牌——箭射靶心——没中。这汤像盐水。面又粗又软。这鱼糕——等等，只是面团吗？这是假鱼糕！算了。伸出手……' },
-    { id:'p6', title:'⑥结局', ssml:false, text:'一、二、三、四、五、六、七、八……现在几更天？！现在……四更。' },
-    { id:'p7', title:'⑦谢幕', ssml:false, text:'四、四更？！……五、六、七、八……以上就是时荞麦。非常感谢各位！' }
-  ],
-  'zh-tw': [
-    { id:'p1', title:'①序幕', ssml:false, text:'讓我來說個故事。在古老的江戶，一碗蕎麥麵只要十六文錢——看似微不足道，卻足夠讓一個伶牙俐齒的人打點小算盤。' },
-    { id:'p2', title:'②機智男子', ssml:false, text:'嘿，賣麵的！今晚真冷啊！是啊，今晚格外冷。有什麼？什錦蕎麥麵？那來一碗，要熱的！喜歡你們家的燈籠——箭射中靶心——必中屋！哈！還有這竹筷子，方圓內就你們家用真木筷！湯底一流，實在太棒了！' },
-    { id:'p3', title:'③騙局★', ssml:false, text:'啊，真好吃。多少錢？十六文。來，伸出手……一、二、三、四、五、六、七、八……對了，現在幾更天？九更。十、十一、十二、十三、十四、十五、十六！再見！' },
-    { id:'p4', title:'④恍然大悟', ssml:false, text:'那傢伙在搞什麼……一、二、三、四、五、六、七、八——幾更？——九！十……這個狡猾的傢伙！他數到八，問時間，得到九，再從十開始——少付了一文！哈！我也試試吧。' },
-    { id:'p5', title:'⑤與太郎失敗', ssml:false, text:'儘管如此，第二天晚上他還是帶著零錢出門了。這家的招牌——箭射靶心——沒中。這湯像鹽水。麵又粗又軟。這魚糕——等等，只是麵糰嗎？這是假魚糕！算了。伸出手……' },
-    { id:'p6', title:'⑥結局', ssml:false, text:'一、二、三、四、五、六、七、八……現在幾更天？！現在……四更。' },
-    { id:'p7', title:'⑦謝幕', ssml:false, text:'四、四更？！……五、六、七、八……以上就是時蕎麥。非常感謝各位！' }
-  ],
   'es': [
     { id:'p1', title:'①Prólogo', ssml:false, text:'Dejenme contarles una historia. En el antiguo Edo, un tazon de fideos soba costaba exactamente dieciseis mon — una miseria, pero suficiente para que un picaro con labia encontrara la manera de escatimarlos.' },
     { id:'p2', title:'②El Listillo', ssml:false, text:'Oye, fideos! Que frio hace esta noche! Si senor, un frio que pela. Que tienes? Shippoku? Perfecto, uno bien caliente! Me encanta tu farol — El Tiro Seguro! Ja! Y palillos de verdad, nadie mas los usa por aqui! El mejor caldo de la semana, sin duda!' },
@@ -118,18 +124,33 @@ const scripts = {
   ]
 };
 
-const langOrder = ['ja','en','fr','zh-cn','es'];
-const allAudio = {}; // { 'ja-p1': b64, ... }
-let totalDone = 0;
-const TOTAL = 35;
+const otherLangs = ['en','fr','es'];
+const allAudio = {};
+let otherDone = 0;
+const OTHER_TOTAL = 21;
 
-// UI初期化
-function initUI() {
+function initJaUI() {
+  const container = document.getElementById('ja-parts');
+  jaScripts.forEach((p, i) => {
+    container.innerHTML += `
+      <div class="part-row">
+        <div class="part-title">${p.title}</div>
+        <div>
+          <div class="part-status" id="ja-status-${p.id}">未生成</div>
+          <audio id="ja-audio-${p.id}"></audio>
+        </div>
+        <button class="btn btn-blue" onclick="generateJaPart(${i})">▶ 生成</button>
+        <button class="btn btn-red" id="ja-play-${p.id}" onclick="playJaPart('${p.id}')" disabled>▷ 再生</button>
+        <button class="btn btn-green" id="ja-dl-${p.id}" onclick="downloadJaPart(${i})" disabled>⬇ DL</button>
+      </div>`;
+  });
+}
+
+function initOtherUI() {
   const container = document.getElementById('lang-blocks');
-  container.innerHTML = '';
-  langOrder.forEach(lang => {
-    const parts = scripts[lang];
-    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}">${p.title}</span>`).join('');
+  otherLangs.forEach(lang => {
+    const parts = otherScripts[lang];
+    const badges = parts.map(p => `<span class="part-badge" id="badge-${lang}-${p.id}" onclick="retryOtherPart('${lang}','${p.id}')" title="クリックで生成/再試行">${p.title}</span>`).join('');
     container.innerHTML += `
       <div class="lang-block">
         <div class="lang-title">${langConfig[lang].name} <span style="font-size:11px;color:#888;font-weight:normal;">${langConfig[lang].voice}</span></div>
@@ -139,12 +160,12 @@ function initUI() {
   });
 }
 
-async function callTTS(lang, text, isSSML) {
+async function callTTS(langCode, voiceName, text, isSSML) {
   const key = document.getElementById('apiKey').value.trim();
-  const cfg = langConfig[lang];
+  if (!key) { throw new Error('APIキーが未入力です'); }
   const body = {
     input: isSSML ? { ssml: text } : { text },
-    voice: { languageCode: cfg.langCode, name: cfg.voice },
+    voice: { languageCode: langCode, name: voiceName },
     audioConfig: { audioEncoding: 'MP3' }
   };
   const res = await fetch(
@@ -152,90 +173,160 @@ async function callTTS(lang, text, isSSML) {
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
   const data = await res.json();
-  if (!data.audioContent) throw new Error(JSON.stringify(data));
+  if (!data.audioContent) {
+    const msg = (data.error && data.error.message) ? `[${data.error.status || res.status}] ${data.error.message}` : `HTTPエラー ${res.status}: ${JSON.stringify(data)}`;
+    throw new Error(msg);
+  }
   return data.audioContent;
+}
+
+async function generateJaPart(idx) {
+  const p = jaScripts[idx];
+  const status = document.getElementById(`ja-status-${p.id}`);
+  status.textContent = '生成中...';
+  status.className = 'part-status active';
+  try {
+    const b64 = await callTTS('ja-JP', 'ja-JP-Chirp3-HD-Charon', p.text, p.ssml);
+    allAudio[`ja-${p.id}`] = b64;
+    const audio = document.getElementById(`ja-audio-${p.id}`);
+    audio.src = 'data:audio/mp3;base64,' + b64;
+    status.textContent = '✅ 完成！';
+    status.className = 'part-status done';
+    document.getElementById(`ja-play-${p.id}`).disabled = false;
+    document.getElementById(`ja-dl-${p.id}`).disabled = false;
+    updateJaProgress();
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'part-status error';
+    status.title = e.message;
+  }
+}
+
+function playJaPart(id) {
+  document.getElementById(`ja-audio-${id}`).play();
+}
+
+function downloadJaPart(idx) {
+  const p = jaScripts[idx];
+  const key = `ja-${p.id}`;
+  if (!allAudio[key]) return;
+  const a = document.createElement('a');
+  a.href = 'data:audio/mp3;base64,' + allAudio[key];
+  a.download = `ja_p${idx+1}.mp3`;
+  a.click();
+}
+
+async function generateAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    await generateJaPart(i);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+async function downloadAllJa() {
+  for (let i = 0; i < jaScripts.length; i++) {
+    const key = `ja-${jaScripts[i].id}`;
+    if (!allAudio[key]) continue;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + allAudio[key];
+    a.download = `ja_p${i+1}.mp3`;
+    a.click();
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function updateJaProgress() {
+  const done = jaScripts.filter(p => allAudio[`ja-${p.id}`]).length;
+  document.getElementById('ja-bar').style.width = (done / jaScripts.length * 100) + '%';
+  document.getElementById('ja-label').textContent = `${done} / ${jaScripts.length} パート完了`;
+  if (done === jaScripts.length) {
+    document.getElementById('dl-all-ja').disabled = false;
+    document.getElementById('ja-label').textContent = `✅ 日本語 全${jaScripts.length}パート完成！`;
+  }
 }
 
 async function startAll() {
   const key = document.getElementById('apiKey').value.trim();
   if (!key) { alert('APIキーを入力してください'); return; }
-
-  totalDone = 0;
-  document.getElementById('start-btn').disabled = true;
-  document.getElementById('dl-btn').disabled = true;
-  document.getElementById('overall-label').textContent = '生成中... (0 / 42)';
-
-  for (const lang of langOrder) {
-    const parts = scripts[lang];
+  document.getElementById('start-all').disabled = true;
+  otherDone = 0;
+  let lastError = '';
+  for (const lang of otherLangs) {
+    const parts = otherScripts[lang];
     document.getElementById(`lang-status-${lang}`).textContent = '生成中...';
-
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       const badge = document.getElementById(`badge-${lang}-${p.id}`);
       badge.className = 'part-badge active';
-
       try {
-        const b64 = await callTTS(lang, p.text, p.ssml);
+        const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
         allAudio[`${lang}-${p.id}`] = b64;
         badge.className = 'part-badge done';
-        totalDone++;
-        const pct = Math.round(totalDone / TOTAL * 100);
-        document.getElementById('overall-bar').style.width = pct + '%';
-        document.getElementById('overall-label').textContent = `生成中... (${totalDone} / ${TOTAL})`;
+        badge.title = '✅ 生成済み（クリックで再生成）';
+        otherDone++;
+        document.getElementById('all-bar').style.width = (otherDone / OTHER_TOTAL * 100) + '%';
+        document.getElementById('all-label').textContent = `生成中... (${otherDone} / ${OTHER_TOTAL})`;
       } catch(e) {
         badge.className = 'part-badge error';
-        badge.style.cursor = 'pointer';
-        badge.title = 'クリックでリトライ';
-        badge.onclick = async () => {
-          badge.className = 'part-badge active';
-          try {
-            const b64 = await callTTS(lang, p.text, p.ssml);
-            allAudio[`${lang}-${p.id}`] = b64;
-            badge.className = 'part-badge done';
-            badge.onclick = null;
-            totalDone++;
-            document.getElementById('overall-label').textContent = `✅ 全${totalDone} / 35ファイル生成完了！`;
-          } catch(e) {
-            badge.className = 'part-badge error';
-          }
-        };
-        document.getElementById(`lang-status-${lang}`).textContent = `❌ エラー: ${p.title}`;
+        badge.title = e.message + '（クリックで再試行）';
+        lastError = `${langConfig[lang].name} ${p.title}: ${e.message}`;
       }
-
       await new Promise(r => setTimeout(r, 300));
     }
     document.getElementById(`lang-status-${lang}`).textContent = '✅ 完了';
   }
+  document.getElementById('all-label').textContent = lastError
+    ? `⚠️ ${otherDone} / ${OTHER_TOTAL} 件成功。失敗あり（赤いバッジをクリックで再試行）。最後のエラー: ${lastError}`
+    : `✅ 全${otherDone}ファイル生成完了！`;
+  document.getElementById('start-all').disabled = false;
+  document.getElementById('dl-all').disabled = false;
+}
 
-  document.getElementById('overall-label').textContent = `✅ 全${totalDone} / 35ファイル生成完了！`;
-  document.getElementById('start-btn').disabled = false;
-  document.getElementById('dl-btn').disabled = false;
+async function retryOtherPart(lang, id) {
+  const parts = otherScripts[lang];
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const p = parts[idx];
+  const badge = document.getElementById(`badge-${lang}-${id}`);
+  badge.className = 'part-badge active';
+  try {
+    const b64 = await callTTS(langConfig[lang].langCode, langConfig[lang].voice, p.text, p.ssml);
+    allAudio[`${lang}-${id}`] = b64;
+    badge.className = 'part-badge done';
+    badge.title = '✅ 生成済み（クリックで再生成）';
+    document.getElementById('dl-all').disabled = false;
+    const a = document.createElement('a');
+    a.href = 'data:audio/mp3;base64,' + b64;
+    a.download = `${lang}_p${idx+1}.mp3`;
+    a.click();
+  } catch(e) {
+    badge.className = 'part-badge error';
+    badge.title = e.message + '（クリックで再試行）';
+    alert(`${langConfig[lang].name} ${p.title} の生成に失敗しました。
+
+${e.message}`);
+  }
 }
 
 async function downloadAll() {
-  const keys = Object.keys(allAudio);
-  if (keys.length === 0) { alert('先に生成してください'); return; }
-
-  // 言語ごとにまとめてDL
-  // ファイル名: tokisoba_ja_p1.mp3 など（フォルダ構成: tokisoba/ja/p1.mp3 を意識）
-  for (const lang of langOrder) {
-    const parts = scripts[lang];
+  const langs = ['ja', ...otherLangs];
+  const allScripts = { ja: jaScripts, ...otherScripts };
+  for (const lang of langs) {
+    const parts = allScripts[lang];
     for (let i = 0; i < parts.length; i++) {
       const key = `${lang}-${parts[i].id}`;
       if (!allAudio[key]) continue;
       const a = document.createElement('a');
       a.href = 'data:audio/mp3;base64,' + allAudio[key];
-      // フォルダ構成がわかるようにファイル名に言語を含める
       a.download = `${lang}_p${i+1}.mp3`;
       a.click();
       await new Promise(r => setTimeout(r, 200));
     }
   }
-
-  alert('ダウンロード完了！\n\n全ファイルを落語デモ_v3.htmlと同じフォルダに入れてください！');
 }
 
-initUI();
+initJaUI();
+initOtherUI();
 </script>
 </body>
 </html>
