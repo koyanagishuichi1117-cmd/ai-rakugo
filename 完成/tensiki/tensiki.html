@@ -23,6 +23,12 @@
         .script-scroll::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 4px; }
         .script-scroll::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
         .speed-slider { width: 100%; accent-color: #991b1b; }
+        .rakugo-script-panel { height: auto; }
+        @media (min-width: 768px) { .rakugo-script-panel { height: 82vh; } }
+        @media (max-width: 767px) {
+            .script-scroll { overflow-y: visible; max-height: none; }
+            .lang-btn { padding: 12px 4px; font-size: 13px; }
+        }
     </style>
 </head>
 <body class="bg-stone-100 text-stone-800 font-sans min-h-screen">
@@ -41,7 +47,7 @@
     <main class="max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 my-4">
 
         <!-- 左カラム -->
-        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit">
+        <div class="bg-white p-5 rounded-2xl shadow border border-stone-200 flex flex-col gap-5 h-fit order-2 md:order-1">
             <div>
                 <span class="text-xs font-bold text-red-700 bg-red-50 px-2 py-1 rounded">演目 Vol.7 ⚖️中堅</span>
                 <h2 class="font-bold text-xl mt-2 text-stone-900">転失気</h2>
@@ -70,18 +76,18 @@
                 <div class="audio-bar"><div class="audio-progress" id="progress-bar"></div></div>
 
                 <div class="grid grid-cols-3 gap-2">
-                    <button onclick="playAll()" id="btn-playall" class="py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
-                    <button onclick="togglePause()" id="btn-pause" class="py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
-                    <button onclick="stopAll()" id="btn-reset" class="py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
+                    <button onclick="playAll()" id="btn-playall" class="py-3 md:py-2 bg-red-900 text-white rounded-lg text-xs font-bold">▶ 全編</button>
+                    <button onclick="togglePause()" id="btn-pause" class="py-3 md:py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">⏸ 停止</button>
+                    <button onclick="stopAll()" id="btn-reset" class="py-3 md:py-2 bg-stone-200 text-stone-700 rounded-lg text-xs font-bold">■ リセット</button>
                 </div>
 
                 <div class="grid grid-cols-3 gap-1">
-                    <button onclick="playPart(0)" id="part-btn-0" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
-                    <button onclick="playPart(1)" id="part-btn-1" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②和尚と珍念</button>
-                    <button onclick="playPart(2)" id="part-btn-2" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③医者への使い</button>
-                    <button onclick="playPart(3)" id="part-btn-3" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④医者のからかい</button>
-                    <button onclick="playPart(4)" id="part-btn-4" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤和尚、知ったかぶり</button>
-                    <button onclick="playPart(5)" id="part-btn-5" class="py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
+                    <button onclick="playPart(0)" id="part-btn-0" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">①まくら</button>
+                    <button onclick="playPart(1)" id="part-btn-1" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">②和尚と珍念</button>
+                    <button onclick="playPart(2)" id="part-btn-2" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">③医者への使い</button>
+                    <button onclick="playPart(3)" id="part-btn-3" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">④医者のからかい</button>
+                    <button onclick="playPart(4)" id="part-btn-4" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑤和尚、知ったかぶり</button>
+                    <button onclick="playPart(5)" id="part-btn-5" class="py-2.5 md:py-1 bg-stone-100 text-stone-600 rounded text-xs hover:bg-stone-200">⑥サゲ</button>
                 </div>
 
                 <div class="flex flex-col gap-1 mt-1">
@@ -108,15 +114,15 @@
             <div id="ruby-box" class="flex flex-col gap-2 border-t border-stone-100 pt-4">
                 <label class="text-xs font-bold text-stone-500 uppercase tracking-wider" id="ruby-hdr-label">② ルビ設定</label>
                 <div class="grid grid-cols-3 gap-1.5 bg-stone-100 p-1 rounded-xl">
-                    <button onclick="setRuby('初')" id="r-easy" class="py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
-                    <button onclick="setRuby('中')" id="r-med" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
-                    <button onclick="setRuby('無')" id="r-hard" class="py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
+                    <button onclick="setRuby('初')" id="r-easy" class="py-2.5 md:py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm">初級</button>
+                    <button onclick="setRuby('中')" id="r-med" class="py-2.5 md:py-1.5 text-stone-600 rounded-lg text-xs font-bold">中級</button>
+                    <button onclick="setRuby('無')" id="r-hard" class="py-2.5 md:py-1.5 text-stone-600 rounded-lg text-xs font-bold">なし</button>
                 </div>
             </div>
         </div>
 
         <!-- 右カラム：字幕 -->
-        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col" style="height:82vh;">
+        <div class="md:col-span-2 bg-white p-8 rounded-2xl shadow border border-stone-200 flex flex-col order-1 md:order-2 rakugo-script-panel">
             <div class="flex justify-between items-center border-b border-stone-100 pb-3 mb-5 flex-shrink-0">
                 <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider" id="script-hdr-label">字幕スクリプト</h3>
                 <span id="status-tag" class="text-xs text-stone-400 bg-stone-100 px-2.5 py-0.5 rounded-full">日本語 / ルビ：初級</span>
@@ -290,7 +296,7 @@
             if (player.paused) {
                 player.play();
                 btn.textContent = UI[lang].pause;
-                btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+                btn.className = 'py-3 md:py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
             } else {
                 player.pause();
                 btn.textContent = UI[lang].resume;
@@ -308,7 +314,7 @@
             document.getElementById('progress-bar').style.width = '0%';
             const btn = document.getElementById('btn-pause');
             btn.textContent = UI[lang].pause;
-            btn.className = 'py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
+            btn.className = 'py-3 md:py-2 bg-amber-500 text-white rounded-lg text-xs font-bold';
         }
 
         function updateProgress() {
@@ -360,8 +366,8 @@
             ['easy','med','hard'].forEach((x, i) => {
                 const levels = ['初','中','無'];
                 document.getElementById('r-' + x).className = r === levels[i]
-                    ? 'py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
-                    : 'py-1.5 text-stone-600 rounded-lg text-xs font-bold';
+                    ? 'py-2.5 md:py-1.5 bg-white text-stone-900 rounded-lg text-xs font-bold shadow-sm'
+                    : 'py-2.5 md:py-1.5 text-stone-600 rounded-lg text-xs font-bold';
             });
             updateTag();
         }
