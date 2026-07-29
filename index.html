@@ -809,9 +809,32 @@
       color: rgba(255,255,255,0.25);
     }
 
+    .nav-hamburger {
+      display: none;
+      background: none; border: none; cursor: pointer;
+      font-size: 22px; color: var(--ink); padding: 4px 8px;
+      line-height: 1;
+    }
+
     @media (max-width: 768px) {
       nav { padding: 16px 24px; }
-      .nav-links { display: none; }
+      .nav-hamburger { display: block; }
+      .nav-links {
+        display: none;
+        position: fixed; top: 60px; left: 0; right: 0;
+        flex-direction: column; align-items: stretch; gap: 0;
+        background: var(--paper);
+        padding: 8px 24px 20px;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        border-bottom: 1px solid #e5e2dd;
+      }
+      .nav-links.open { display: flex; }
+      .nav-links li { width: 100%; }
+      .nav-links a {
+        display: block; width: 100%; padding: 14px 0;
+        border-bottom: 1px solid #eee; text-transform: none; font-size: 14px;
+      }
+      .nav-links .nav-cta { display: inline-block; width: auto; margin-top: 12px; border-bottom: none; }
       .hero { padding: 100px 24px 60px; }
       .hero::before { font-size: 200px; right: -20px; }
       .hero-stats { gap: 24px; flex-wrap: wrap; }
@@ -829,7 +852,8 @@
 <!-- NAV -->
 <nav>
   <a href="#" class="nav-logo">AI<span>落語</span></a>
-  <ul class="nav-links">
+  <button class="nav-hamburger" id="nav-hamburger" aria-label="メニュー">☰</button>
+  <ul class="nav-links" id="nav-links">
     <li><a href="#rakugo">落語とは</a></li>
     <li><a href="#repertoire">演目</a></li>
     <li><a href="#news">お知らせ</a></li>
@@ -1342,6 +1366,13 @@
 <script src="assets/js/rakugo-auth.js"></script>
 <script>
   RakugoAuth.mountWidget(document.querySelector('.nav-links'));
+
+  document.getElementById('nav-hamburger').addEventListener('click', () => {
+    document.getElementById('nav-links').classList.toggle('open');
+  });
+  document.querySelectorAll('#nav-links a').forEach((a) => {
+    a.addEventListener('click', () => document.getElementById('nav-links').classList.remove('open'));
+  });
 
   let pendingCheckoutHref = null;
   function goToCheckout(baseHref) {
