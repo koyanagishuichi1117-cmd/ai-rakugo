@@ -1,4 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -97,5 +97,32 @@ exports.stripeWebhook = onRequest(
       logger.error("Error handling webhook event", err);
       res.status(500).send("Internal error");
     }
+  }
+);
+
+exports.createPortalSession = onCall(
+  { secrets: [STRIPE_SECRET_KEY], region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth || !request.auth.token.email) {
+      throw new HttpsError("unauthenticated", "ログインが必要です。");
+    }
+    const email = request.auth.token.email.trim().toLowerCase();
+    const doc = await db.collection("subscribers").doc(email).get();
+    const data = doc.data();
+    if (!data || !data.stripeCustomerId) {
+      throw new HttpsError("failed-precondition", "契約情報が見つかりませんでした。");
+    }
+
+    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const returnUrl =
+      request.data && typeof request.data.returnUrl === "string"
+        ? request.data.returnUrl
+        : "https://koyanagishuichi1117-cmd.github.io/ai-rakugo/";
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: data.stripeCustomerId,
+      return_url: returnUrl,
+    });
+    return { url: session.url };
   }
 );

@@ -28,6 +28,9 @@
       .ra-chip-email { color:inherit; opacity:0.75; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .ra-chip-logout { background:transparent; border:1px solid currentColor; opacity:0.7; color:inherit; padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-family:inherit; }
       .ra-chip-logout:hover { opacity:1; }
+      .ra-chip-manage { background:#c0392b; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-family:inherit; }
+      .ra-chip-manage:hover { background:#922b21; }
+      .ra-chip-manage:disabled { opacity:0.6; cursor:default; }
       .ra-backdrop { position:fixed; inset:0; background:rgba(20,15,12,0.55); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
       .ra-backdrop.ra-hidden { display:none; }
       .ra-modal { background:#fff; border-radius:16px; padding:32px; width:100%; max-width:380px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.3); font-family:'Hiragino Sans','Yu Gothic',sans-serif; color:#2b2320; }
@@ -200,6 +203,28 @@
     }
   }
 
+  async function openPortal() {
+    const btn = document.getElementById("ra-manage-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "読み込み中...";
+    }
+    try {
+      const fn = firebase.app().functions("asia-northeast1").httpsCallable("createPortalSession");
+      const result = await fn({ returnUrl: window.location.href });
+      window.location.href = result.data.url;
+    } catch (err) {
+      alert(
+        "契約管理ページを開けませんでした。有料プランにご登録済みか確認のうえ、解決しない場合はお問い合わせください。\n\n" +
+          (err && err.message ? err.message : err)
+      );
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "契約管理";
+      }
+    }
+  }
+
   function mountWidget(container) {
     if (!container) return;
     injectStyles();
@@ -212,8 +237,9 @@
         li.innerHTML =
           '<span class="ra-chip"><span class="ra-chip-email">' +
           escapeHtml(user.email || "") +
-          '</span><button class="ra-chip-logout" id="ra-logout-btn">ログアウト</button></span>';
+          '</span><button class="ra-chip-manage" id="ra-manage-btn">契約管理</button><button class="ra-chip-logout" id="ra-logout-btn">ログアウト</button></span>';
         document.getElementById("ra-logout-btn").onclick = () => auth.signOut();
+        document.getElementById("ra-manage-btn").onclick = openPortal;
       } else {
         li.innerHTML = '<button class="ra-btn-login" id="ra-login-btn">ログイン</button>';
         document.getElementById("ra-login-btn").onclick = openModal;
