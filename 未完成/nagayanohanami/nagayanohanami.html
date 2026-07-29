@@ -219,6 +219,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②大家の誘い","③お茶がお酒に","④たくあんが卵に","⑤形だけの花見酒","⑥サゲ"];
         const partNamesEn = ["① Prologue","② The landlord's invitation","③ Tea posing as sake","④ Pickles posing as food","⑤ Make-believe manners","⑥ The punchline"];
+        const partNamesFr = ["① Prologue","② L'invitation du propriétaire","③ Le thé qui se fait passer pour du saké","④ Les cornichons qui se font passer pour de la nourriture","⑤ Des manières pour de faux","⑥ La chute"];
+        const partNamesEs = ["① Prólogo","② La invitación del casero","③ El té que finge ser sake","④ Los encurtidos que fingen ser comida","⑤ Modales de mentira","⑥ El remate"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -248,6 +250,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

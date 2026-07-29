@@ -208,6 +208,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②和尚さんへ相談","③候補が次々と","④全部つなげろ","⑤大きくなって","⑥サゲ"];
         const partNamesEn = ["① Prologue","② Asking the priest","③ Candidates pile up","④ Just string them together","⑤ Years later","⑥ The punchline"];
+        const partNamesFr = ["① Prologue","② La demande au moine","③ Les propositions s'accumulent","④ Il suffit de tout enchaîner","⑤ Des années plus tard","⑥ La chute"];
+        const partNamesEs = ["① Prólogo","② La consulta al monje","③ Los candidatos se acumulan","④ Basta con juntarlos todos","⑤ Años después","⑥ El remate"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -237,6 +239,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

@@ -202,6 +202,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②和尚と珍念","③医者への使い","④医者のからかい","⑤和尚、知ったかぶり","⑥サゲ"];
         const partNamesEn = ["① Prologue","② The priest and his young acolyte","③ The errand to the doctor's house","④ The doctor's teasing joke","⑤ The priest saves face","⑥ The punchline"];
+        const partNamesFr = ["① Prologue","② Le moine et son jeune servant","③ La course chez le médecin","④ La blague du médecin","⑤ Le moine sauve la face","⑥ La chute"];
+        const partNamesEs = ["① Prólogo","② El monje y su joven acólito","③ El mandado a casa del médico","④ La broma del médico","⑤ El monje salva las apariencias","⑥ El remate"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -231,6 +233,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

@@ -202,6 +202,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②我慢自慢","③灸の一言","④山盛りの勝負","⑤やせ我慢","⑥オチ"];
         const partNamesEn = ["① Prologue","② Boasting contest","③ The remark about moxa","④ The mountain-sized contest","⑤ Forced bravado","⑥ Punchline"];
+        const partNamesFr = ["① Prologue","② Concours de fanfaronnade","③ La remarque sur le moxa","④ Le concours à la montagne","⑤ Bravade forcée","⑥ Chute"];
+        const partNamesEs = ["① Prólogo","② Concurso de fanfarronería","③ El comentario sobre la moxa","④ El concurso de la montaña","⑤ Bravuconería forzada","⑥ Remate"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -231,6 +233,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

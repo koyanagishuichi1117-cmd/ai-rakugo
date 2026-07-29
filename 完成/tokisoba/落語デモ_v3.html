@@ -259,6 +259,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②登場","③山場","④気づき","⑤失敗","⑥オチ","⑦サゲ"];
         const partNamesEn = ["① Prologue","② The smooth talker","③ The con key scene","④ Yotaro figures it out","⑤ Yotaros disaster","⑥ The punchline","⑦ Curtain"];
+        const partNamesFr = ["① Prologue","② Le beau parleur","③ L'arnaque (scène clé)","④ Yotaro comprend","⑤ Le désastre de Yotaro","⑥ La chute","⑦ Rideau"];
+        const partNamesEs = ["① Prólogo","② El hablador","③ La estafa (escena clave)","④ Yotaro entiende","⑤ El desastre de Yotaro","⑥ El remate","⑦ Telón"];
         const partNums = ["①","②","③","④","⑤","⑥","⑦"];
 
         const UI = {
@@ -288,6 +290,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

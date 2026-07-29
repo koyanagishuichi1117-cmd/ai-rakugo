@@ -202,6 +202,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②父の稽古","③座敷を褒めそこなう","④台所の柱と牛小屋へ","⑤牛をほめる","⑥サゲ"];
         const partNamesEn = ["① Prologue","② Father's lesson in flattery","③ The young man fumbles the compliments","④ The kitchen pillar, then off to the barn","⑤ Praising the cow","⑥ The punchline"];
+        const partNamesFr = ["① Prologue","② La leçon de flatterie du père","③ Le jeune homme rate ses compliments","④ Le pilier de la cuisine, puis à l'étable","⑤ Louer la vache","⑥ La chute"];
+        const partNamesEs = ["① Prólogo","② La lección de halagos del padre","③ El joven arruina los cumplidos","④ La columna de la cocina, luego al establo","⑤ Alabando a la vaca","⑥ El remate"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -231,6 +233,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

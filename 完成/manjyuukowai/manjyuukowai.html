@@ -263,6 +263,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②自慢","③強がり","④告白","⑤攻撃","⑥発覚","⑦オチ","⑧サゲ"];
         const partNamesEn = ["① Prologue","② Fear boasting","③ Hachigoro brags","④ Manju is scary","⑤ The manju attack","⑥ Caught!","⑦ The punchline","⑧ Curtain"];
+        const partNamesFr = ["① Prologue","② Concours de peurs","③ Hachigoro se vante","④ Les manju font peur","⑤ L'attaque de manju","⑥ Démasqué !","⑦ La chute","⑧ Rideau"];
+        const partNamesEs = ["① Prólogo","② Concurso de miedos","③ Hachigoro presume","④ Los manju dan miedo","⑤ El ataque de manju","⑥ ¡Descubierto!","⑦ El remate","⑧ Telón"];
         const partNums = ["①","②","③","④","⑤","⑥","⑦","⑧"];
 
         const UI = {
@@ -292,6 +294,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 

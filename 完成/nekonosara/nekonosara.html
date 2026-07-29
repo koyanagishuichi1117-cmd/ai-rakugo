@@ -210,6 +210,8 @@
         const langs = ['ja','en','fr','es'];
         const partNames = ["①まくら","②茶店","③発見","④交渉","⑤オチ","⑥サゲ"];
         const partNamesEn = ["① Prologue","② The teahouse","③ The connoisseur spots it","④ And the dish too","⑤ The realization","⑥ Curtain"];
+        const partNamesFr = ["① Prologue","② La maison de thé","③ Le connaisseur le repère","④ Et l'assiette aussi","⑤ La prise de conscience","⑥ Rideau"];
+        const partNamesEs = ["① Prólogo","② La casa de té","③ El experto lo detecta","④ Y el plato también","⑤ La revelación","⑥ Telón"];
         const partNums = ["①","②","③","④","⑤","⑥"];
 
         const UI = {
@@ -239,6 +241,8 @@
         function currentPartLabel(idx) {
             if (lang === 'ja') return partNames[idx];
             if (lang === 'en') return partNamesEn[idx];
+            if (lang === 'fr') return partNamesFr[idx];
+            if (lang === 'es') return partNamesEs[idx];
             return partNums[idx];
         }
 
