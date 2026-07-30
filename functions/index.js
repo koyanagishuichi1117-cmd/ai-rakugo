@@ -126,3 +126,21 @@ exports.createPortalSession = onCall(
     return { url: session.url };
   }
 );
+
+exports.logSignIn = onCall({ region: "asia-northeast1" }, async (request) => {
+  if (!request.auth || !request.auth.token.email) {
+    throw new HttpsError("unauthenticated", "ログインが必要です。");
+  }
+  const email = request.auth.token.email.trim().toLowerCase();
+  const userAgent =
+    request.data && typeof request.data.userAgent === "string" ? request.data.userAgent : "";
+  const ip = request.rawRequest.headers["x-forwarded-for"] || request.rawRequest.ip || "";
+
+  await db.collection("subscribers").doc(email).collection("loginEvents").add({
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    userAgent,
+    ip: String(ip).split(",")[0].trim(),
+  });
+
+  return { ok: true };
+});

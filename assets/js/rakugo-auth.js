@@ -157,6 +157,19 @@
     if (modalEl) modalEl.classList.add("ra-hidden");
   }
 
+  function logSignIn() {
+    try {
+      if (!firebase.functions) return;
+      firebase
+        .app()
+        .functions("asia-northeast1")
+        .httpsCallable("logSignIn")({ userAgent: navigator.userAgent })
+        .catch(() => {});
+    } catch (e) {
+      /* best-effort only, never block sign-in on this */
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     showError(null);
@@ -170,6 +183,7 @@
       } else {
         await auth.createUserWithEmailAndPassword(email, password);
       }
+      logSignIn();
       closeModal();
     } catch (err) {
       showError(friendlyError(err));
@@ -183,6 +197,7 @@
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
       await auth.signInWithPopup(provider);
+      logSignIn();
       closeModal();
     } catch (err) {
       showError(friendlyError(err));
