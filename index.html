@@ -650,8 +650,10 @@
 
     .pricing-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 20px;
+      max-width: 640px;
+      margin: 0 auto;
     }
 
     .price-card {
@@ -893,7 +895,7 @@
     </div>
     <div class="hero-stats">
       <div>
-        <div class="stat-num">6</div>
+        <div class="stat-num">10+</div>
         <div class="stat-label">常時ラインナップ</div>
       </div>
       <div>
@@ -905,8 +907,8 @@
         <div class="stat-label">ルビレベル</div>
       </div>
       <div>
-        <div class="stat-num">月2本</div>
-        <div class="stat-label">新作入替</div>
+        <div class="stat-num">随時</div>
+        <div class="stat-label">新作追加</div>
       </div>
     </div>
   </div>
@@ -1070,7 +1072,7 @@
       <div class="step">
         <div class="step-num">01</div>
         <div class="step-title">演目を選ぶ</div>
-        <div class="step-desc">常時6本の演目から好きなものを選ぶ。初心者向けの短編から、上級者向けの長編まで。</div>
+        <div class="step-desc">10本以上の演目から好きなものを選ぶ。初心者向けの短編から、上級者向けの長編まで。</div>
       </div>
       <div class="step">
         <div class="step-num">02</div>
@@ -1093,7 +1095,7 @@
       <div class="section-eyebrow">Repertoire</div>
       <h2>演目ラインナップ</h2>
     </div>
-    <div class="rotation-badge">常時6本・月2本 自動ローテーション</div>
+    <div class="rotation-badge">常時10本以上・随時新作追加</div>
   </div>
 
   <div class="rep-grid">
@@ -1243,6 +1245,10 @@
     <!-- 新しいお知らせは、この下に <div class="news-item">...</div> を1つ追加するだけでOK（新しいものを上に） -->
     <div class="news-list">
       <div class="news-item">
+        <div class="news-date">2026.08.12</div>
+        <div class="news-text"><span class="news-tag update">UPDATE</span>月額プランを¥490に改定し、ラインナップを常時10本以上へ拡大していきます（ローテーション制は廃止し、追加した演目はすべて視聴可能になります）。</div>
+      </div>
+      <div class="news-item">
         <div class="news-date">2026.07.18</div>
         <div class="news-text"><span class="news-tag new">NEXT</span>9月1日、新演目「寿限無」「長屋の花見」を追加予定です。</div>
       </div>
@@ -1273,8 +1279,8 @@
         <span>新登場：<span class="next-piece">寿限無</span></span>
       </div>
       <div class="next-row">
-        <span class="next-tag swap">CHANGE</span>
-        <span>入替：<span class="next-piece">転失気</span> <span class="next-arrow">→</span> <span class="next-piece">長屋の花見</span></span>
+        <span class="next-tag new">NEW</span>
+        <span>新登場：<span class="next-piece">長屋の花見</span></span>
       </div>
     </div>
   </div>
@@ -1303,34 +1309,19 @@
 
       <!-- Standard -->
       <div class="price-card featured">
-        <div class="featured-badge">人気プラン</div>
+        <div class="featured-badge">有料プラン</div>
         <div class="plan-name">Standard</div>
-        <div class="price-amount">¥980</div>
+        <div class="price-amount">¥490</div>
         <div class="price-period">/ 月（税込）</div>
         <ul class="price-features">
-          <li>常時6本の演目にアクセス</li>
-          <li>毎月2本を新作と入替</li>
+          <li>常時10本以上の演目にアクセス</li>
+          <li>新作は随時追加</li>
           <li>4言語字幕すべて対応</li>
           <li>ルビ3段階切り替え</li>
           <li>スピード調整（0.5x〜2x）</li>
           <li>広告なし</li>
         </ul>
-        <a href="https://buy.stripe.com/8x2aEX2S33e39BmatS14400" target="_blank" rel="noopener" class="price-btn price-btn-filled">はじめる →</a>
-      </div>
-
-      <!-- Annual -->
-      <div class="price-card">
-        <div class="plan-name">Annual</div>
-        <div class="price-amount">¥800</div>
-        <div class="price-period">/ 月（年払い・約2ヶ月分お得）</div>
-        <ul class="price-features">
-          <li>Standardの全機能</li>
-          <li>年間28本の演目</li>
-          <li>新演目の優先アクセス</li>
-          <li>過去演目アーカイブ</li>
-          <li>広告なし</li>
-        </ul>
-        <a href="https://buy.stripe.com/bJe3cvdwH5mb28U7hG14401" target="_blank" rel="noopener" class="price-btn price-btn-outline">年払いで申し込む</a>
+        <a href="https://buy.stripe.com/6oU00jboz01ReVG9pO14402" target="_blank" rel="noopener" class="price-btn price-btn-filled">はじめる →</a>
       </div>
     </div>
   </div>
