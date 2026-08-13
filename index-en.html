@@ -33,9 +33,25 @@
       line-height: 1.6;
     }
 
+    /* ===== PROMO BANNER ===== */
+    .promo-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 101;
+      height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(90deg, var(--red), var(--red-dark));
+      color: #fff;
+      font-size: 13px; font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 0 16px;
+      text-align: center;
+    }
+    .promo-banner:hover { filter: brightness(1.08); }
+
     /* ===== NAV ===== */
     nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      position: fixed; top: 40px; left: 0; right: 0; z-index: 100;
       display: flex; justify-content: space-between; align-items: center;
       padding: 20px 48px;
       background: rgba(250,250,248,0.92);
@@ -84,7 +100,7 @@
     .hero {
       min-height: 100vh;
       display: flex; align-items: center;
-      padding: 120px 48px 80px;
+      padding: 160px 48px 80px;
       position: relative;
       overflow: hidden;
     }
@@ -644,8 +660,22 @@
     .pricing-sub {
       font-size: 16px;
       color: var(--muted);
-      margin-bottom: 60px;
+      margin-bottom: 32px;
     }
+
+    .pricing-notice {
+      max-width: 640px;
+      margin: 0 auto 40px;
+      padding: 20px 24px;
+      background: #fdf6e8;
+      border: 1px solid var(--gold);
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.8;
+      color: #6b4f0a;
+      text-align: left;
+    }
+    .pricing-notice strong { color: var(--gold); }
 
     .pricing-grid {
       display: grid;
@@ -829,7 +859,7 @@
       .nav-hamburger { display: block; }
       .nav-links {
         display: none;
-        position: fixed; top: 60px; left: 0; right: 0;
+        position: fixed; top: 100%; left: 0; right: 0;
         flex-direction: column; align-items: stretch; gap: 0;
         background: var(--paper);
         padding: 8px 24px 20px;
@@ -843,7 +873,8 @@
         border-bottom: 1px solid #eee; text-transform: none; font-size: 14px;
       }
       .nav-links .nav-cta { display: inline-block; width: auto; margin-top: 12px; border-bottom: none; }
-      .hero { padding: 100px 24px 60px; }
+      .promo-banner { font-size: 11px; padding: 0 10px; }
+      .hero { padding: 140px 24px 60px; }
       .hero::before { font-size: 200px; right: -20px; }
       .hero-stats { gap: 24px; flex-wrap: wrap; }
       .section, .rep-section { padding: 60px 24px; }
@@ -863,6 +894,9 @@
 </script>
 </head>
 <body>
+
+<!-- PROMO BANNER -->
+<div class="promo-banner" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">🏮 Limited-time special pricing — get it now →</div>
 
 <!-- NAV -->
 <nav>
@@ -1308,6 +1342,7 @@
     <div class="section-eyebrow">Pricing</div>
     <h2>Simple, straightforward pricing</h2>
     <p class="pricing-sub">Try it free first, then keep going if you like it.</p>
+    <p class="pricing-notice">We're still hard at work building out our story lineup, so we're offering a limited-time introductory price. Once the collection is complete, we plan to move to regular pricing — but <strong>if you join now, you'll keep today's price for as long as you stay subscribed</strong>.</p>
 
     <div class="pricing-grid">
       <!-- Free -->
